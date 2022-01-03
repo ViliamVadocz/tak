@@ -1,11 +1,24 @@
+use std::ops::Sub;
+
 use arrayvec::ArrayVec;
 
-use crate::board::{Piece, Tile};
+use crate::board::Piece;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pos {
     pub x: usize,
     pub y: usize,
+}
+
+impl Sub for Pos {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Pos {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -17,6 +30,6 @@ pub enum Turn<const N: usize> {
     Move {
         pos: Pos,
         // at most N drops because of carry limit and you have to drop at least one
-        drops: ArrayVec<(Pos, Tile), N>,
+        drops: ArrayVec<(Pos, Piece), N>,
     },
 }
