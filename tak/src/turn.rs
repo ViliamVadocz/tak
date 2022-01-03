@@ -4,10 +4,30 @@ use arrayvec::ArrayVec;
 
 use crate::tile::Piece;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Pos {
     pub x: usize,
     pub y: usize,
+}
+
+impl Pos {
+    pub fn neighbors<const N: usize>(self) -> ArrayVec<Pos, 4> {
+        let Pos { x, y } = self;
+        let mut neighbors = ArrayVec::new();
+        if x > 0 {
+            neighbors.push(Pos { x: x - 1, y });
+        }
+        if y > 0 {
+            neighbors.push(Pos { x, y: y - 1 });
+        }
+        if x < N - 1 {
+            neighbors.push(Pos { x: x + 1, y });
+        }
+        if y < N - 1 {
+            neighbors.push(Pos { x, y: y + 1 });
+        }
+        neighbors
+    }
 }
 
 impl Sub for Pos {
