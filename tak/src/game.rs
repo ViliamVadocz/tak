@@ -1,7 +1,9 @@
+use std::cmp::Ordering;
+
 use crate::{
-    board::{Board},
-    tile::{Tile, Shape},
+    board::Board,
     colour::Colour,
+    tile::{Shape, Tile},
     turn::Turn,
     StrResult,
 };
@@ -17,6 +19,12 @@ const fn starting_stones(width: usize) -> (Stones, Capstones) {
         8 => (50, 2),
         _ => panic!("missing starting stones for non-standard board size"),
     }
+}
+
+pub enum GameResult {
+    Winner(Colour),
+    Draw,
+    Ongoing,
 }
 
 #[derive(Clone, Debug)]
@@ -106,6 +114,23 @@ impl<const N: usize> Game<N> {
         }
     }
 
-    // TODO check win conditions
-    // TODO movegen
+    pub fn winner(&self) -> GameResult {
+        if self.white_caps == 0 && self.white_stones == 0
+            || self.black_caps == 0 && self.black_stones == 0
+            || self.board.full()
+        {
+            let flat_diff = self.board.flat_diff();
+            match flat_diff.cmp(&0) {
+                Ordering::Greater => GameResult::Winner(Colour::White),
+                Ordering::Less => GameResult::Winner(Colour::Black),
+                Ordering::Equal => GameResult::Draw,
+            }
+        } else if self.board.find_paths(self.to_move) {
+            GameResult::Winner(self.to_move)
+        } else if self.board.find_paths(self.to_move.next()) {
+            GameResult::Winner(self.to_move.next())
+        } else {
+            GameResult::Ongoing
+        }
+    }
 }
