@@ -1,5 +1,6 @@
 use crate::{
-    board::{Board, Tile, Shape},
+    board::{Board},
+    tile::{Tile, Shape},
     colour::Colour,
     turn::Turn,
     StrResult,

@@ -2,7 +2,7 @@ use std::ops::Sub;
 
 use arrayvec::ArrayVec;
 
-use crate::board::Piece;
+use crate::tile::Piece;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pos {
