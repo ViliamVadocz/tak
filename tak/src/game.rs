@@ -21,6 +21,7 @@ const fn starting_stones(width: usize) -> (Stones, Capstones) {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum GameResult {
     Winner(Colour),
     Draw,
@@ -31,6 +32,7 @@ pub enum GameResult {
 pub struct Game<const N: usize> {
     pub board: Board<N>,
     pub to_move: Colour,
+    pub ply: u64,
     pub white_stones: Stones,
     pub black_stones: Stones,
     pub white_caps: Capstones,
@@ -46,6 +48,7 @@ where
         Self {
             board: Board::default(),
             to_move: Colour::White,
+            ply: 0,
             white_stones: stones,
             black_stones: stones,
             white_caps: capstones,
@@ -68,10 +71,12 @@ impl<const N: usize> Game<N> {
                 let (stones, caps) = self.get_counts();
                 if self.board[pos].is_some() {
                     Err("cannot place a piece in that position because it is already occupied")
-                } else if matches!(piece.shape, Shape::Capstone) && caps == 0 {
+                } else if matches!(piece.shape, Shape::Capstone) && (caps == 0) {
                     Err("there is no capstone to play")
-                } else if !matches!(piece.shape, Shape::Capstone) && stones == 0 {
+                } else if matches!(piece.shape, Shape::Flat | Shape::Wall) && stones == 0 {
                     Err("cannot play a stone without stones")
+                } else if self.ply < 2 && matches!(piece.shape, Shape::Wall | Shape::Capstone) {
+                    Err("cannot play a wall or capstone on the first two plies")
                 } else {
                     self.board[pos] = Some(Tile {
                         top: piece,
@@ -90,13 +95,12 @@ impl<const N: usize> Game<N> {
                 let mut direction = None;
                 for (carried, (next, dropped)) in carry.into_iter().zip(drops) {
                     // make sure move direction is correct
-                    let diff = (next - pos)?;
                     if let Some(dir) = direction {
-                        if !(next == pos || diff == dir) {
+                        if !(next == pos || (next - pos) == dir) {
                             return Err("cannot switch directions during a move");
                         }
                     } else {
-                        direction = Some(diff);
+                        direction = Some(next - pos);
                     }
                     pos = next;
                     // check that the dropped piece is the same as the one that was picked up
@@ -108,7 +112,10 @@ impl<const N: usize> Game<N> {
                 }
                 Ok(())
             }
-        }
+        }?;
+        self.ply += 1;
+        self.to_move = self.to_move.next();
+        Ok(())
     }
 
     pub fn winner(&self) -> GameResult {

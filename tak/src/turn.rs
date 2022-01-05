@@ -35,7 +35,7 @@ impl<const N: usize> Game<N> {
                         for neighbour in pos.neighbors::<N>() {
                             let direction = (neighbour - pos).unwrap();
                             let max_carry = min(tile.size(), N);
-                            for i in 0..=max_carry {
+                            for i in 0..=(max_carry - 1) {
                                 let mut carry = vec![tile.top];
                                 if let Some(stack) = &tile.stack {
                                     carry.extend(
@@ -51,7 +51,10 @@ impl<const N: usize> Game<N> {
                                 }
                                 let possible_drops = self.try_drop(neighbour, direction, &carry);
                                 turns.extend(
-                                    possible_drops.into_iter().map(|drops| Turn::Move { pos, drops }),
+                                    possible_drops
+                                        .into_iter()
+                                        .filter(|drops| !drops.is_empty())
+                                        .map(|drops| Turn::Move { pos, drops }),
                                 );
                             }
                         }
@@ -65,15 +68,17 @@ impl<const N: usize> Game<N> {
                                 shape: Shape::Flat,
                             },
                         });
-                        turns.push(Turn::Place {
-                            pos,
-                            piece: Piece {
-                                colour: self.to_move,
-                                shape: Shape::Wall,
-                            },
-                        });
+                        if self.ply >= 2 {
+                            turns.push(Turn::Place {
+                                pos,
+                                piece: Piece {
+                                    colour: self.to_move,
+                                    shape: Shape::Wall,
+                                },
+                            });
+                        }
                     }
-                    if caps > 0 {
+                    if caps > 0 && self.ply >= 2 {
                         turns.push(Turn::Place {
                             pos,
                             piece: Piece {
@@ -93,32 +98,37 @@ impl<const N: usize> Game<N> {
     // but it's too much effort to try and calculate that
     fn try_drop(&self, pos: Pos, direction: Direction, carry: &[Piece]) -> Vec<ArrayVec<(Pos, Piece), N>> {
         let mut all_drops = Vec::new();
-        if let Some(next) = pos
-            .neighbors::<N>()
-            .into_iter()
-            .find(|&n| (n - pos).unwrap() == direction)
-        {
-            #[rustfmt::skip]
-            let can_drop = match self.board[pos] {
-                Some(Tile {top: Piece {shape: Shape::Flat, ..}, ..}) => true,
-                Some(Tile {top: Piece {shape: Shape::Wall, ..}, ..})
-                    if carry.len() == 1 && carry[0].shape == Shape::Capstone => true,
-                None => true,
-                _ => false,
-            };
-            if can_drop {
-                for i in 1..=(carry.len()) {
-                    let (drops, sub_carry) = carry.split_at(i);
+
+        #[rustfmt::skip]
+        let can_drop = match self.board[pos] {
+            None => true,
+            Some(Tile {top: Piece {shape: Shape::Flat, ..}, ..}) => true,
+            Some(Tile {top: Piece {shape: Shape::Wall, ..}, ..})
+                if carry.len() == 1 && carry[0].shape == Shape::Capstone => true,
+            _ => false,
+        };
+
+        if can_drop {
+            for i in 1..=(carry.len()) {
+                let (drops, sub_carry) = carry.split_at(i);
+                let here_drops: ArrayVec<_, N> = drops.iter().map(|&piece| (pos, piece)).collect();
+                if sub_carry.is_empty() {
+                    all_drops.push(here_drops);
+                } else if let Some(next) = pos
+                    .neighbors::<N>()
+                    .into_iter()
+                    .find(|&n| (n - pos).unwrap() == direction)
+                {
                     let possible_drops = self.try_drop(next, direction, sub_carry);
-                    let here_drops: ArrayVec<_, N> = drops.iter().map(|&piece| (pos, piece)).collect();
-                    for possible_drop in possible_drops {
+                    for possible in possible_drops {
                         let mut clone = here_drops.clone();
-                        clone.extend(possible_drop);
+                        clone.extend(possible);
                         all_drops.push(clone);
                     }
                 }
             }
         }
+
         all_drops
     }
 }

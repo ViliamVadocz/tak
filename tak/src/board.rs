@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet,
+    fmt::Display,
     ops::{Index, IndexMut},
 };
 
@@ -35,8 +36,8 @@ impl<const N: usize> Board<N> {
     }
 
     pub fn find_paths(&self, colour: Colour) -> bool {
-        let mut seen = HashSet::new();
         // check vertical paths
+        let mut seen = HashSet::new();
         for x in 0..N {
             let pos = Pos { x, y: 0 };
             self.find_paths_recursive(pos, colour, &mut seen);
@@ -45,6 +46,7 @@ impl<const N: usize> Board<N> {
             return true;
         }
         // check horizontal paths
+        let mut seen = HashSet::new();
         for y in 1..N {
             let pos = Pos { x: 0, y };
             self.find_paths_recursive(pos, colour, &mut seen);
@@ -96,5 +98,35 @@ impl<const N: usize> Index<Pos> for Board<N> {
 impl<const N: usize> IndexMut<Pos> for Board<N> {
     fn index_mut(&mut self, index: Pos) -> &mut Self::Output {
         self.data.index_mut(index.y).index_mut(index.x)
+    }
+}
+
+impl<const N: usize> Display for Board<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut output = String::new();
+        for y in 0..N {
+            for x in 0..N {
+                let pos = Pos { x, y };
+                if let Some(tile) = &self[pos] {
+                    output.push(match tile.top.shape {
+                        Shape::Flat => '_',
+                        Shape::Wall => '/',
+                        Shape::Capstone => 'o',
+                    });
+                    output.push(match tile.top.colour {
+                        Colour::White => 'w',
+                        Colour::Black => 'b',
+                    });
+                    output.push_str(&tile.size().to_string());
+                } else {
+                    output.push('.');
+                    output.push('.');
+                    output.push('.');
+                }
+                output.push(' ');
+            }
+            output.push('\n');
+        }
+        write!(f, "{}", output)
     }
 }
