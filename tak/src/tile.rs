@@ -37,7 +37,7 @@ impl Tile {
                 if matches!(piece.shape, Shape::Capstone) {
                     Ok(())
                 } else {
-                    Err("can only stack on top of a wall with a capstone")
+                    Err("can only flatten a wall with a capstone")
                 }
             }
             Shape::Capstone => Err("cannot create a stack on top of a capstone"),

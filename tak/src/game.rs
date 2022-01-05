@@ -16,6 +16,7 @@ const fn starting_stones(width: usize) -> (Stones, Capstones) {
         4 => (15, 0),
         5 => (21, 1),
         6 => (30, 1),
+        7 => (40, 2),
         8 => (50, 2),
         _ => panic!("missing starting stones for non-standard board size"),
     }
@@ -65,6 +66,20 @@ impl<const N: usize> Game<N> {
         }
     }
 
+    fn dec_stones(&mut self) {
+        match self.to_move {
+            Colour::White => self.white_stones -= 1,
+            Colour::Black => self.black_stones -= 1,
+        }
+    }
+
+    fn dec_caps(&mut self) {
+        match self.to_move {
+            Colour::White => self.white_caps -= 1,
+            Colour::Black => self.black_caps -= 1,
+        }
+    }
+
     pub fn play(&mut self, my_move: Turn<N>) -> StrResult<()> {
         match my_move {
             Turn::Place { pos, piece } => {
@@ -82,18 +97,29 @@ impl<const N: usize> Game<N> {
                         top: piece,
                         stack: None,
                     });
+                    if matches!(piece.shape, Shape::Flat | Shape::Wall) {
+                        self.dec_stones();
+                    } else {
+                        self.dec_caps();
+                    }
                     Ok(())
                 }
             }
             Turn::Move { mut pos, drops } => {
+                if drops.is_empty() {
+                    return Err("moves cannot be empty");
+                }
                 // take the pieces
                 let on_square = self.board[pos].take().ok_or("cannot move from an empty square")?;
+                if on_square.top.colour != self.to_move {
+                    return Err("cannot move a stack that you do not own");
+                }
                 let (left, carry) = on_square.take::<N>(drops.len())?;
                 self.board[pos] = left;
 
                 // try to move them
                 let mut direction = None;
-                for (carried, (next, dropped)) in carry.into_iter().zip(drops) {
+                for (carried, (next, dropped)) in carry.into_iter().rev().zip(drops) {
                     // make sure move direction is correct
                     if let Some(dir) = direction {
                         if !(next == pos || (next - pos) == dir) {
@@ -108,7 +134,14 @@ impl<const N: usize> Game<N> {
                         return Err("tried dropping a different piece than what was picked up");
                     }
                     // stack the dropped piece on top
-                    self.board[next] = self.board[pos].take().map(|t| t.stack(carried)).transpose()?;
+                    if let Some(t) = self.board[pos].take() {
+                        self.board[pos] = Some(t.stack(carried)?);
+                    } else {
+                        self.board[pos] = Some(Tile {
+                            top: carried,
+                            stack: None,
+                        });
+                    }
                 }
                 Ok(())
             }

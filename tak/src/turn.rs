@@ -36,7 +36,7 @@ impl<const N: usize> Game<N> {
                             let direction = (neighbour - pos).unwrap();
                             let max_carry = min(tile.size(), N);
                             for i in 0..=(max_carry - 1) {
-                                let mut carry = vec![tile.top];
+                                let mut carry = Vec::new();
                                 if let Some(stack) = &tile.stack {
                                     carry.extend(
                                         stack
@@ -45,10 +45,10 @@ impl<const N: usize> Game<N> {
                                                 colour,
                                                 shape: Shape::Flat,
                                             })
-                                            .skip(stack.len() - i)
-                                            .rev(),
+                                            .skip(stack.len() - i),
                                     );
                                 }
+                                carry.push(tile.top);
                                 let possible_drops = self.try_drop(neighbour, direction, &carry);
                                 turns.extend(
                                     possible_drops
@@ -120,6 +120,7 @@ impl<const N: usize> Game<N> {
                     .find(|&n| (n - pos).unwrap() == direction)
                 {
                     let possible_drops = self.try_drop(next, direction, sub_carry);
+                    debug_assert!(possible_drops.iter().all(|v| v.len() == sub_carry.len()));
                     for possible in possible_drops {
                         let mut clone = here_drops.clone();
                         clone.extend(possible);
