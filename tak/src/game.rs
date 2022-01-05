@@ -55,7 +55,7 @@ where
 }
 
 impl<const N: usize> Game<N> {
-    fn get_counts(&self) -> (Stones, Capstones) {
+    pub fn get_counts(&self) -> (Stones, Capstones) {
         match self.to_move {
             Colour::White => (self.white_stones, self.white_caps),
             Colour::Black => (self.black_stones, self.black_caps),
@@ -90,15 +90,12 @@ impl<const N: usize> Game<N> {
                 let mut direction = None;
                 for (carried, (next, dropped)) in carry.into_iter().zip(drops) {
                     // make sure move direction is correct
-                    let diff = next - pos;
+                    let diff = (next - pos)?;
                     if let Some(dir) = direction {
                         if !(next == pos || diff == dir) {
                             return Err("cannot switch directions during a move");
                         }
                     } else {
-                        if diff.x * diff.x + diff.y * diff.y != 1 {
-                            return Err("impossible move direction");
-                        }
                         direction = Some(diff);
                     }
                     pos = next;

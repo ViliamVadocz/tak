@@ -5,8 +5,8 @@ use std::{
 
 use crate::{
     colour::Colour,
+    pos::Pos,
     tile::{Piece, Shape, Tile},
-    turn::Pos,
 };
 
 #[derive(Clone, Debug)]

@@ -1,6 +1,4 @@
-use std::{
-    iter::once,
-};
+use std::iter::once;
 
 use arrayvec::ArrayVec;
 
@@ -26,6 +24,10 @@ pub struct Tile {
 }
 
 impl Tile {
+    pub fn size(&self) -> usize {
+        1 + self.stack.as_ref().map(|v| v.len()).unwrap_or_default()
+    }
+
     pub fn stack(self, piece: Piece) -> StrResult<Self> {
         // Only allow stacking on top of flats, or flattening walls.
 
@@ -50,7 +52,7 @@ impl Tile {
     }
 
     pub fn take<const N: usize>(self, amount: usize) -> StrResult<(Option<Tile>, ArrayVec<Piece, N>)> {
-        let count = 1 + self.stack.as_ref().map(|s| s.len()).unwrap_or_default();
+        let count = self.size();
         if amount == 0 {
             return Err("cannot take 0 from a tile");
         } else if amount > N {
