@@ -5,7 +5,7 @@ use arrayvec::ArrayVec;
 use crate::{
     game::Game,
     pos::{Direction, Pos},
-    tile::{Piece, Shape},
+    tile::{Piece, Shape, Tile},
 };
 
 #[derive(Clone, Debug)]
@@ -98,14 +98,24 @@ impl<const N: usize> Game<N> {
             .into_iter()
             .find(|&n| (n - pos).unwrap() == direction)
         {
-            for i in 1..=(carry.len()) {
-                let (drops, sub_carry) = carry.split_at(i);
-                let possible_drops = self.try_drop(next, direction, sub_carry);
-                let here_drops: ArrayVec<_, N> = drops.iter().map(|&piece| (pos, piece)).collect();
-                for possible_drop in possible_drops {
-                    let mut clone = here_drops.clone();
-                    clone.extend(possible_drop);
-                    all_drops.push(clone);
+            #[rustfmt::skip]
+            let can_drop = match self.board[pos] {
+                Some(Tile {top: Piece {shape: Shape::Flat, ..}, ..}) => true,
+                Some(Tile {top: Piece {shape: Shape::Wall, ..}, ..})
+                    if carry.len() == 1 && carry[0].shape == Shape::Capstone => true,
+                None => true,
+                _ => false,
+            };
+            if can_drop {
+                for i in 1..=(carry.len()) {
+                    let (drops, sub_carry) = carry.split_at(i);
+                    let possible_drops = self.try_drop(next, direction, sub_carry);
+                    let here_drops: ArrayVec<_, N> = drops.iter().map(|&piece| (pos, piece)).collect();
+                    for possible_drop in possible_drops {
+                        let mut clone = here_drops.clone();
+                        clone.extend(possible_drop);
+                        all_drops.push(clone);
+                    }
                 }
             }
         }
