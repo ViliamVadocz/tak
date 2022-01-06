@@ -28,6 +28,12 @@ impl Pos {
         }
         neighbors
     }
+
+    pub fn step<const N: usize>(self, direction: Direction) -> Option<Pos> {
+        self.neighbors::<N>()
+            .into_iter()
+            .find(|&n| (n - self).unwrap() == direction)
+    }
 }
 
 impl Sub for Pos {
