@@ -9,14 +9,8 @@ pub type StrResult<T> = Result<T, &'static str>;
 
 #[cfg(test)]
 mod tests {
-    use arrayvec::ArrayVec;
-
     use crate::{
-        colour::Colour,
         game::{Game, GameResult},
-        pos::Pos,
-        tile::{Piece, Shape},
-        turn::Turn,
         StrResult,
     };
 
@@ -67,51 +61,56 @@ mod tests {
         }
     }
 
-    fn place<const N: usize>(x: usize, y: usize, colour: Colour, shape: Shape) -> Turn<N> {
-        Turn::Place {
-            pos: Pos { x, y },
-            piece: Piece { colour, shape },
-        }
-    }
-
-    fn move_<const N: usize>(
-        x: usize,
-        y: usize,
-        colour: Colour,
-        shape: Shape,
-        x2: usize,
-        y2: usize,
-    ) -> Turn<N> {
-        let mut drops = ArrayVec::new();
-        drops.push((Pos { x: x2, y: y2 }, Piece { colour, shape }));
-        Turn::Move {
-            pos: Pos { x, y },
-            drops,
-        }
-    }
-
     #[test]
-    fn correct_move() -> StrResult<()> {
-        let mut game = Game::<5>::default();
-        game.play(place(2, 2, Colour::White, Shape::Flat))?;
-        game.play(place(3, 2, Colour::Black, Shape::Flat))?;
-        game.play(place(2, 1, Colour::White, Shape::Flat))?;
-        game.play(move_(3, 2, Colour::Black, Shape::Flat, 2, 2))?;
-        game.play(move_(2, 1, Colour::White, Shape::Flat, 2, 2))?;
-        game.play(place(2, 1, Colour::Black, Shape::Wall))?;
-
+    fn position1_perft() -> StrResult<()> {
+        let game = Game::<5>::from_PTN_moves(&["d3", "c3", "c4", "1d3<", "1c4-", "Sc4"])?;
         assert_eq!(perf_count(game.clone(), 1), 87);
-        assert_eq!(perf_count(game.clone(), 2), 6155);
-        assert_eq!(perf_count(game.clone(), 3), 461_800);
+        assert_eq!(perf_count(game.clone(), 2), 6_155);
+        assert_eq!(perf_count(game, 3), 461_800);
         Ok(())
     }
 
     #[test]
-    fn perft_numbers_5() {
+    fn position2_perft() -> StrResult<()> {
+        let game = Game::<5>::from_PTN_moves(&[
+            "c2", "c3", "d3", "b3", "c4", "1c2+", "1d3<", "1b3>", "1c4-", "Cc2", "a1", "1c2+", "a2",
+        ])?;
+        assert_eq!(perf_count(game.clone(), 1), 104);
+        assert_eq!(perf_count(game.clone(), 2), 7_743);
+        assert_eq!(perf_count(game, 3), 592_645);
+        Ok(())
+    }
+
+    #[test]
+    fn position3_perft() -> StrResult<()> {
+        let game = Game::<5>::from_PTN_moves(&[
+            "c4", "c2", "d2", "c3", "b2", "d3", "1d2+", "b3", "d2", "b4", "1c2+", "1b3>", "2d3<", "1c4-",
+            "d4", "5c3<23", "c2", "c4", "1d4<", "d3", "1d2+", "1c3+", "Cc3", "2c4>", "1c3<", "d2", "c3",
+            "1d2+", "1c3+", "1b4>", "2b3>11", "3c4-12", "d2", "c4", "b4", "c5", "1b3>", "1c4<", "3c3-", "e5",
+            "e2",
+        ])?;
+        assert_eq!(perf_count(game.clone(), 1), 85);
+        assert_eq!(perf_count(game.clone(), 2), 11_206);
+        assert_eq!(perf_count(game, 3), 957_000);
+        Ok(())
+    }
+
+    #[test]
+    fn perft_5() {
         assert_eq!(perf_count(Game::<5>::default(), 0), 1);
         assert_eq!(perf_count(Game::<5>::default(), 1), 25);
         assert_eq!(perf_count(Game::<5>::default(), 2), 600);
         assert_eq!(perf_count(Game::<5>::default(), 3), 43_320);
         assert_eq!(perf_count(Game::<5>::default(), 4), 2_999_784);
+    }
+
+    #[test]
+    fn perft_6() {
+        assert_eq!(perf_count(Game::<6>::default(), 0), 1);
+        assert_eq!(perf_count(Game::<6>::default(), 1), 36);
+        assert_eq!(perf_count(Game::<6>::default(), 2), 1_260);
+        assert_eq!(perf_count(Game::<6>::default(), 3), 132_720);
+        assert_eq!(perf_count(Game::<6>::default(), 4), 13_586_048);
+        // assert_eq!(perf_count(Game::<6>::default(), 5), 1_253_506_520);
     }
 }
