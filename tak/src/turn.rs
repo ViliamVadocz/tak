@@ -1,11 +1,15 @@
 use std::cmp::min;
 
 use arrayvec::ArrayVec;
+use regex::Regex;
 
 use crate::{
+    board::Board,
+    colour::Colour,
     game::Game,
     pos::{Direction, Pos},
     tile::{Piece, Shape, Tile},
+    StrResult,
 };
 
 #[derive(Clone, Debug)]
@@ -114,11 +118,7 @@ impl<const N: usize> Game<N> {
                 let here_drops: ArrayVec<_, N> = drops.iter().map(|&piece| (pos, piece)).collect();
                 if sub_carry.is_empty() {
                     all_drops.push(here_drops);
-                } else if let Some(next) = pos
-                    .neighbors::<N>()
-                    .into_iter()
-                    .find(|&n| (n - pos).unwrap() == direction)
-                {
+                } else if let Some(next) = pos.step::<N>(direction) {
                     let possible_drops = self.try_drop(next, direction, sub_carry);
                     debug_assert!(possible_drops.iter().all(|v| v.len() == sub_carry.len()));
                     for possible in possible_drops {
@@ -131,5 +131,77 @@ impl<const N: usize> Game<N> {
         }
 
         all_drops
+    }
+}
+
+fn abc_to_num(c: char) -> usize {
+    (c as u32 - 'a' as u32) as usize
+}
+
+impl<const N: usize> Turn<N> {
+    #[allow(non_snake_case)]
+    pub fn from_PTN(ply: &str, board: &Board<N>, colour: Colour) -> StrResult<Turn<N>> {
+        assert!(N < 10);
+        if let Some(true) = ply.chars().next().map(|c| c.is_digit(10)) {
+            // (count)(square)(direction)(drop counts)(stone)
+            let re = Regex::new(r"([0-9]*)([a-z])([0-9])([<>+-])([0-9]*)[CS]?").unwrap();
+            let cap = re.captures(ply).ok_or("didn't recognize move ply")?;
+
+            let carry_amount = cap[1].parse().unwrap();
+
+            let x = abc_to_num(cap[2].chars().next().unwrap());
+            let y = cap[3].parse::<usize>().unwrap() - 1;
+            let direction = match &cap[4] {
+                "<" => Direction::NegX,
+                ">" => Direction::PosX,
+                "+" => Direction::PosY,
+                "-" => Direction::NegY,
+                _ => unreachable!(),
+            };
+
+            let mut drop_counts: Vec<_> = cap[5].chars().map(|c| c.to_digit(10).unwrap()).collect();
+            if drop_counts.is_empty() {
+                drop_counts = vec![carry_amount];
+            }
+
+            let mut pos = Pos { x, y };
+            let tile = board[pos].clone().ok_or("there is not stack on that position")?;
+            let (_left, mut carry) = tile.take::<N>(carry_amount as usize)?;
+
+            let mut drops = ArrayVec::new();
+            for i in drop_counts {
+                pos = pos.step::<N>(direction).ok_or("move would go off the board")?;
+                for _ in 0..i {
+                    drops.push((
+                        pos,
+                        carry
+                            .pop()
+                            .ok_or("not enough pieces picked up to satisfy move ply")?,
+                    ))
+                }
+            }
+
+            Ok(Turn::Move {
+                pos: Pos { x, y },
+                drops,
+            })
+        } else {
+            // (stone)(square)
+            let re = Regex::new(r"([CS]?)([a-z])([0-9])").unwrap();
+            let cap = re.captures(ply).ok_or("didn't recognize place ply")?;
+            let shape = match &cap[1] {
+                "C" => Shape::Capstone,
+                "S" => Shape::Wall,
+                "" => Shape::Flat,
+                _ => unreachable!(),
+            };
+            let x = abc_to_num(cap[2].chars().next().unwrap());
+            let y = cap[3].parse::<usize>().unwrap() - 1;
+
+            Ok(Turn::Place {
+                pos: Pos { x, y },
+                piece: Piece { shape, colour },
+            })
+        }
     }
 }

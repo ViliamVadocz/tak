@@ -48,7 +48,7 @@ where
         let (stones, capstones) = starting_stones(N);
         Self {
             board: Board::default(),
-            to_move: Colour::White,
+            to_move: Colour::Black, // White picks the first move for Black
             ply: 0,
             white_stones: stones,
             black_stones: stones,
@@ -59,6 +59,38 @@ where
 }
 
 impl<const N: usize> Game<N> {
+    #[allow(non_snake_case)]
+    pub fn from_PTN(game_str: &str) -> StrResult<Game<N>>
+    where
+        [[Option<Tile>; N]; N]: Default,
+    {
+        let mut moves = Vec::new();
+        for line in game_str.lines() {
+            let mut words = line.split_whitespace();
+            let _number = words.next().ok_or("missing number at start of line")?;
+            if let Some(first) = words.next() {
+                moves.push(first);
+                if let Some(second) = words.next() {
+                    moves.push(second);
+                }
+            }
+        }
+        Game::from_PTN_moves(&moves)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn from_PTN_moves(moves: &[&str]) -> StrResult<Game<N>>
+    where
+        [[Option<Tile>; N]; N]: Default,
+    {
+        let mut game = Game::default();
+        for ply in moves {
+            let turn = Turn::from_PTN(ply, &game.board, game.to_move)?;
+            game.play(turn)?;
+        }
+        Ok(game)
+    }
+
     pub fn get_counts(&self) -> (Stones, Capstones) {
         match self.to_move {
             Colour::White => (self.white_stones, self.white_caps),
@@ -147,7 +179,11 @@ impl<const N: usize> Game<N> {
             }
         }?;
         self.ply += 1;
-        self.to_move = self.to_move.next();
+        if self.ply != 2 {
+            // first two plies are done in reverse, so then on ply 2 we don't switch who
+            // goes next
+            self.to_move = self.to_move.next();
+        }
         Ok(())
     }
 
