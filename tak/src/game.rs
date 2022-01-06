@@ -1,9 +1,12 @@
 use std::cmp::Ordering;
 
+use arrayvec::ArrayVec;
+
 use crate::{
     board::Board,
     colour::Colour,
-    tile::{Shape, Tile},
+    pos::Pos,
+    tile::{Piece, Shape, Tile},
     turn::Turn,
     StrResult,
 };
@@ -112,76 +115,80 @@ impl<const N: usize> Game<N> {
         }
     }
 
+    fn execute_place(&mut self, pos: Pos<N>, piece: Piece) -> StrResult<()> {
+        let (stones, caps) = self.get_counts();
+        if self.board[pos].is_some() {
+            Err("cannot place a piece in that position because it is already occupied")
+        } else if matches!(piece.shape, Shape::Capstone) && (caps == 0) {
+            Err("there is no capstone to play")
+        } else if matches!(piece.shape, Shape::Flat | Shape::Wall) && stones == 0 {
+            Err("cannot play a stone without stones")
+        } else if self.ply < 2 && matches!(piece.shape, Shape::Wall | Shape::Capstone) {
+            Err("cannot play a wall or capstone on the first two plies")
+        } else {
+            self.board[pos] = Some(Tile {
+                top: piece,
+                stack: None,
+            });
+            if matches!(piece.shape, Shape::Flat | Shape::Wall) {
+                self.dec_stones();
+            } else {
+                self.dec_caps();
+            }
+            Ok(())
+        }
+    }
+
+    fn execute_move(&mut self, mut pos: Pos<N>, drops: ArrayVec<(Pos<N>, Piece), N>) -> StrResult<()> {
+        if drops.is_empty() {
+            return Err("moves cannot be empty");
+        }
+        // take the pieces
+        let on_square = self.board[pos].take().ok_or("cannot move from an empty square")?;
+        if on_square.top.colour != self.to_move {
+            return Err("cannot move a stack that you do not own");
+        }
+        let (left, carry) = on_square.take::<N>(drops.len())?;
+        self.board[pos] = left;
+
+        // try to move them
+        let mut direction = None;
+        for (carried, (next, dropped)) in carry.into_iter().rev().zip(drops) {
+            // make sure move direction is correct
+            if let Some(dir) = direction {
+                if !(next == pos || (next - pos) == dir) {
+                    return Err("cannot switch directions during a move");
+                }
+            } else {
+                direction = Some(next - pos);
+            }
+            pos = next;
+            // check that the dropped piece is the same as the one that was picked up
+            if carried != dropped {
+                return Err("tried dropping a different piece than what was picked up");
+            }
+            // stack the dropped piece on top
+            if let Some(t) = self.board[pos].take() {
+                self.board[pos] = Some(t.stack(carried)?);
+            } else {
+                self.board[pos] = Some(Tile {
+                    top: carried,
+                    stack: None,
+                });
+            }
+        }
+        Ok(())
+    }
+
     pub fn play(&mut self, my_move: Turn<N>) -> StrResult<()> {
         match my_move {
-            Turn::Place { pos, piece } => {
-                let (stones, caps) = self.get_counts();
-                if self.board[pos].is_some() {
-                    Err("cannot place a piece in that position because it is already occupied")
-                } else if matches!(piece.shape, Shape::Capstone) && (caps == 0) {
-                    Err("there is no capstone to play")
-                } else if matches!(piece.shape, Shape::Flat | Shape::Wall) && stones == 0 {
-                    Err("cannot play a stone without stones")
-                } else if self.ply < 2 && matches!(piece.shape, Shape::Wall | Shape::Capstone) {
-                    Err("cannot play a wall or capstone on the first two plies")
-                } else {
-                    self.board[pos] = Some(Tile {
-                        top: piece,
-                        stack: None,
-                    });
-                    if matches!(piece.shape, Shape::Flat | Shape::Wall) {
-                        self.dec_stones();
-                    } else {
-                        self.dec_caps();
-                    }
-                    Ok(())
-                }
-            }
-            Turn::Move { mut pos, drops } => {
-                if drops.is_empty() {
-                    return Err("moves cannot be empty");
-                }
-                // take the pieces
-                let on_square = self.board[pos].take().ok_or("cannot move from an empty square")?;
-                if on_square.top.colour != self.to_move {
-                    return Err("cannot move a stack that you do not own");
-                }
-                let (left, carry) = on_square.take::<N>(drops.len())?;
-                self.board[pos] = left;
-
-                // try to move them
-                let mut direction = None;
-                for (carried, (next, dropped)) in carry.into_iter().rev().zip(drops) {
-                    // make sure move direction is correct
-                    if let Some(dir) = direction {
-                        if !(next == pos || (next - pos) == dir) {
-                            return Err("cannot switch directions during a move");
-                        }
-                    } else {
-                        direction = Some(next - pos);
-                    }
-                    pos = next;
-                    // check that the dropped piece is the same as the one that was picked up
-                    if carried != dropped {
-                        return Err("tried dropping a different piece than what was picked up");
-                    }
-                    // stack the dropped piece on top
-                    if let Some(t) = self.board[pos].take() {
-                        self.board[pos] = Some(t.stack(carried)?);
-                    } else {
-                        self.board[pos] = Some(Tile {
-                            top: carried,
-                            stack: None,
-                        });
-                    }
-                }
-                Ok(())
-            }
+            Turn::Place { pos, piece } => self.execute_place(pos, piece),
+            Turn::Move { pos, drops } => self.execute_move(pos, drops),
         }?;
         self.ply += 1;
         if self.ply != 2 {
-            // first two plies are done in reverse, so then on ply 2 we don't switch who
-            // goes next
+            // first two plies are done in reverse, so then on ply 2
+            // we don't switch who goes next
             self.to_move = self.to_move.next();
         }
         Ok(())

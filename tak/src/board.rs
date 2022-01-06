@@ -54,7 +54,7 @@ impl<const N: usize> Board<N> {
         (0..N).any(|y| seen.contains(&Pos { x: N - 1, y }))
     }
 
-    fn find_paths_recursive(&self, pos: Pos, colour: Colour, seen: &mut HashSet<Pos>) {
+    fn find_paths_recursive(&self, pos: Pos<N>, colour: Colour, seen: &mut HashSet<Pos<N>>) {
         if seen.contains(&pos) {
             return;
         }
@@ -68,7 +68,7 @@ impl<const N: usize> Board<N> {
         {
             if piece_colour == colour && matches!(shape, Shape::Flat | Shape::Capstone) {
                 seen.insert(pos);
-                for neighbor in pos.neighbors::<N>() {
+                for neighbor in pos.neighbors() {
                     self.find_paths_recursive(neighbor, colour, seen)
                 }
             }
@@ -87,16 +87,16 @@ where
     }
 }
 
-impl<const N: usize> Index<Pos> for Board<N> {
+impl<const N: usize> Index<Pos<N>> for Board<N> {
     type Output = Option<Tile>;
 
-    fn index(&self, index: Pos) -> &Self::Output {
+    fn index(&self, index: Pos<N>) -> &Self::Output {
         self.data.index(index.y).index(index.x)
     }
 }
 
-impl<const N: usize> IndexMut<Pos> for Board<N> {
-    fn index_mut(&mut self, index: Pos) -> &mut Self::Output {
+impl<const N: usize> IndexMut<Pos<N>> for Board<N> {
+    fn index_mut(&mut self, index: Pos<N>) -> &mut Self::Output {
         self.data.index_mut(index.y).index_mut(index.x)
     }
 }

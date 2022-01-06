@@ -5,13 +5,13 @@ use arrayvec::ArrayVec;
 use crate::StrResult;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Pos {
+pub struct Pos<const N: usize> {
     pub x: usize,
     pub y: usize,
 }
 
-impl Pos {
-    pub fn neighbors<const N: usize>(self) -> ArrayVec<Pos, 4> {
+impl<const N: usize> Pos<N> {
+    pub fn neighbors(self) -> ArrayVec<Pos<N>, 4> {
         let Pos { x, y } = self;
         let mut neighbors = ArrayVec::new();
         if x > 0 {
@@ -29,14 +29,14 @@ impl Pos {
         neighbors
     }
 
-    pub fn step<const N: usize>(self, direction: Direction) -> Option<Pos> {
-        self.neighbors::<N>()
+    pub fn step(self, direction: Direction) -> Option<Pos<N>> {
+        self.neighbors()
             .into_iter()
             .find(|&n| (n - self).unwrap() == direction)
     }
 }
 
-impl Sub for Pos {
+impl<const N: usize> Sub for Pos<N> {
     type Output = StrResult<Direction>;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -53,7 +53,7 @@ impl Sub for Pos {
             Ordering::Equal => match self.y.cmp(&rhs.y) {
                 Ordering::Greater => Ok(Direction::PosY),
                 Ordering::Less => Ok(Direction::NegY),
-                Ordering::Equal => Err("cannot decide when positions are the same"),
+                Ordering::Equal => Err("cannot decide direction when positions are the same"),
             },
         }
     }

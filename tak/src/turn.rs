@@ -15,92 +15,99 @@ use crate::{
 #[derive(Clone, Debug)]
 pub enum Turn<const N: usize> {
     Place {
-        pos: Pos,
+        pos: Pos<N>,
         piece: Piece,
     },
     Move {
-        pos: Pos,
+        pos: Pos<N>,
         // at most N drops because of carry limit and you have to drop at least one
-        drops: ArrayVec<(Pos, Piece), N>,
+        drops: ArrayVec<(Pos<N>, Piece), N>,
     },
 }
 
 impl<const N: usize> Game<N> {
-    pub fn move_gen(&self) -> Vec<Turn<N>> {
-        let (stones, caps) = self.get_counts();
-
-        let mut turns = Vec::new();
-
-        for x in 0..N {
-            for y in 0..N {
-                let pos = Pos { x, y };
-                if let Some(tile) = &self.board[pos] {
-                    if tile.top.colour == self.to_move {
-                        for neighbour in pos.neighbors::<N>() {
-                            let direction = (neighbour - pos).unwrap();
-                            let max_carry = min(tile.size(), N);
-                            for i in 0..=(max_carry - 1) {
-                                let mut carry = Vec::new();
-                                if let Some(stack) = &tile.stack {
-                                    carry.extend(
-                                        stack
-                                            .iter()
-                                            .map(|&colour| Piece {
-                                                colour,
-                                                shape: Shape::Flat,
-                                            })
-                                            .skip(stack.len() - i),
-                                    );
-                                }
-                                carry.push(tile.top);
-                                let possible_drops = self.try_drop(neighbour, direction, &carry);
-                                turns.extend(
-                                    possible_drops
-                                        .into_iter()
-                                        .filter(|drops| !drops.is_empty())
-                                        .map(|drops| Turn::Move { pos, drops }),
-                                );
-                            }
-                        }
-                    }
-                } else {
-                    if stones > 0 {
-                        turns.push(Turn::Place {
-                            pos,
-                            piece: Piece {
-                                colour: self.to_move,
+    fn add_moves(&self, turns: &mut Vec<Turn<N>>, pos: Pos<N>, tile: &Tile) {
+        for neighbour in pos.neighbors() {
+            let direction = (neighbour - pos).unwrap();
+            let max_carry = min(tile.size(), N);
+            for i in 0..=(max_carry - 1) {
+                let mut carry = Vec::new();
+                if let Some(stack) = &tile.stack {
+                    carry.extend(
+                        stack
+                            .iter()
+                            .map(|&colour| Piece {
+                                colour,
                                 shape: Shape::Flat,
-                            },
-                        });
-                        if self.ply >= 2 {
-                            turns.push(Turn::Place {
-                                pos,
-                                piece: Piece {
-                                    colour: self.to_move,
-                                    shape: Shape::Wall,
-                                },
-                            });
-                        }
-                    }
-                    if caps > 0 && self.ply >= 2 {
-                        turns.push(Turn::Place {
-                            pos,
-                            piece: Piece {
-                                colour: self.to_move,
-                                shape: Shape::Capstone,
-                            },
-                        });
-                    }
+                            })
+                            .skip(stack.len() - i),
+                    );
                 }
+                carry.push(tile.top);
+                let possible_drops = self.try_drop(neighbour, direction, &carry);
+                turns.extend(
+                    possible_drops
+                        .into_iter()
+                        .filter(|drops| !drops.is_empty())
+                        .map(|drops| Turn::Move { pos, drops }),
+                );
             }
         }
+    }
 
+    fn add_places(&self, turns: &mut Vec<Turn<N>>, pos: Pos<N>) {
+        let (stones, caps) = self.get_counts();
+        if stones > 0 {
+            turns.push(Turn::Place {
+                pos,
+                piece: Piece {
+                    colour: self.to_move,
+                    shape: Shape::Flat,
+                },
+            });
+            if self.ply >= 2 {
+                turns.push(Turn::Place {
+                    pos,
+                    piece: Piece {
+                        colour: self.to_move,
+                        shape: Shape::Wall,
+                    },
+                });
+            }
+        }
+        if caps > 0 && self.ply >= 2 {
+            turns.push(Turn::Place {
+                pos,
+                piece: Piece {
+                    colour: self.to_move,
+                    shape: Shape::Capstone,
+                },
+            });
+        }
+    }
+
+    pub fn move_gen(&self) -> Vec<Turn<N>> {
+        let mut turns = Vec::new();
+        for pos in (0..N).flat_map(|x| (0..N).map(move |y| Pos { x, y })) {
+            if let Some(tile) = &self.board[pos] {
+                if tile.top.colour == self.to_move {
+                    self.add_moves(&mut turns, pos, tile);
+                }
+            } else {
+                self.add_places(&mut turns, pos);
+            }
+        }
         turns
     }
 
     // size of Vec is technically bounded by number of partitions of carry
     // but it's too much effort to try and calculate that
-    fn try_drop(&self, pos: Pos, direction: Direction, carry: &[Piece]) -> Vec<ArrayVec<(Pos, Piece), N>> {
+    fn try_drop(
+        &self,
+        pos: Pos<N>,
+        direction: Direction,
+        carry: &[Piece],
+    ) -> Vec<ArrayVec<(Pos<N>, Piece), N>> {
         let mut all_drops = Vec::new();
 
         #[rustfmt::skip]
@@ -118,7 +125,7 @@ impl<const N: usize> Game<N> {
                 let here_drops: ArrayVec<_, N> = drops.iter().map(|&piece| (pos, piece)).collect();
                 if sub_carry.is_empty() {
                     all_drops.push(here_drops);
-                } else if let Some(next) = pos.step::<N>(direction) {
+                } else if let Some(next) = pos.step(direction) {
                     let possible_drops = self.try_drop(next, direction, sub_carry);
                     debug_assert!(possible_drops.iter().all(|v| v.len() == sub_carry.len()));
                     for possible in possible_drops {
@@ -170,7 +177,7 @@ impl<const N: usize> Turn<N> {
 
             let mut drops = ArrayVec::new();
             for i in drop_counts {
-                pos = pos.step::<N>(direction).ok_or("move would go off the board")?;
+                pos = pos.step(direction).ok_or("move would go off the board")?;
                 for _ in 0..i {
                     drops.push((
                         pos,
