@@ -43,11 +43,11 @@ impl Sub for Pos {
         let diagonal_err = Err("cannot have a diagonal direction");
         match self.x.cmp(&rhs.x) {
             Ordering::Greater => match self.y.cmp(&rhs.y) {
-                Ordering::Equal => Ok(Direction::NegX),
+                Ordering::Equal => Ok(Direction::PosX),
                 Ordering::Less | Ordering::Greater => diagonal_err,
             },
             Ordering::Less => match self.y.cmp(&rhs.y) {
-                Ordering::Equal => Ok(Direction::PosX),
+                Ordering::Equal => Ok(Direction::NegX),
                 Ordering::Less | Ordering::Greater => diagonal_err,
             },
             Ordering::Equal => match self.y.cmp(&rhs.y) {
