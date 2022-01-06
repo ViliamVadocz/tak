@@ -72,6 +72,8 @@ impl Tile {
             .chain(once(self.top))
             .rev();
 
+        // carry is ordered from top to bottom, so if you want to drop one-by-one, use
+        // pop or reverse it
         let carry = stack.by_ref().take(amount).collect();
 
         let left = stack.next().map(|top| Tile {
@@ -79,7 +81,7 @@ impl Tile {
             stack: if count - amount == 1 {
                 None
             } else {
-                Some(stack.map(|p| p.colour).collect())
+                Some(stack.rev().map(|p| p.colour).collect())
             },
         });
         Ok((left, carry))
