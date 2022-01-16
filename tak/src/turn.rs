@@ -149,11 +149,9 @@ impl<const N: usize> Turn<N> {
     #[allow(non_snake_case)]
     pub fn from_PTN(ply: &str, board: &Board<N>, colour: Colour) -> StrResult<Turn<N>> {
         assert!(N < 10);
-        if let Some(true) = ply.chars().next().map(|c| c.is_digit(10)) {
-            // (count)(square)(direction)(drop counts)(stone)
-            let re = Regex::new(r"([0-9]*)([a-z])([0-9])([<>+-])([0-9]*)[CS]?").unwrap();
-            let cap = re.captures(ply).ok_or("didn't recognize move ply")?;
-
+        // (count)(square)(direction)(drop counts)(stone)
+        let re = Regex::new(r"([0-9]*)([a-z])([0-9])([<>+-])([0-9]*)[CS]?").unwrap();
+        if let Some(cap) = re.captures(ply) {
             let carry_amount = cap[1].parse().unwrap();
 
             let x = abc_to_num(cap[2].chars().next().unwrap());
