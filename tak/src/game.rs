@@ -41,6 +41,19 @@ pub struct Game<const N: usize> {
     pub black_stones: Stones,
     pub white_caps: Capstones,
     pub black_caps: Capstones,
+    pub komi: i32,
+}
+
+impl<const N: usize> Game<N>
+where
+    [[Option<Tile>; N]; N]: Default,
+{
+    pub fn with_komi(komi: i32) -> Self {
+        Game {
+            komi,
+            ..Default::default()
+        }
+    }
 }
 
 impl<const N: usize> Default for Game<N>
@@ -57,6 +70,7 @@ where
             black_stones: stones,
             white_caps: capstones,
             black_caps: capstones,
+            komi: 0,
         }
     }
 }
@@ -200,7 +214,7 @@ impl<const N: usize> Game<N> {
             || self.board.full()
         {
             let flat_diff = self.board.flat_diff();
-            match flat_diff.cmp(&0) {
+            match flat_diff.cmp(&self.komi) {
                 Ordering::Greater => GameResult::Winner(Colour::White),
                 Ordering::Less => GameResult::Winner(Colour::Black),
                 Ordering::Equal => GameResult::Draw,
