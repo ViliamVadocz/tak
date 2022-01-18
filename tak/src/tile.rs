@@ -4,14 +4,14 @@ use arrayvec::ArrayVec;
 
 use crate::{colour::Colour, StrResult};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Shape {
     Flat,
     Wall,
     Capstone,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Piece {
     pub colour: Colour,
     pub shape: Shape,
@@ -20,7 +20,7 @@ pub struct Piece {
 #[derive(Clone, Debug)]
 pub struct Tile {
     pub top: Piece,
-    pub stack: Option<Vec<Colour>>,
+    pub stack: Option<Vec<Colour>>, // TODO remove Option
 }
 
 impl Tile {

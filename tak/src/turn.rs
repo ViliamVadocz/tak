@@ -12,7 +12,7 @@ use crate::{
     StrResult,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Turn<const N: usize> {
     Place {
         pos: Pos<N>,
