@@ -13,7 +13,7 @@ use crate::{
 
 type Stones = u8;
 type Capstones = u8;
-const fn starting_stones(width: usize) -> (Stones, Capstones) {
+pub const fn starting_stones(width: usize) -> (Stones, Capstones) {
     match width {
         3 => (10, 0),
         4 => (15, 0),
