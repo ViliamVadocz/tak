@@ -12,10 +12,11 @@ pub mod self_play;
 pub mod turn_map;
 
 fn main() {
+    let mut nn = Network::<4>::default();
+    // let mut nn = Network::<4>::load("models/000.varstore").unwrap();
     for i in 0..1000 {
-        let nn = Network::<4>::default();
-        let new = play_until_better(nn);
+        nn = play_until_better(nn);
         println!("saving model");
-        new.save(format!("models/{i:03}.varstore")).unwrap();
+        nn.save(format!("models/{i:03}.varstore")).unwrap();
     }
 }
