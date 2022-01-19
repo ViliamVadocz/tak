@@ -12,9 +12,9 @@ use crate::{
     turn_map::LUT,
 };
 
-const GAMES_PER_BATCH: u32 = 500; // FIXME small numbers just for testing
+const GAMES_PER_BATCH: u32 = 500;
 const ROLLOUTS_PER_MOVE: u32 = 100;
-const PIT_GAMES: u32 = 100;
+const PIT_GAMES: u32 = 200;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>

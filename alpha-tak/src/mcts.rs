@@ -41,8 +41,6 @@ where
         }
     }
 
-    // TODO perspective of other player? is it correctly flipped?
-    // is the best move picked for each player (maximizer vs minimizer)?
     pub fn rollout(&mut self, mut game: Game<N>, network: &Network<N>) -> f32 {
         self.visited_count += 1;
         let result = game.winner();

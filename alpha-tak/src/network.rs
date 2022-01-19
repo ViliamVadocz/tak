@@ -14,7 +14,7 @@ use crate::{
     repr::{game_repr, input_dims, moves_dims},
 };
 
-const EPOCHS: usize = 10; // TODO make bigger
+const EPOCHS: usize = 5; // TODO make bigger
 
 #[derive(Debug)]
 pub struct Network<const N: usize> {
@@ -71,6 +71,7 @@ impl<const N: usize> Network<N> {
 
 impl<const N: usize> Default for Network<N> {
     fn default() -> Self {
+        // TODO make sure dimensions work for any board size
         let vs = nn::VarStore::new(Device::cuda_if_available());
         let root = &vs.root();
         let [d1, _d2, _d3] = input_dims(N);
