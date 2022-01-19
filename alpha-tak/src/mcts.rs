@@ -75,7 +75,7 @@ where
                 children.insert(turn, Node::init(policy[move_index]));
             }
 
-            self.expected_reward = eval;
+            self.expected_reward = -eval;
             self.children = Some(children);
             return -eval;
         }
