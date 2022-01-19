@@ -139,12 +139,11 @@ impl<const N: usize> Game<N> {
 }
 
 fn abc_to_num(c: char) -> usize {
-    (c as u32 - 'a' as u32) as usize
+    (c as u8 - b'a') as usize
 }
 
 impl<const N: usize> Turn<N> {
-    #[allow(non_snake_case)]
-    pub fn from_PTN(ply: &str, board: &Board<N>, colour: Colour) -> StrResult<Turn<N>> {
+    pub fn from_ptn(ply: &str, board: &Board<N>, colour: Colour) -> StrResult<Turn<N>> {
         assert!(N < 10);
         // (count)(square)(direction)(drop counts)(stone)
         let re = Regex::new(r"([0-9]*)([a-z])([0-9])([<>+-])([0-9]*)[CS]?").unwrap();
@@ -153,13 +152,7 @@ impl<const N: usize> Turn<N> {
 
             let x = abc_to_num(cap[2].chars().next().unwrap());
             let y = cap[3].parse::<usize>().unwrap() - 1;
-            let direction = match &cap[4] {
-                "<" => Direction::NegX,
-                ">" => Direction::PosX,
-                "+" => Direction::PosY,
-                "-" => Direction::NegY,
-                _ => unreachable!(),
-            };
+            let direction = Direction::from_ptn(&cap[4]);
 
             let mut drop_counts: Vec<_> = cap[5].chars().map(|c| c.to_digit(10).unwrap()).collect();
             if drop_counts.is_empty() {
@@ -191,12 +184,7 @@ impl<const N: usize> Turn<N> {
             // (stone)(square)
             let re = Regex::new(r"([CS]?)([a-z])([0-9])").unwrap();
             let cap = re.captures(ply).ok_or("didn't recognize place ply")?;
-            let shape = match &cap[1] {
-                "C" => Shape::Capstone,
-                "S" => Shape::Wall,
-                "" => Shape::Flat,
-                _ => unreachable!(),
-            };
+            let shape = Shape::from_ptn(&cap[1]);
             let x = abc_to_num(cap[2].chars().next().unwrap());
             let y = cap[3].parse::<usize>().unwrap() - 1;
 
@@ -205,5 +193,60 @@ impl<const N: usize> Turn<N> {
                 piece: Piece { shape, colour },
             })
         }
+    }
+
+    pub fn to_ptn(&self) -> String {
+        match self {
+            Turn::Place { pos, piece } => {
+                format!("{}{}", piece.shape.to_ptn(), pos.to_ptn())
+            }
+            Turn::Move { pos, drops } => {
+                let mut direction = None;
+                let mut spread = String::new();
+                let mut current = 1;
+                let mut last = pos;
+                for (drop, _piece) in drops {
+                    if direction.is_none() {
+                        direction = Some((*drop - *pos).unwrap());
+                    } else if drop == last {
+                        current += 1;
+                    } else {
+                        spread.push_str(&current.to_string());
+                        current = 1;
+                    }
+                    last = drop;
+                }
+                spread.push_str(&current.to_string());
+                format!(
+                    "{}{}{}{}",
+                    drops.len(),
+                    pos.to_ptn(),
+                    direction.unwrap().to_ptn(),
+                    spread
+                )
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{game::Game, turn::Turn, StrResult};
+
+    const PLIES: &[&str] = &[
+        "a6", "f6", "Cd4", "Cc4", "Sd3", "Sc3", "d5", "c5", "d5<", "c4+", "d5", "Se5", "b5", "2c5>11*",
+        "2d5<11", "a5", "b4", "a5>", "b4+", "b4", "3b5-21", "2e5<", "d4-*", "d4", "e4", "c4", "e4<", "c4>",
+        "2d3+", "2d5<11", "5d4-221", "3b4>111", "2d3+11", "3c5>", "f1",
+    ];
+
+    #[test]
+    fn ptn_consistency() -> StrResult<()> {
+        let mut game = Game::<6>::default();
+        for ply in PLIES {
+            let turn = Turn::from_ptn(ply, &game.board, game.to_move)?;
+            assert_eq!(turn, Turn::from_ptn(&turn.to_ptn(), &game.board, game.to_move)?);
+            game.play(turn)?;
+        }
+        Ok(())
     }
 }

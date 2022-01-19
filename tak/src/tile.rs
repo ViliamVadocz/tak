@@ -17,6 +17,25 @@ pub struct Piece {
     pub shape: Shape,
 }
 
+impl Shape {
+    pub fn from_ptn(s: &str) -> Self {
+        match s {
+            "C" => Shape::Capstone,
+            "S" => Shape::Wall,
+            "" => Shape::Flat,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn to_ptn(&self) -> &str {
+        match self {
+            Shape::Flat => "",
+            Shape::Wall => "S",
+            Shape::Capstone => "C",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Tile {
     pub top: Piece,

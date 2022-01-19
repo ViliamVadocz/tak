@@ -76,8 +76,7 @@ where
 }
 
 impl<const N: usize> Game<N> {
-    #[allow(non_snake_case)]
-    pub fn from_PTN(game_str: &str) -> StrResult<Game<N>>
+    pub fn from_ptn(game_str: &str) -> StrResult<Game<N>>
     where
         [[Option<Tile>; N]; N]: Default,
     {
@@ -92,17 +91,16 @@ impl<const N: usize> Game<N> {
                 }
             }
         }
-        Game::from_PTN_moves(&moves)
+        Game::from_ptn_moves(&moves)
     }
 
-    #[allow(non_snake_case)]
-    pub fn from_PTN_moves(moves: &[&str]) -> StrResult<Game<N>>
+    pub fn from_ptn_moves(moves: &[&str]) -> StrResult<Game<N>>
     where
         [[Option<Tile>; N]; N]: Default,
     {
         let mut game = Game::default();
         for ply in moves {
-            let turn = Turn::from_PTN(ply, &game.board, game.to_move)?;
+            let turn = Turn::from_ptn(ply, &game.board, game.to_move)?;
             game.play(turn)?;
         }
         Ok(game)

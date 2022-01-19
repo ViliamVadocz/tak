@@ -34,6 +34,10 @@ impl<const N: usize> Pos<N> {
             .into_iter()
             .find(|&n| (n - self).unwrap() == direction)
     }
+
+    pub fn to_ptn(&self) -> String {
+        format!("{}{}", (self.x as u8 + b'a') as char, self.y + 1)
+    }
 }
 
 impl<const N: usize> Sub for Pos<N> {
@@ -65,4 +69,25 @@ pub enum Direction {
     PosY,
     NegX,
     NegY,
+}
+
+impl Direction {
+    pub fn from_ptn(s: &str) -> Self {
+        match s {
+            "<" => Direction::NegX,
+            ">" => Direction::PosX,
+            "+" => Direction::PosY,
+            "-" => Direction::NegY,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn to_ptn(&self) -> &str {
+        match self {
+            Direction::NegX => "<",
+            Direction::PosX => ">",
+            Direction::PosY => "+",
+            Direction::NegY => "-",
+        }
+    }
 }
