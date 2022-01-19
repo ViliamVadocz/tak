@@ -19,11 +19,15 @@ pub const fn moves_dims(n: usize) -> usize {
 }
 
 fn colour_repr(colour: &Colour, to_move: &Colour) -> f32 {
-    if colour == to_move {1.} else {0.}
+    if colour == to_move {
+        1.
+    } else {
+        0.
+    }
 }
 
-// UGLY
-/// Creates a tensor which represents the board from the perspective of the current player.
+/// Creates a tensor which represents the board
+/// from the perspective of the current player.
 fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
     let [d1, d2, d3] = input_dims(N);
     let board_shape = [d2 as i64, d3 as i64];
