@@ -1,0 +1,12 @@
+[package]
+name = "alpha-tak"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tak = {path = "../tak"}
+rand = "0.8"
+tch = "0.6"
+lazy_static = "1.4"
