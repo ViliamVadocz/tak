@@ -5,6 +5,7 @@ use tch::Tensor;
 
 use crate::{repr::moves_dims, turn_map::LUT};
 
+#[derive(Debug)]
 pub struct IncompleteExample<const N: usize>
 where
     Turn<N>: LUT,
@@ -32,6 +33,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct Example<const N: usize> {
     pub game: Game<N>,
     pub pi: Tensor,
