@@ -142,7 +142,12 @@ where
     println!("starting a new iteration of self-play");
     let examples = self_play(&network);
     loop {
-        let mut new_network = Network::<N>::default(); // TODO each time start fresh?
+        // copy network values by file (UGLY)
+        let mut dir = std::env::temp_dir();
+        dir.push("model");
+        network.save(&dir).unwrap();
+        let mut new_network = Network::<N>::load(&dir).unwrap();
+
         new_network.train(&examples);
         let results = pit(&new_network, &network);
         println!("{:?}", results);
