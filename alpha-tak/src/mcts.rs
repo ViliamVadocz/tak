@@ -48,9 +48,10 @@ where
             return match result {
                 GameResult::Winner(winner) => {
                     if winner == game.to_move {
-                        1.
-                    } else {
+                        // means that the previous player played a losing move
                         -1.
+                    } else {
+                        1.
                     }
                 }
                 GameResult::Draw => 0.,
