@@ -139,17 +139,15 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: LUT,
 {
+    println!("starting a new iteration of self-play");
+    let examples = self_play(&network);
     loop {
-        println!("starting a new iteration of self-play");
-        let examples = self_play(&network);
-        let mut new_network = Network::<N>::default(); // each time start fresh?
-        new_network.train(examples);
+        let mut new_network = Network::<N>::default(); // TODO each time start fresh?
+        new_network.train(&examples);
         let results = pit(&new_network, &network);
         println!("{:?}", results);
         if results.win_rate() > WIN_RATE_THRESHOLD {
             return new_network;
-        } else {
-            println!("discarding changes");
         }
     }
 }
