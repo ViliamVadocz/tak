@@ -18,15 +18,13 @@ pub const fn moves_dims(n: usize) -> usize {
     }
 }
 
-fn colour_repr(colour: &Colour) -> f32 {
-    match colour {
-        Colour::White => 1.,
-        Colour::Black => -1.,
-    }
+fn colour_repr(colour: &Colour, to_move: &Colour) -> f32 {
+    if colour == to_move {1.} else {0.}
 }
 
 // UGLY
-fn board_repr<const N: usize>(board: &Board<N>) -> Tensor {
+/// Creates a tensor which represents the board from the perspective of the current player.
+fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
     let [d1, d2, d3] = input_dims(N);
     let board_shape = [d2 as i64, d3 as i64];
 
@@ -38,7 +36,7 @@ fn board_repr<const N: usize>(board: &Board<N>) -> Tensor {
         for x in 0..N {
             let pos = Pos { x, y };
             if let Some(tile) = &board[pos] {
-                let colour = colour_repr(&tile.top.colour);
+                let colour = colour_repr(&tile.top.colour, &to_move);
                 match tile.top.shape {
                     Shape::Flat => flats[y][x] = colour,
                     Shape::Wall => walls[y][x] = colour,
@@ -61,10 +59,8 @@ fn board_repr<const N: usize>(board: &Board<N>) -> Tensor {
             for x in 0..N {
                 let pos = Pos { x, y };
                 if let Some(tile) = &board[pos] {
-                    if let Some(stack) = &tile.stack {
-                        if let Some(colour) = stack.iter().rev().nth(n) {
-                            layer[y][x] = colour_repr(colour);
-                        }
+                    if let Some(colour) = tile.stack.iter().rev().nth(n) {
+                        layer[y][x] = colour_repr(colour, &to_move);
                     }
                 }
             }
@@ -79,5 +75,5 @@ fn board_repr<const N: usize>(board: &Board<N>) -> Tensor {
 
 pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {
     // TODO add other info such as komi, fcd, total stones, reserves
-    board_repr(&game.board)
+    board_repr(&game.board, game.to_move)
 }
