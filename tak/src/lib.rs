@@ -19,9 +19,6 @@ mod tests {
     fn always_last_move() -> StrResult<()> {
         let mut game = Game::<6>::default();
         while let GameResult::Ongoing = game.winner() {
-            if game.ply > 1000 {
-                break;
-            }
             let mut moves = game.move_gen();
             println!("{}", game.board);
             let tried = format!("{:?}", moves.last().unwrap());
@@ -36,9 +33,6 @@ mod tests {
     fn always_first_move() -> StrResult<()> {
         let mut game = Game::<6>::default();
         while let GameResult::Ongoing = game.winner() {
-            if game.ply > 1000 {
-                break;
-            }
             let mut moves = game.move_gen();
             game.play(moves.swap_remove(0))?;
         }

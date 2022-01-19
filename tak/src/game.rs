@@ -13,7 +13,7 @@ use crate::{
 
 type Stones = u8;
 type Capstones = u8;
-pub const fn starting_stones(width: usize) -> (Stones, Capstones) {
+const fn starting_stones(width: usize) -> (Stones, Capstones) {
     match width {
         3 => (10, 0),
         4 => (15, 0),
@@ -24,6 +24,8 @@ pub const fn starting_stones(width: usize) -> (Stones, Capstones) {
         _ => panic!("missing starting stones for non-standard board size"),
     }
 }
+
+const TURN_LIMIT: u64 = 1000;
 
 #[derive(Clone, Copy, Debug)]
 pub enum GameResult {
@@ -215,6 +217,8 @@ impl<const N: usize> Game<N> {
             GameResult::Winner(self.to_move.next())
         } else if self.board.find_paths(self.to_move) {
             GameResult::Winner(self.to_move)
+        } else if self.ply >= TURN_LIMIT {
+            GameResult::Draw
         } else {
             GameResult::Ongoing
         }
