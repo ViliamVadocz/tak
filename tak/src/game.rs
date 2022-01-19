@@ -90,6 +90,15 @@ impl<const N: usize> Game<N> {
         }
     }
 
+    pub fn opening(&mut self, opening_index: usize) -> StrResult<()> {
+        if !self.board.empty() || self.ply != 0 {
+            return Err("openings should be played on an empty board with no previous plies");
+        }
+        let i = opening_index % (N * N * (N * N - 1));
+        self.play(self.move_gen().into_iter().nth(i / (N * N - 1)).unwrap())?;
+        self.play(self.move_gen().into_iter().nth(i % (N * N - 1)).unwrap())
+    }
+
     pub fn from_ptn(game_str: &str) -> StrResult<Game<N>>
     where
         [[Option<Tile>; N]; N]: Default,

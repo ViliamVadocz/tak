@@ -16,6 +16,10 @@ pub struct Board<const N: usize> {
 }
 
 impl<const N: usize> Board<N> {
+    pub fn empty(&self) -> bool {
+        self.data.iter().all(|row| row.iter().all(|x| x.is_none()))
+    }
+
     pub fn full(&self) -> bool {
         self.data.iter().all(|row| row.iter().all(|x| x.is_some()))
     }

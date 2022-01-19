@@ -14,7 +14,7 @@ use crate::{
     repr::{game_repr, input_dims, moves_dims},
 };
 
-const EPOCHS: usize = 5; // TODO make bigger
+const EPOCHS: usize = 1; // TODO make bigger
 
 #[derive(Debug)]
 pub struct Network<const N: usize> {
@@ -40,8 +40,7 @@ impl<const N: usize> Network<N> {
     pub fn train(&mut self, examples: Vec<Example<N>>) {
         println!("starting training");
         let mut opt = nn::Adam::default().build(&self.vs, 1e-4).unwrap();
-        // TODO do some kind of batching something
-        // https://github.com/suragnair/alpha-zero-general/blob/master/othello/pytorch/NNet.py
+        // TODO somehow batch example together
         for epoch in 0..EPOCHS {
             println!("epoch: {}", epoch);
             for Example { game, pi, v } in &examples {
@@ -51,7 +50,7 @@ impl<const N: usize> Network<N> {
                 let loss_v = (eval - v).square();
                 let total_loss = loss_v + loss_pi;
 
-                // opt.zero_grad();  // TODO is this needed?
+                opt.zero_grad();  // TODO is this needed?
                 opt.backward_step(&total_loss);
             }
         }

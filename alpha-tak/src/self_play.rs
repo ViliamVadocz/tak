@@ -12,9 +12,9 @@ use crate::{
     turn_map::LUT,
 };
 
-const GAMES_PER_BATCH: u32 = 500;
+const GAMES_PER_BATCH: u32 = 240;
 const ROLLOUTS_PER_MOVE: u32 = 100;
-const PIT_GAMES: u32 = 200;
+const PIT_GAMES: u32 = 240;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
@@ -28,8 +28,10 @@ where
     for i in 0..GAMES_PER_BATCH {
         println!("self_play game: {}", i);
         let mut game_examples = Vec::new();
-        // TODO create game (with komi and opening?)
+        // TODO add komi?
         let mut game = Game::default();
+        game.opening(i as usize).unwrap();
+
         let mut node = Node::default();
         // play game
         while matches!(game.winner(), GameResult::Ongoing) {
@@ -44,6 +46,7 @@ where
             node = node.play(&turn);
             game.play(turn).unwrap();
         }
+        println!("{:?}\n{}", game.winner(), game.board);
         // complete examples
         let result = match game.winner() {
             GameResult::Winner(Colour::White) => 1.,
@@ -87,8 +90,10 @@ where
     let mut losses = 0;
 
     for i in 0..PIT_GAMES {
-        // TODO Openings, komi, etc.
+        // TODO add komi?
         let mut game = Game::default();
+        game.opening(i as usize / 2).unwrap();
+
         let my_colour = if i % 2 == 0 { Colour::White } else { Colour::Black };
         let mut my_node = Node::default();
         let mut opp_node = Node::default();
@@ -111,7 +116,7 @@ where
             opp_node = opp_node.play(&turn);
             game.play(turn).unwrap();
         }
-
+        println!("{:?}\n{}", game.winner(), game.board);
         match game.winner() {
             GameResult::Winner(winner) => {
                 if winner == my_colour {
