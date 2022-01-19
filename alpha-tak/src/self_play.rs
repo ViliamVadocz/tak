@@ -90,6 +90,7 @@ where
     let mut losses = 0;
 
     for i in 0..PIT_GAMES {
+        println!("pit game: {}", i);
         // TODO add komi?
         let mut game = Game::default();
         game.opening(i as usize / 2).unwrap();
@@ -138,7 +139,6 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: LUT,
 {
-    println!("play_until_better");
     loop {
         println!("starting a new iteration of self-play");
         let examples = self_play(&network);
@@ -148,6 +148,8 @@ where
         println!("{:?}", results);
         if results.win_rate() > WIN_RATE_THRESHOLD {
             return new_network;
+        } else {
+            println!("discarding changes");
         }
     }
 }
