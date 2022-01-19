@@ -62,17 +62,15 @@ impl<const N: usize> Game<N> {
                     shape: Shape::Flat,
                 },
             });
-            if self.ply >= 2 {
-                turns.push(Turn::Place {
-                    pos,
-                    piece: Piece {
-                        colour: self.to_move,
-                        shape: Shape::Wall,
-                    },
-                });
-            }
+            turns.push(Turn::Place {
+                pos,
+                piece: Piece {
+                    colour: self.to_move,
+                    shape: Shape::Wall,
+                },
+            });
         }
-        if caps > 0 && self.ply >= 2 {
+        if caps > 0 {
             turns.push(Turn::Place {
                 pos,
                 piece: Piece {
@@ -85,6 +83,23 @@ impl<const N: usize> Game<N> {
 
     pub fn move_gen(&self) -> Vec<Turn<N>> {
         let mut turns = Vec::new();
+
+        // can only place opponent's flat on the first two plies
+        if self.swap() {
+            for pos in (0..N).flat_map(|x| (0..N).map(move |y| Pos { x, y })) {
+                if self.board[pos].is_none() {
+                    turns.push(Turn::Place {
+                        pos,
+                        piece: Piece {
+                            colour: self.to_move.next(),
+                            shape: Shape::Flat,
+                        },
+                    });
+                }
+            }
+            return turns;
+        }
+
         for pos in (0..N).flat_map(|x| (0..N).map(move |y| Pos { x, y })) {
             if let Some(tile) = &self.board[pos] {
                 if tile.top.colour == self.to_move {
@@ -243,8 +258,9 @@ mod tests {
     fn ptn_consistency() -> StrResult<()> {
         let mut game = Game::<6>::default();
         for ply in PLIES {
-            let turn = Turn::from_ptn(ply, &game.board, game.to_move)?;
-            assert_eq!(turn, Turn::from_ptn(&turn.to_ptn(), &game.board, game.to_move)?);
+            let colour = game.colour();
+            let turn = Turn::from_ptn(ply, &game.board, colour)?;
+            assert_eq!(turn, Turn::from_ptn(&turn.to_ptn(), &game.board, colour)?);
             game.play(turn)?;
         }
         Ok(())

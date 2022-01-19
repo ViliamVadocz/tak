@@ -121,7 +121,7 @@ mod tests {
             7. f3 Cb5
             8. d4-",
         )?;
-        assert!(matches!(game.winner(), GameResult::Winner(Colour::White)));
+        assert_eq!(game.winner(), GameResult::Winner(Colour::White));
         Ok(())
     }
 }

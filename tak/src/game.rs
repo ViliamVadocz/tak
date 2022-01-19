@@ -25,9 +25,9 @@ const fn starting_stones(width: usize) -> (Stones, Capstones) {
     }
 }
 
-const TURN_LIMIT: u64 = 1000;
+const TURN_LIMIT: u64 = 400;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GameResult {
     Winner(Colour),
     Draw,
@@ -66,7 +66,7 @@ where
         let (stones, capstones) = starting_stones(N);
         Self {
             board: Board::default(),
-            to_move: Colour::Black, // White picks the first move for Black
+            to_move: Colour::White, // White picks the first move for Black
             ply: 0,
             white_stones: stones,
             black_stones: stones,
@@ -78,6 +78,18 @@ where
 }
 
 impl<const N: usize> Game<N> {
+    pub fn swap(&self) -> bool {
+        self.ply < 2
+    }
+
+    pub fn colour(&self) -> Colour {
+        if self.swap() {
+            self.to_move.next()
+        } else {
+            self.to_move
+        }
+    }
+
     pub fn from_ptn(game_str: &str) -> StrResult<Game<N>>
     where
         [[Option<Tile>; N]; N]: Default,
@@ -102,7 +114,7 @@ impl<const N: usize> Game<N> {
     {
         let mut game = Game::default();
         for ply in moves {
-            let turn = Turn::from_ptn(ply, &game.board, game.to_move)?;
+            let turn = Turn::from_ptn(ply, &game.board, game.colour())?;
             game.play(turn)?;
         }
         Ok(game)
@@ -139,6 +151,8 @@ impl<const N: usize> Game<N> {
             Err("cannot play a stone without stones")
         } else if self.ply < 2 && matches!(piece.shape, Shape::Wall | Shape::Capstone) {
             Err("cannot play a wall or capstone on the first two plies")
+        } else if piece.colour != self.colour() {
+            Err("cannot play the other players colour outside the first two plies")
         } else {
             self.board[pos] = Some(Tile::new(piece));
             if matches!(piece.shape, Shape::Flat | Shape::Wall) {
@@ -194,11 +208,7 @@ impl<const N: usize> Game<N> {
             Turn::Move { pos, drops } => self.execute_move(pos, drops),
         }?;
         self.ply += 1;
-        if self.ply != 2 {
-            // first two plies are done in reverse, so then on ply 2
-            // we don't switch who goes next
-            self.to_move = self.to_move.next();
-        }
+        self.to_move = self.to_move.next();
         Ok(())
     }
 
