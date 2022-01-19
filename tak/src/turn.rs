@@ -152,7 +152,7 @@ impl<const N: usize> Turn<N> {
         // (count)(square)(direction)(drop counts)(stone)
         let re = Regex::new(r"([0-9]*)([a-z])([0-9])([<>+-])([0-9]*)[CS]?").unwrap();
         if let Some(cap) = re.captures(ply) {
-            let carry_amount = cap[1].parse().unwrap();
+            let carry_amount = cap[1].parse().unwrap_or(1);
 
             let x = abc_to_num(cap[2].chars().next().unwrap());
             let y = cap[3].parse::<usize>().unwrap() - 1;

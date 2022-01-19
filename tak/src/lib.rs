@@ -10,6 +10,7 @@ pub type StrResult<T> = Result<T, &'static str>;
 #[cfg(test)]
 mod tests {
     use crate::{
+        colour::Colour,
         game::{Game, GameResult},
         StrResult,
     };
@@ -112,5 +113,21 @@ mod tests {
         assert_eq!(perf_count(Game::<6>::default(), 3), 132_720);
         assert_eq!(perf_count(Game::<6>::default(), 4), 13_586_048);
         // assert_eq!(perf_count(Game::<6>::default(), 5), 1_253_506_520);
+    }
+
+    #[test]
+    fn double_road_correct_win() -> StrResult<()> {
+        let game = Game::<6>::from_PTN(
+            "1. a4 a3
+            2. b3 b4
+            3. c3 c4
+            4. d3 d4
+            5. d3+ e4
+            6. e3 f4
+            7. f3 Cb5
+            8. d4-",
+        )?;
+        assert!(matches!(game.winner(), GameResult::Winner(Colour::White)));
+        Ok(())
     }
 }

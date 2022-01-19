@@ -219,10 +219,10 @@ impl<const N: usize> Game<N> {
                 Ordering::Less => GameResult::Winner(Colour::Black),
                 Ordering::Equal => GameResult::Draw,
             }
-        } else if self.board.find_paths(self.to_move) {
-            GameResult::Winner(self.to_move)
         } else if self.board.find_paths(self.to_move.next()) {
             GameResult::Winner(self.to_move.next())
+        } else if self.board.find_paths(self.to_move) {
+            GameResult::Winner(self.to_move)
         } else {
             GameResult::Ongoing
         }
