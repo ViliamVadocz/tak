@@ -22,7 +22,7 @@ fn colour_repr(colour: &Colour, to_move: &Colour) -> f32 {
     if colour == to_move {
         1.
     } else {
-        0.
+        -1.
     }
 }
 
