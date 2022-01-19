@@ -47,7 +47,7 @@ where
                     colour: Colour::White,
                     shape: Shape::Flat,
                 },
-                stack: Some(repeat(Colour::White).take(N).collect()),
+                stack: repeat(Colour::White).take(N).collect(),
             });
         }
     }

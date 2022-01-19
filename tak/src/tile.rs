@@ -20,15 +20,22 @@ pub struct Piece {
 #[derive(Clone, Debug)]
 pub struct Tile {
     pub top: Piece,
-    pub stack: Option<Vec<Colour>>, // TODO remove Option
+    pub stack: Vec<Colour>,
 }
 
 impl Tile {
-    pub fn size(&self) -> usize {
-        1 + self.stack.as_ref().map(|v| v.len()).unwrap_or_default()
+    pub fn new(top: Piece) -> Self {
+        Tile {
+            top,
+            stack: Vec::new(),
+        }
     }
 
-    pub fn stack(self, piece: Piece) -> StrResult<Self> {
+    pub fn size(&self) -> usize {
+        1 + self.stack.len()
+    }
+
+    pub fn stack(mut self, piece: Piece) -> StrResult<Self> {
         // Only allow stacking on top of flats, or flattening walls.
 
         match self.top.shape {
@@ -43,11 +50,10 @@ impl Tile {
             Shape::Capstone => Err("cannot create a stack on top of a capstone"),
         }?;
 
-        let mut stack = self.stack.unwrap_or_default();
-        stack.push(self.top.colour);
+        self.stack.push(self.top.colour);
         Ok(Tile {
             top: piece,
-            stack: Some(stack),
+            stack: self.stack,
         })
     }
 
@@ -63,7 +69,6 @@ impl Tile {
 
         let mut stack = self
             .stack
-            .unwrap_or_default()
             .into_iter()
             .map(|colour| Piece {
                 colour,
@@ -78,11 +83,7 @@ impl Tile {
 
         let left = stack.next().map(|top| Tile {
             top,
-            stack: if count - amount == 1 {
-                None
-            } else {
-                Some(stack.rev().map(|p| p.colour).collect())
-            },
+            stack: stack.rev().map(|p| p.colour).collect(),
         });
         Ok((left, carry))
     }

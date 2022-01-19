@@ -140,10 +140,7 @@ impl<const N: usize> Game<N> {
         } else if self.ply < 2 && matches!(piece.shape, Shape::Wall | Shape::Capstone) {
             Err("cannot play a wall or capstone on the first two plies")
         } else {
-            self.board[pos] = Some(Tile {
-                top: piece,
-                stack: None,
-            });
+            self.board[pos] = Some(Tile::new(piece));
             if matches!(piece.shape, Shape::Flat | Shape::Wall) {
                 self.dec_stones();
             } else {
@@ -185,10 +182,7 @@ impl<const N: usize> Game<N> {
             if let Some(t) = self.board[pos].take() {
                 self.board[pos] = Some(t.stack(carried)?);
             } else {
-                self.board[pos] = Some(Tile {
-                    top: carried,
-                    stack: None,
-                });
+                self.board[pos] = Some(Tile::new(carried));
             }
         }
         Ok(())

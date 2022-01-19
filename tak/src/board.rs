@@ -63,7 +63,7 @@ impl<const N: usize> Board<N> {
                 colour: piece_colour,
                 shape,
             },
-            stack: _,
+            ..
         }) = self[pos]
         {
             if piece_colour == colour && matches!(shape, Shape::Flat | Shape::Capstone) {

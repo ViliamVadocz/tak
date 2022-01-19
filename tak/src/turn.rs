@@ -31,18 +31,15 @@ impl<const N: usize> Game<N> {
             let direction = (neighbour - pos).unwrap();
             let max_carry = min(tile.size(), N);
             for i in 0..=(max_carry - 1) {
-                let mut carry = Vec::new();
-                if let Some(stack) = &tile.stack {
-                    carry.extend(
-                        stack
-                            .iter()
-                            .map(|&colour| Piece {
-                                colour,
-                                shape: Shape::Flat,
-                            })
-                            .skip(stack.len() - i),
-                    );
-                }
+                let mut carry: Vec<_> = tile
+                    .stack
+                    .iter()
+                    .map(|&colour| Piece {
+                        colour,
+                        shape: Shape::Flat,
+                    })
+                    .skip(tile.stack.len() - i)
+                    .collect();
                 carry.push(tile.top);
                 let possible_drops = self.try_drop(neighbour, direction, &carry);
                 turns.extend(
