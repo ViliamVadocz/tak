@@ -12,7 +12,7 @@ pub mod repr;
 pub mod self_play;
 pub mod turn_map;
 
-const START: usize = 0;
+const START: usize = 31;
 
 fn main() {
     println!("using gpu: {}", Device::cuda_if_available().is_cuda());
@@ -20,11 +20,11 @@ fn main() {
     let mut nn = if START == 0 {
         Network::<4>::default()
     } else {
-        Network::<4>::load(format!("models/{START:03}.varstore")).unwrap()
+        Network::<4>::load(format!("models/{START:03}.model")).unwrap()
     };
     for i in (START + 1)..1000 {
         nn = play_until_better(nn);
         println!("saving model");
-        nn.save(format!("models/{i:03}.varstore")).unwrap();
+        nn.save(format!("models/{i:03}.model")).unwrap();
     }
 }
