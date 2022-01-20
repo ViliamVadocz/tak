@@ -38,6 +38,24 @@ impl<const N: usize> Pos<N> {
     pub fn to_ptn(&self) -> String {
         format!("{}{}", (self.x as u8 + b'a') as char, self.y + 1)
     }
+
+    /// rotates a position 1 quarter turn counterclockwise
+    #[must_use]
+    pub fn rotate(&self) -> Self {
+        Pos {
+            x: self.y,
+            y: N - 1 - self.x,
+        }
+    }
+
+    /// mirror along the x axis
+    #[must_use]
+    pub fn mirror(&self) -> Self {
+        Pos {
+            x: self.x,
+            y: N - 1 - self.y,
+        }
+    }
 }
 
 impl<const N: usize> Sub for Pos<N> {

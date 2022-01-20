@@ -1,7 +1,10 @@
+#![feature(array_zip)]
+
 pub mod board;
 pub mod colour;
 pub mod game;
 pub mod pos;
+pub mod symm;
 pub mod tile;
 pub mod turn;
 

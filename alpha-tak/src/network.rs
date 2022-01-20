@@ -15,9 +15,9 @@ use crate::{
     repr::{game_repr, input_dims, moves_dims},
 };
 
-const EPOCHS: usize = 10; // TODO make bigger
+const EPOCHS: usize = 20; // TODO make bigger
 const BATCH_SIZE: i64 = 50; // TODO experiment
-const LEARNING_RATE: f64 = 1e-4;
+const LEARNING_RATE: f64 = 1e-3;
 
 #[derive(Debug)]
 pub struct Network<const N: usize> {
@@ -44,7 +44,6 @@ impl<const N: usize> Network<N> {
         println!("starting training");
         let mut opt = nn::Adam::default().build(&self.vs, LEARNING_RATE).unwrap();
 
-        // TODO consider symmetries
         let games: Vec<_> = examples
             .iter()
             .map(|Example { game, .. }| game_repr(game))

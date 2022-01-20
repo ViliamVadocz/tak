@@ -13,9 +13,9 @@ use crate::{
     turn_map::LUT,
 };
 
-const SELF_PLAY_GAMES: u32 = 10;
-const ROLLOUTS_PER_MOVE: u32 = 500;
-const PIT_GAMES: u32 = 100;
+const SELF_PLAY_GAMES: u32 = 30;
+const ROLLOUTS_PER_MOVE: u32 = 200;
+const PIT_GAMES: u32 = 50;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
@@ -56,10 +56,16 @@ where
             GameResult::Ongoing => unreachable!(),
         };
         // fill in examples with result
-        examples.extend(game_examples.into_iter().enumerate().map(|(ply, ex)| {
-            let perspective = if ply % 2 == 0 { result } else { -result };
-            ex.complete(perspective)
-        }));
+        examples.extend(
+            game_examples
+                .into_iter()
+                .enumerate()
+                .map(|(ply, ex)| {
+                    let perspective = if ply % 2 == 0 { result } else { -result };
+                    ex.complete(perspective)
+                })
+                .flatten(),
+        );
     }
     examples
 }
@@ -74,7 +80,9 @@ struct PitResult {
 
 impl PitResult {
     pub fn win_rate(&self) -> f64 {
-        (self.wins as f64 + self.draws as f64 / 2.) / (self.wins + self.draws + self.losses) as f64
+        // (self.wins as f64 + self.draws as f64 / 2.) / (self.wins + self.draws +
+        // self.losses) as f64
+        self.wins as f64 / (self.wins + self.losses) as f64
     }
 }
 
@@ -119,7 +127,6 @@ where
             game.play(turn).unwrap();
         }
         let game_result = game.winner();
-        println!("{:?} as {:?}\n{}", game_result, my_colour, game.board);
         match game_result {
             GameResult::Winner(winner) => {
                 if winner == my_colour {
@@ -131,6 +138,10 @@ where
             GameResult::Draw => draws += 1,
             GameResult::Ongoing => unreachable!(),
         }
+        println!(
+            "{:?} as {:?} [{}/{}/{}]\n{}",
+            game_result, my_colour, wins, draws, losses, game.board
+        );
     }
 
     PitResult { wins, draws, losses }
