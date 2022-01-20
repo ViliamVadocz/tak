@@ -1,3 +1,4 @@
+use rand::random;
 use tak::{
     colour::Colour,
     game::{Game, GameResult},
@@ -12,9 +13,9 @@ use crate::{
     turn_map::LUT,
 };
 
-const GAMES_PER_BATCH: u32 = 240;
-const ROLLOUTS_PER_MOVE: u32 = 100;
-const PIT_GAMES: u32 = 240;
+const SELF_PLAY_GAMES: u32 = 10;
+const ROLLOUTS_PER_MOVE: u32 = 500;
+const PIT_GAMES: u32 = 100;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
@@ -25,12 +26,12 @@ where
     let mut examples = Vec::new();
 
     // run multiple games against self
-    for i in 0..GAMES_PER_BATCH {
+    for i in 0..SELF_PLAY_GAMES {
         println!("self_play game: {}", i);
         let mut game_examples = Vec::new();
         // TODO add komi?
         let mut game = Game::default();
-        game.opening(i as usize).unwrap();
+        game.opening(random()).unwrap();
 
         let mut node = Node::default();
         // play game
@@ -46,7 +47,7 @@ where
             node = node.play(&turn);
             game.play(turn).unwrap();
         }
-        println!("{:?}\n{}", game.winner(), game.board);
+        println!("{:?} in {} plies\n{}", game.winner(), game.ply, game.board);
         // complete examples
         let result = match game.winner() {
             GameResult::Winner(Colour::White) => 1.,
@@ -73,7 +74,7 @@ struct PitResult {
 
 impl PitResult {
     pub fn win_rate(&self) -> f64 {
-        self.wins as f64 / (self.wins + self.losses) as f64
+        (self.wins as f64 + self.draws as f64 / 2.) / (self.wins + self.draws + self.losses) as f64
     }
 }
 
@@ -93,7 +94,7 @@ where
         println!("pit game: {}", i);
         // TODO add komi?
         let mut game = Game::default();
-        game.opening(i as usize / 2).unwrap();
+        game.opening(random()).unwrap();
 
         let my_colour = if i % 2 == 0 { Colour::White } else { Colour::Black };
         let mut my_node = Node::default();
@@ -117,8 +118,9 @@ where
             opp_node = opp_node.play(&turn);
             game.play(turn).unwrap();
         }
-        println!("{:?}\n{}", game.winner(), game.board);
-        match game.winner() {
+        let game_result = game.winner();
+        println!("{:?} as {:?}\n{}", game_result, my_colour, game.board);
+        match game_result {
             GameResult::Winner(winner) => {
                 if winner == my_colour {
                     wins += 1;
@@ -140,14 +142,14 @@ where
     Turn<N>: LUT,
 {
     println!("starting a new iteration of self-play");
-    let examples = self_play(&network);
-    loop {
-        // copy network values by file (UGLY)
-        let mut dir = std::env::temp_dir();
-        dir.push("model");
-        network.save(&dir).unwrap();
-        let mut new_network = Network::<N>::load(&dir).unwrap();
+    // copy network values by file (UGLY)
+    let mut dir = std::env::temp_dir();
+    dir.push("model");
+    network.save(&dir).unwrap();
+    let mut new_network = Network::<N>::load(&dir).unwrap();
 
+    loop {
+        let examples = self_play(&network);
         new_network.train(&examples);
         let results = pit(&new_network, &network);
         println!("{:?}", results);
