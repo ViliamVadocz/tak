@@ -231,14 +231,21 @@ impl<const N: usize> Turn<N> {
                     }
                     last = drop;
                 }
-                spread.push_str(&current.to_string());
-                format!(
-                    "{}{}{}{}",
-                    drops.len(),
-                    pos.to_ptn(),
-                    direction.unwrap().to_ptn(),
-                    spread
-                )
+                // leave out drop number if we are moving the whole stack
+                if !spread.is_empty() {
+                    spread.push_str(&current.to_string());
+                }
+                if drops.len() > 1 {
+                    format!(
+                        "{}{}{}{}",
+                        drops.len(),
+                        pos.to_ptn(),
+                        direction.unwrap().to_ptn(),
+                        spread
+                    )
+                } else {
+                    format!("{}{}", pos.to_ptn(), direction.unwrap().to_ptn())
+                }
             }
         }
     }
