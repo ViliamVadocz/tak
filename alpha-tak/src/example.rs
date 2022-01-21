@@ -21,7 +21,16 @@ where
 {
     #[must_use]
     pub fn complete(self, result: f32) -> Vec<Example<N>> {
-        let mut pi = [vec![0.; moves_dims(N)]; 8];
+        let mut pi = [
+            vec![0.; moves_dims(N)],
+            vec![0.; moves_dims(N)],
+            vec![0.; moves_dims(N)],
+            vec![0.; moves_dims(N)],
+            vec![0.; moves_dims(N)],
+            vec![0.; moves_dims(N)],
+            vec![0.; moves_dims(N)],
+            vec![0.; moves_dims(N)],
+        ];
         for (turn, value) in self.policy {
             for (i, symm) in turn.symmetries().into_iter().enumerate() {
                 pi[i][symm.turn_map()] = value;
