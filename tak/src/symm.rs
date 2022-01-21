@@ -54,7 +54,7 @@ where
                 for y in 0..N {
                     for x in 0..N {
                         let pos = Pos { x, y };
-                        board[pos.symmetries()[i]] = board[pos].clone();
+                        board[pos.symmetries()[i]] = self[pos].clone();
                     }
                 }
                 board
