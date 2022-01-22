@@ -13,8 +13,8 @@ use crate::{
     turn_map::LUT,
 };
 
-const SELF_PLAY_GAMES: u32 = 30;
-const ROLLOUTS_PER_MOVE: u32 = 200;
+const SELF_PLAY_GAMES: u32 = 100;
+const ROLLOUTS_PER_MOVE: u32 = 100;
 const PIT_GAMES: u32 = 50;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 

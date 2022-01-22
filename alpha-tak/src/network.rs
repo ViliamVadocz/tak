@@ -15,8 +15,8 @@ use crate::{
     repr::{game_repr, input_dims, moves_dims},
 };
 
-const EPOCHS: usize = 20; // TODO make bigger
-const BATCH_SIZE: i64 = 50; // TODO experiment
+const EPOCHS: usize = 100; // TODO make bigger
+const BATCH_SIZE: i64 = 100; // TODO experiment
 const LEARNING_RATE: f64 = 1e-3;
 
 #[derive(Debug)]
@@ -56,8 +56,11 @@ impl<const N: usize> Network<N> {
 
         for epoch in 0..EPOCHS {
             // Batch examples
-            let mut batch_iter =
-                Iter2::new(&Tensor::stack(&games, 0), &Tensor::stack(&targets, 0), BATCH_SIZE);
+            let mut batch_iter = Iter2::new(
+                &Tensor::stack(&games, 0).to_device(Device::cuda_if_available()),
+                &Tensor::stack(&targets, 0).to_device(Device::cuda_if_available()),
+                BATCH_SIZE,
+            );
 
             println!("epoch: {}", epoch);
             for (input, target) in batch_iter.shuffle() {

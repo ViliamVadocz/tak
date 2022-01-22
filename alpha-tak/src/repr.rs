@@ -1,5 +1,5 @@
 use tak::{board::Board, colour::Colour, game::Game, pos::Pos, tile::Shape};
-use tch::{Tensor, Device};
+use tch::{Device, Tensor};
 
 pub const fn input_dims(n: usize) -> [usize; 3] {
     // channels first
