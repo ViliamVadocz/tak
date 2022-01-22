@@ -12,9 +12,10 @@ pub mod repr;
 pub mod self_play;
 pub mod turn_map;
 
-const START: usize = 31;
+const START: usize = 0;
 
 fn main() {
+    tch::maybe_init_cuda();
     println!("using gpu: {}", Device::cuda_if_available().is_cuda());
 
     let mut nn = if START == 0 {
