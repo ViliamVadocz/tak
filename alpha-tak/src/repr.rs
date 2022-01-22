@@ -3,7 +3,7 @@ use tch::{Device, Tensor};
 
 pub const fn input_dims(n: usize) -> [usize; 3] {
     // channels first
-    [n + 3, n, n]
+    [n + 3 + 1, n, n]
 }
 
 pub const fn moves_dims(n: usize) -> usize {
@@ -73,6 +73,8 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
             Tensor::of_slice(layer.into_iter().flatten().collect::<Vec<_>>().as_slice()).view(board_shape),
         );
     }
+    // last layer for whose turn it is
+    layers.push(Tensor::of_slice(&vec![if to_move == Colour::White {1.0} else {-1.0}; N*N]));
 
     Tensor::stack(&layers, 0).to_device(Device::cuda_if_available())
 }
