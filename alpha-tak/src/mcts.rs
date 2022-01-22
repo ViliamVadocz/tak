@@ -11,7 +11,7 @@ use tak::{
 
 use crate::{network::Network, turn_map::LUT};
 
-const EXPLORATION: f32 = 0.1;
+const EXPLORATION: f32 = 1.0;
 
 fn upper_confidence_bound<const N: usize>(parent: &Node<N>, child: &Node<N>) -> f32 {
     // U(s, a) = Q(s, a) + c * P(s, a) * sqrt(sum_b(N(s, b))) / (1 + N(s, a))
