@@ -17,7 +17,7 @@ use crate::{
 
 const EPOCHS: usize = 100; // TODO make bigger
 const BATCH_SIZE: i64 = 100; // TODO experiment
-const LEARNING_RATE: f64 = 1e-3;
+const LEARNING_RATE: f64 = 1e-4;
 
 #[derive(Debug)]
 pub struct Network<const N: usize> {
@@ -56,14 +56,14 @@ impl<const N: usize> Network<N> {
 
         for epoch in 0..EPOCHS {
             // Batch examples
-            let mut batch_iter = Iter2::new(
-                &Tensor::stack(&games, 0).to_device(Device::cuda_if_available()),
-                &Tensor::stack(&targets, 0).to_device(Device::cuda_if_available()),
-                BATCH_SIZE,
-            );
+            let mut batch_iter =
+                Iter2::new(&Tensor::stack(&games, 0), &Tensor::stack(&targets, 0), BATCH_SIZE);
+            let batch_iter = batch_iter
+                .to_device(Device::cuda_if_available())
+                .return_smaller_last_batch(); //.shuffle(); (Looks like shuffle has hardcoded CPU)
 
             println!("epoch: {}", epoch);
-            for (input, target) in batch_iter.shuffle() {
+            for (input, target) in batch_iter {
                 let batch_size = input.size()[0];
                 let output = self.forward_t(&input, true);
                 // get prediction
