@@ -15,9 +15,9 @@ use crate::{
     repr::{game_repr, input_dims, moves_dims},
 };
 
-const EPOCHS: usize = 100; // TODO make bigger
-const BATCH_SIZE: i64 = 100; // TODO experiment
-const LEARNING_RATE: f64 = 1e-4;
+const EPOCHS: usize = 20; // TODO make bigger
+const BATCH_SIZE: i64 = 50; // TODO experiment
+const LEARNING_RATE: f64 = 1e-3;
 
 #[derive(Debug)]
 pub struct Network<const N: usize> {
@@ -60,9 +60,11 @@ impl<const N: usize> Network<N> {
                 Iter2::new(&Tensor::stack(&games, 0), &Tensor::stack(&targets, 0), BATCH_SIZE);
             let batch_iter = batch_iter
                 .to_device(Device::cuda_if_available())
-                .return_smaller_last_batch(); //.shuffle(); (Looks like shuffle has hardcoded CPU)
+                .return_smaller_last_batch()
+                .shuffle(); // (Looks like shuffle has hardcoded CPU)
 
             println!("epoch: {}", epoch);
+            let mut epoch_loss = Tensor::zeros(&[1], (Kind::Float, Device::cuda_if_available()));
             for (input, target) in batch_iter {
                 let batch_size = input.size()[0];
                 let output = self.forward_t(&input, true);
@@ -81,7 +83,9 @@ impl<const N: usize> Network<N> {
                 let total_loss = loss_v + loss_pi;
 
                 opt.backward_step(&total_loss);
+                epoch_loss += total_loss;
             }
+            println!("loss: {:?}", epoch_loss);
         }
     }
 
