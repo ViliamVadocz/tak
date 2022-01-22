@@ -25,6 +25,7 @@ pub struct Network<const N: usize> {
     conv1: nn::Conv2D,
     conv2: nn::Conv2D,
     conv3: nn::Conv2D,
+    conv4: nn::Conv2D,
     fc1: nn::Linear,
     fc2: nn::Linear,
     fc3: nn::Linear,
@@ -99,19 +100,23 @@ impl<const N: usize> Default for Network<N> {
         let vs = nn::VarStore::new(Device::cuda_if_available());
         let root = &vs.root();
         let [d1, _d2, _d3] = input_dims(N);
-        let conv1 = nn::conv2d(root, d1 as i64, 32, 3, ConvConfig {
+        let conv1 = nn::conv2d(root, d1 as i64, 16, 3, ConvConfig {
             padding: 3,
             ..Default::default()
         });
-        let conv2 = nn::conv2d(root, 32, 64, 3, ConvConfig {
+        let conv2 = nn::conv2d(root, 16, 32, 3, ConvConfig {
             padding: 3,
             ..Default::default()
         });
-        let conv3 = nn::conv2d(root, 64, 128, 3, ConvConfig {
+        let conv3 = nn::conv2d(root, 32, 64, 3, ConvConfig {
             padding: 3,
             ..Default::default()
         });
-        let fc1 = nn::linear(root, 2048, 1024, Default::default());
+        let conv4 = nn::conv2d(root, 64, 128, 3, ConvConfig {
+            padding: 3,
+            ..Default::default()
+        });
+        let fc1 = nn::linear(root, (N * N * 128) as i64, 1024, Default::default());
         let fc2 = nn::linear(root, 1024, moves_dims(N) as i64, Default::default());
         let fc3 = nn::linear(root, 1024, 1, Default::default());
         Network {
@@ -119,6 +124,7 @@ impl<const N: usize> Default for Network<N> {
             conv1,
             conv2,
             conv3,
+            conv4,
             fc1,
             fc2,
             fc3,
@@ -135,7 +141,9 @@ impl<const N: usize> nn::ModuleT for Network<N> {
             .max_pool2d_default(2)
             .apply(&self.conv3)
             .max_pool2d_default(2)
-            .reshape(&[-1, 2048])
+            .apply(&self.conv4)
+            .max_pool2d_default(2)
+            .reshape(&[-1, (N * N * 128) as i64])
             .apply(&self.fc1)
             .relu()
             .dropout(0.5, train);
