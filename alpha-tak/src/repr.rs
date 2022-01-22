@@ -1,5 +1,5 @@
 use tak::{board::Board, colour::Colour, game::Game, pos::Pos, tile::Shape};
-use tch::Tensor;
+use tch::{Tensor, Device};
 
 pub const fn input_dims(n: usize) -> [usize; 3] {
     // channels first
@@ -74,7 +74,7 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
         );
     }
 
-    Tensor::stack(&layers, 0)
+    Tensor::stack(&layers, 0).to_device(Device::cuda_if_available())
 }
 
 pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {
