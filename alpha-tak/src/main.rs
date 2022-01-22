@@ -1,6 +1,6 @@
 use network::Network;
 use self_play::play_until_better;
-use tch::Device;
+use tch::Cuda;
 
 #[macro_use]
 extern crate lazy_static;
@@ -16,7 +16,7 @@ const START: usize = 0;
 
 fn main() {
     tch::maybe_init_cuda();
-    println!("using gpu: {}", Device::cuda_if_available().is_cuda());
+    println!("CUDA: {}", Cuda::is_available());
 
     let mut nn = if START == 0 {
         Network::<4>::default()
