@@ -23,6 +23,7 @@ fn upper_confidence_bound<const N: usize>(parent: &Node<N>, child: &Node<N>) -> 
 
 #[derive(Clone, Debug, Default)]
 pub struct Node<const N: usize> {
+    result: Option<GameResult>,
     policy: f32,
     expected_reward: f32,
     visited_count: u32,
@@ -36,18 +37,20 @@ where
     pub fn init(policy: f32) -> Self {
         Node {
             policy,
-            expected_reward: 0.0,
-            visited_count: 0,
-            children: None,
+            ..Default::default()
         }
     }
 
     pub fn rollout(&mut self, mut game: Game<N>, network: &Network<N>) -> f32 {
         self.visited_count += 1;
-        let result = game.winner();
-        if !matches!(result, GameResult::Ongoing) {
-            return match result {
-                GameResult::Winner(winner) => {
+
+        // cache game result
+        if self.result.is_none() {
+            self.result = Some(game.winner());
+        }
+        match self.result {
+            Some(GameResult::Winner(winner)) => {
+                return {
                     if winner == game.to_move {
                         // means that the previous player played a losing move
                         -1.
@@ -55,9 +58,9 @@ where
                         1.
                     }
                 }
-                GameResult::Draw => 0.,
-                GameResult::Ongoing => unreachable!(),
-            };
+            }
+            Some(GameResult::Draw) => return 0.,
+            _ => {}
         }
 
         // if it is the first time we are vising this node
