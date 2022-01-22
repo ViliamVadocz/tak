@@ -56,14 +56,10 @@ where
             GameResult::Ongoing => unreachable!(),
         };
         // fill in examples with result
-        examples.extend(
-            game_examples
-                .into_iter()
-                .enumerate().flat_map(|(ply, ex)| {
-                    let perspective = if ply % 2 == 0 { result } else { -result };
-                    ex.complete(perspective)
-                }),
-        );
+        examples.extend(game_examples.into_iter().enumerate().flat_map(|(ply, ex)| {
+            let perspective = if ply % 2 == 0 { result } else { -result };
+            ex.complete(perspective)
+        }));
     }
     examples
 }
