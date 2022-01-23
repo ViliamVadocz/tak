@@ -57,7 +57,7 @@ where
                     } else {
                         1.
                     }
-                }
+                };
             }
             Some(GameResult::Draw) => return 0.,
             _ => {}
@@ -69,7 +69,7 @@ where
             // use the neural network to get initial policy for children
             // and eval for this board
             let (policy, eval) = network.predict(&game, false);
-            let policy: Vec<_> = policy.exp().into(); // TODO undoing log?
+            let policy: Vec<_> = policy.exp().into(); // undoing log
             let eval: f32 = eval.into();
 
             let mut children = HashMap::new();
@@ -125,19 +125,28 @@ where
         children.remove(turn).expect("all turns should be in there")
     }
 
-    pub fn pick_move(&self) -> Turn<N> {
+    pub fn pick_move(&self, exploitation: bool) -> Turn<N> {
         let improved_policy = self.improved_policy();
-        // split into turns and weights
-        let mut turns = vec![];
-        let mut weights = vec![];
-        for (turn, weight) in improved_policy {
-            turns.push(turn);
-            weights.push(weight);
+
+        if exploitation {
+            improved_policy
+                .into_iter()
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).expect("tried comparing nan"))
+                .unwrap()
+                .0
+        } else {
+            // split into turns and weights
+            let mut turns = vec![];
+            let mut weights = vec![];
+            for (turn, weight) in improved_policy {
+                turns.push(turn);
+                weights.push(weight);
+            }
+            // randomly pick based on weights from improved policy
+            let mut rng = thread_rng();
+            let distr = WeightedIndex::new(&weights).unwrap();
+            let index = distr.sample(&mut rng);
+            turns.swap_remove(index)
         }
-        // randomly pick based on weights from improved policy
-        let mut rng = thread_rng();
-        let distr = WeightedIndex::new(&weights).unwrap();
-        let index = distr.sample(&mut rng);
-        turns.swap_remove(index)
     }
 }
