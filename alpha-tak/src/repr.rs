@@ -56,7 +56,7 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
     ];
 
     // other layers
-    for n in 0..(d1 - 3) {
+    for n in 0..(d1 - 3 - 1) {
         let mut layer = [[0.; N]; N];
         #[allow(clippy::needless_range_loop)]
         for y in 0..N {
@@ -74,7 +74,8 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
         );
     }
     // last layer for whose turn it is
-    layers.push(Tensor::of_slice(&vec![if to_move == Colour::White {1.0} else {-1.0}; N*N]));
+    let colour_layer: Vec<f32> = vec![if to_move == Colour::White { 1. } else { 0. }; N * N];
+    layers.push(Tensor::of_slice(&colour_layer).view(board_shape));
 
     Tensor::stack(&layers, 0).to_device(Device::cuda_if_available())
 }
