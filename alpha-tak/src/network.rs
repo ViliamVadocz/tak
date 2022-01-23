@@ -45,7 +45,7 @@ impl<const N: usize> Network<N> {
     }
 
     pub fn train(&mut self, examples: &[Example<N>]) {
-        println!("starting training");
+        println!("starting training with {} examples", examples.len());
         let mut opt = nn::Adam {
             wd: WEIGHT_DECAY,
             ..Default::default()

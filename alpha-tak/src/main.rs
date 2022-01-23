@@ -23,8 +23,9 @@ fn main() {
     } else {
         Network::<4>::load(format!("models/{START:03}.model")).unwrap()
     };
+    let mut examples = Vec::new();
     for i in (START + 1)..1000 {
-        nn = play_until_better(nn);
+        nn = play_until_better(nn, &mut examples);
         println!("saving model");
         nn.save(format!("models/{i:03}.model")).unwrap();
     }

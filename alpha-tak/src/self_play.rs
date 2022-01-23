@@ -43,7 +43,7 @@ where
                 game: game.clone(),
                 policy: node.improved_policy(),
             });
-            let turn = node.pick_move();
+            let turn = node.pick_move(false);
             node = node.play(&turn);
             game.play(turn).unwrap();
         }
@@ -109,12 +109,12 @@ where
                 for _ in 0..ROLLOUTS_PER_MOVE {
                     my_node.rollout(game.clone(), new);
                 }
-                my_node.pick_move()
+                my_node.pick_move(true)
             } else {
                 for _ in 0..ROLLOUTS_PER_MOVE {
                     opp_node.rollout(game.clone(), old);
                 }
-                opp_node.pick_move()
+                opp_node.pick_move(true)
             };
             my_node = my_node.play(&turn);
             opp_node = opp_node.play(&turn);
@@ -141,7 +141,7 @@ where
     PitResult { wins, draws, losses }
 }
 
-pub fn play_until_better<const N: usize>(network: Network<N>) -> Network<N>
+pub fn play_until_better<const N: usize>(network: Network<N>, examples: &mut Vec<Example<N>>) -> Network<N>
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: LUT,
@@ -154,8 +154,8 @@ where
     let mut new_network = Network::<N>::load(&dir).unwrap();
 
     loop {
-        let examples = self_play(&network);
-        new_network.train(&examples);
+        examples.extend(self_play(&network).into_iter());
+        new_network.train(examples);
         let results = pit(&new_network, &network);
         println!("{:?}", results);
         if results.win_rate() > WIN_RATE_THRESHOLD {
