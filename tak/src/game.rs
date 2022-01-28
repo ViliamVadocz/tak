@@ -13,7 +13,7 @@ use crate::{
 
 type Stones = u8;
 type Capstones = u8;
-const fn starting_stones(width: usize) -> (Stones, Capstones) {
+pub const fn default_starting_stones(width: usize) -> (Stones, Capstones) {
     match width {
         3 => (10, 0),
         4 => (15, 0),
@@ -63,7 +63,7 @@ where
     [[Option<Tile>; N]; N]: Default,
 {
     fn default() -> Self {
-        let (stones, capstones) = starting_stones(N);
+        let (stones, capstones) = default_starting_stones(N);
         Self {
             board: Board::default(),
             to_move: Colour::White, // White picks the first move for Black
@@ -97,36 +97,6 @@ impl<const N: usize> Game<N> {
         let i = opening_index % (N * N * (N * N - 1));
         self.play(self.move_gen().into_iter().nth(i / (N * N - 1)).unwrap())?;
         self.play(self.move_gen().into_iter().nth(i % (N * N - 1)).unwrap())
-    }
-
-    pub fn from_ptn(game_str: &str) -> StrResult<Game<N>>
-    where
-        [[Option<Tile>; N]; N]: Default,
-    {
-        let mut moves = Vec::new();
-        for line in game_str.lines() {
-            let mut words = line.split_whitespace();
-            let _number = words.next().ok_or("missing number at start of line")?;
-            if let Some(first) = words.next() {
-                moves.push(first);
-                if let Some(second) = words.next() {
-                    moves.push(second);
-                }
-            }
-        }
-        Game::from_ptn_moves(&moves)
-    }
-
-    pub fn from_ptn_moves(moves: &[&str]) -> StrResult<Game<N>>
-    where
-        [[Option<Tile>; N]; N]: Default,
-    {
-        let mut game = Game::default();
-        for ply in moves {
-            let turn = Turn::from_ptn(ply, &game.board, game.colour())?;
-            game.play(turn)?;
-        }
-        Ok(game)
     }
 
     pub fn get_counts(&self) -> (Stones, Capstones) {

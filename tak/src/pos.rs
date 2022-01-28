@@ -35,10 +35,6 @@ impl<const N: usize> Pos<N> {
             .find(|&n| (n - self).unwrap() == direction)
     }
 
-    pub fn to_ptn(&self) -> String {
-        format!("{}{}", (self.x as u8 + b'a') as char, self.y + 1)
-    }
-
     /// rotates a position 1 quarter turn counterclockwise
     #[must_use]
     pub fn rotate(&self) -> Self {
@@ -87,25 +83,4 @@ pub enum Direction {
     PosY,
     NegX,
     NegY,
-}
-
-impl Direction {
-    pub fn from_ptn(s: &str) -> Self {
-        match s {
-            "<" => Direction::NegX,
-            ">" => Direction::PosX,
-            "+" => Direction::PosY,
-            "-" => Direction::NegY,
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn to_ptn(&self) -> &str {
-        match self {
-            Direction::NegX => "<",
-            Direction::PosX => ">",
-            Direction::PosY => "+",
-            Direction::NegY => "-",
-        }
-    }
 }
