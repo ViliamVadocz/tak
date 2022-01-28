@@ -5,7 +5,7 @@ use arrayvec::ArrayVec;
 use crate::{
     board::Board,
     colour::Colour,
-    pos::Pos,
+    pos::{Direction, Pos},
     tile::{Piece, Shape, Tile},
     turn::Turn,
     StrResult,
@@ -120,21 +120,22 @@ impl<const N: usize> Game<N> {
         }
     }
 
-    fn execute_place(&mut self, pos: Pos<N>, piece: Piece) -> StrResult<()> {
+    fn execute_place(&mut self, pos: Pos<N>, shape: Shape) -> StrResult<()> {
         let (stones, caps) = self.get_counts();
         if self.board[pos].is_some() {
             Err("cannot place a piece in that position because it is already occupied")
-        } else if matches!(piece.shape, Shape::Capstone) && (caps == 0) {
+        } else if matches!(shape, Shape::Capstone) && (caps == 0) {
             Err("there is no capstone to play")
-        } else if matches!(piece.shape, Shape::Flat | Shape::Wall) && stones == 0 {
+        } else if matches!(shape, Shape::Flat | Shape::Wall) && stones == 0 {
             Err("cannot play a stone without stones")
-        } else if self.ply < 2 && matches!(piece.shape, Shape::Wall | Shape::Capstone) {
+        } else if self.ply < 2 && matches!(shape, Shape::Wall | Shape::Capstone) {
             Err("cannot play a wall or capstone on the first two plies")
-        } else if piece.colour != self.colour() {
-            Err("cannot play the other players colour outside the first two plies")
         } else {
-            self.board[pos] = Some(Tile::new(piece));
-            if matches!(piece.shape, Shape::Flat | Shape::Wall) {
+            self.board[pos] = Some(Tile::new(Piece {
+                colour: self.colour(),
+                shape,
+            }));
+            if matches!(shape, Shape::Flat | Shape::Wall) {
                 self.dec_stones();
             } else {
                 self.dec_caps();
@@ -143,48 +144,40 @@ impl<const N: usize> Game<N> {
         }
     }
 
-    fn execute_move(&mut self, mut pos: Pos<N>, drops: ArrayVec<(Pos<N>, Piece), N>) -> StrResult<()> {
-        if drops.is_empty() {
-            return Err("moves cannot be empty");
-        }
+    fn execute_move(&mut self, pos: Pos<N>, direction: Direction, moves: ArrayVec<bool, N>) -> StrResult<()> {
         // take the pieces
         let on_square = self.board[pos].take().ok_or("cannot move from an empty square")?;
         if on_square.top.colour != self.to_move {
             return Err("cannot move a stack that you do not own");
         }
-        let (left, carry) = on_square.take::<N>(drops.len())?;
+        let (left, carry) = on_square.take::<N>(moves.len())?;
         self.board[pos] = left;
 
-        // try to move them
-        let mut direction = None;
-        for (carried, (next, dropped)) in carry.into_iter().rev().zip(drops) {
-            // make sure move direction is correct
-            if let Some(dir) = direction {
-                if !(next == pos || (next - pos) == dir) {
-                    return Err("cannot switch directions during a move");
-                }
-            } else {
-                direction = Some(next - pos);
-            }
-            pos = next;
-            // check that the dropped piece is the same as the one that was picked up
-            if carried != dropped {
-                return Err("tried dropping a different piece than what was picked up");
-            }
-            // stack the dropped piece on top
+        let mut next = pos.step(direction);
+        for (carry, should_step) in carry.into_iter().rev().zip(moves) {
+            let pos = next.ok_or("cannot move out of board")?; // only unwrap the position when it is needed
+                                                               // stack the dropped piece on top
             if let Some(t) = self.board[pos].take() {
-                self.board[pos] = Some(t.stack(carried)?);
+                self.board[pos] = Some(t.stack(carry)?);
             } else {
-                self.board[pos] = Some(Tile::new(carried));
+                self.board[pos] = Some(Tile::new(carry));
+            }
+            if should_step {
+                next = pos.step(direction);
             }
         }
+
         Ok(())
     }
 
     pub fn play(&mut self, my_move: Turn<N>) -> StrResult<()> {
         match my_move {
-            Turn::Place { pos, piece } => self.execute_place(pos, piece),
-            Turn::Move { pos, drops } => self.execute_move(pos, drops),
+            Turn::Place { pos, shape } => self.execute_place(pos, shape),
+            Turn::Move {
+                pos,
+                direction,
+                moves,
+            } => self.execute_move(pos, direction, moves),
         }?;
         self.ply += 1;
         self.to_move = self.to_move.next();

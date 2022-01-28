@@ -37,7 +37,7 @@ impl<const N: usize> Pos<N> {
 
     /// rotates a position 1 quarter turn counterclockwise
     #[must_use]
-    pub fn rotate(&self) -> Self {
+    pub const fn rotate(&self) -> Self {
         Pos {
             x: self.y,
             y: N - 1 - self.x,
@@ -46,7 +46,7 @@ impl<const N: usize> Pos<N> {
 
     /// mirror along the x axis
     #[must_use]
-    pub fn mirror(&self) -> Self {
+    pub const fn mirror(&self) -> Self {
         Pos {
             x: self.x,
             y: N - 1 - self.y,
@@ -83,4 +83,28 @@ pub enum Direction {
     PosY,
     NegX,
     NegY,
+}
+
+impl Direction {
+    /// rotates a direction 1 quarter turn counterclockwise
+    #[must_use]
+    pub const fn rotate(&self) -> Self {
+        match self {
+            Direction::PosX => Direction::NegY,
+            Direction::PosY => Direction::PosX,
+            Direction::NegX => Direction::PosY,
+            Direction::NegY => Direction::NegX,
+        }
+    }
+
+    /// mirror along the x axis
+    #[must_use]
+    pub const fn mirror(&self) -> Self {
+        match self {
+            Direction::PosX => Direction::NegX,
+            Direction::PosY => Direction::NegY,
+            Direction::NegX => Direction::PosX,
+            Direction::NegY => Direction::PosY,
+        }
+    }
 }

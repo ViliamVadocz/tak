@@ -1,9 +1,10 @@
+use arrayvec::ArrayVec;
 use regex::Regex;
 
 use crate::{
     game::{default_starting_stones, Game},
     pos::{Direction, Pos},
-    tile::Tile,
+    tile::{Shape, Tile},
     turn::Turn,
     StrResult,
 };
@@ -60,101 +61,91 @@ impl<const N: usize> ToPTN for Pos<N> {
     }
 }
 
+impl FromPTN for Shape {
+    fn from_ptn(s: &str) -> StrResult<Self> {
+        match s {
+            "C" => Ok(Shape::Capstone),
+            "S" => Ok(Shape::Wall),
+            "" => Ok(Shape::Flat),
+            _ => Err("unknown shape"),
+        }
+    }
+}
+
+impl ToPTN for Shape {
+    fn to_ptn(&self) -> String {
+        match self {
+            Shape::Flat => "",
+            Shape::Wall => "S",
+            Shape::Capstone => "C",
+        }
+        .to_string()
+    }
+}
+
 impl<const N: usize> FromPTN for Turn<N> {
     fn from_ptn(s: &str) -> StrResult<Self> {
-        todo!()
-    }
+        assert!(N < 10); // the drop notation doesn't support N >= 10
+                         // (count)(square)(direction)(drop counts)(stone)
+        let re = Regex::new(r"([1-9]*)([a-z][1-9])([<>+-])([1-9]*)").unwrap();
+        if let Some(cap) = re.captures(s) {
+            let carry_amount = cap[1].parse().unwrap_or(1);
+            let pos = Pos::from_ptn(&cap[2])?;
+            let direction = Direction::from_ptn(&cap[3])?;
 
-    // FIXME once Turn is board agnostic
-    // fn from_ptn(ply: &str, board: &Board<N>, colour: Colour) ->
-    // StrResult<Turn<N>> { assert!(N < 10);
-    // (count)(square)(direction)(drop counts)(stone)
-    // let re = Regex::new(r"([0-9]*)([a-z])([0-9])([<>+-])([0-9]*)[CS]?").unwrap();
-    // if let Some(cap) = re.captures(ply) {
-    // let carry_amount = cap[1].parse().unwrap_or(1);
-    //
-    // let x = abc_to_num(cap[2].chars().next().unwrap());
-    // let y = cap[3].parse::<usize>().unwrap() - 1;
-    // let direction = Direction::from_ptn(&cap[4]);
-    //
-    // let mut drop_counts: Vec<_> = cap[5].chars().map(|c|
-    // c.to_digit(10).unwrap()).collect(); if drop_counts.is_empty() {
-    // drop_counts = vec![carry_amount];
-    // }
-    //
-    // let mut pos = Pos { x, y };
-    // let tile = board[pos].clone().ok_or("there is not stack on that position")?;
-    // let (_left, mut carry) = tile.take::<N>(carry_amount as usize)?;
-    //
-    // let mut drops = ArrayVec::new();
-    // for i in drop_counts {
-    // pos = pos.step(direction).ok_or("move would go off the board")?;
-    // for _ in 0..i {
-    // drops.push((
-    // pos,
-    // carry
-    // .pop()
-    // .ok_or("not enough pieces picked up to satisfy move ply")?,
-    // ))
-    // }
-    // }
-    //
-    // Ok(Turn::Move {
-    // pos: Pos { x, y },
-    // drops,
-    // })
-    // } else {
-    // (stone)(square)
-    // let re = Regex::new(r"([CS]?)([a-z])([0-9])").unwrap();
-    // let cap = re.captures(ply).ok_or("didn't recognize place ply")?;
-    // let shape = Shape::from_ptn(&cap[1]);
-    // let x = abc_to_num(cap[2].chars().next().unwrap());
-    // let y = cap[3].parse::<usize>().unwrap() - 1;
-    //
-    // Ok(Turn::Place {
-    // pos: Pos { x, y },
-    // piece: Piece { shape, colour },
-    // })
-    // }
-    // }
+            let mut drop_counts: Vec<_> = cap[4].chars().map(|c| c.to_digit(10).unwrap()).collect();
+            if drop_counts.is_empty() {
+                drop_counts = vec![carry_amount];
+            }
+            let mut moves = ArrayVec::new();
+            for drops in drop_counts {
+                for _ in 0..(drops - 1) {
+                    moves.push(false);
+                }
+                moves.push(true);
+            }
+
+            Ok(Turn::Move {
+                pos,
+                direction,
+                moves,
+            })
+        } else {
+            // (stone)(square)
+            let re = Regex::new(r"([CS]?)([a-z][1-9])").unwrap();
+            let cap = re.captures(s).ok_or("didn't recognize place ply")?;
+            let shape = Shape::from_ptn(&cap[1])?;
+            let pos = Pos::from_ptn(&cap[2])?;
+            Ok(Turn::Place { pos, shape })
+        }
+    }
 }
 
 impl<const N: usize> ToPTN for Turn<N> {
     fn to_ptn(&self) -> String {
         match self {
-            Turn::Place { pos, piece } => {
-                format!("{}{}", piece.shape.to_ptn(), pos.to_ptn())
+            Turn::Place { pos, shape } => {
+                format!("{}{}", shape.to_ptn(), pos.to_ptn())
             }
-            Turn::Move { pos, drops } => {
-                let mut direction = None;
-                let mut spread = String::new();
-                let mut current = 1;
-                let mut last = pos;
-                for (drop, _piece) in drops {
-                    if direction.is_none() {
-                        direction = Some((*drop - *pos).unwrap());
-                    } else if drop == last {
-                        current += 1;
-                    } else {
-                        spread.push_str(&current.to_string());
-                        current = 1;
-                    }
-                    last = drop;
-                }
-                // leave out drop number if we are moving the whole stack
-                if !spread.is_empty() {
-                    spread.push_str(&current.to_string());
-                }
-                if drops.len() > 1 {
-                    format!(
-                        "{}{}{}{}",
-                        drops.len(),
-                        pos.to_ptn(),
-                        direction.unwrap().to_ptn(),
-                        spread
-                    )
+            Turn::Move {
+                pos,
+                direction,
+                moves,
+            } => {
+                if moves.len() < 2 {
+                    format!("{}{}", pos.to_ptn(), direction.to_ptn())
                 } else {
-                    format!("{}{}", pos.to_ptn(), direction.unwrap().to_ptn())
+                    let mut drops = String::new();
+                    let mut current = 1;
+                    for m in moves {
+                        if *m {
+                            drops.push_str(&current.to_string());
+                            current = 1;
+                        } else {
+                            current += 1;
+                        }
+                    }
+                    format!("{}{}{}{}", moves.len(), pos.to_ptn(), direction.to_ptn(), drops)
                 }
             }
         }
@@ -194,8 +185,8 @@ where
         let s = comments_re.replace_all(&s, "");
 
         // get individual plies (split at move numbers, space, and game result)
-        let re = Regex::new(r"\s\d*. |\s+|1-0|R-0|F-0|0-1|0-R|0-F|1/2-1/2").unwrap();
-        let moves = re.split(&s).collect::<Vec<_>>();
+        let re = Regex::new(r"\s*\d*\. |\s+|1-0|R-0|F-0|0-1|0-R|0-F|1/2-1/2").unwrap();
+        let moves = re.split(&s).filter(|ss| !ss.is_empty()).collect::<Vec<_>>();
 
         let mut game = Game {
             komi,
@@ -216,8 +207,10 @@ impl<const N: usize> Game<N> {
         [[Option<Tile>; N]; N]: Default,
     {
         for ply in moves {
+            println!("{}", ply);
             let turn = Turn::from_ptn(ply)?;
             self.play(turn)?;
+            println!("{}", self.board);
         }
         Ok(())
     }
@@ -226,7 +219,6 @@ impl<const N: usize> Game<N> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        game::Game,
         ptn::{FromPTN, ToPTN},
         turn::Turn,
         StrResult,
@@ -240,11 +232,9 @@ mod tests {
 
     #[test]
     fn ptn_consistency() -> StrResult<()> {
-        let mut game = Game::<6>::default();
         for ply in PLIES {
-            let turn = Turn::from_ptn(ply)?;
+            let turn = Turn::<6>::from_ptn(ply)?;
             assert_eq!(turn, Turn::from_ptn(&turn.to_ptn())?);
-            game.play(turn)?;
         }
         Ok(())
     }

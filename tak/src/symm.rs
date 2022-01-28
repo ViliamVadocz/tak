@@ -1,4 +1,10 @@
-use crate::{board::Board, game::Game, pos::Pos, tile::Tile, turn::Turn};
+use crate::{
+    board::Board,
+    game::Game,
+    pos::{Direction, Pos},
+    tile::Tile,
+    turn::Turn,
+};
 
 pub trait Symmetry: Sized {
     fn symmetries(self) -> [Self; 8];
@@ -19,21 +25,37 @@ impl<const N: usize> Symmetry for Pos<N> {
     }
 }
 
+impl Symmetry for Direction {
+    fn symmetries(self) -> [Self; 8] {
+        [
+            self,
+            self.rotate(),
+            self.rotate().rotate(),
+            self.rotate().rotate().rotate(),
+            self.mirror(),
+            self.mirror().rotate(),
+            self.mirror().rotate().rotate(),
+            self.mirror().rotate().rotate().rotate(),
+        ]
+    }
+}
+
 impl<const N: usize> Symmetry for Turn<N> {
     fn symmetries(self) -> [Self; 8] {
         match self {
-            Turn::Place { pos, piece } => pos.symmetries().map(|pos| Turn::Place { pos, piece }),
-            Turn::Move { pos, drops } => {
+            Turn::Place { pos, shape } => pos.symmetries().map(|pos| Turn::Place { pos, shape }),
+            Turn::Move {
+                pos,
+                direction,
+                moves,
+            } => {
                 pos.symmetries()
                     .into_iter()
                     .enumerate()
                     .map(|(i, pos)| Turn::Move {
                         pos,
-                        drops: drops
-                            .clone()
-                            .into_iter()
-                            .map(|(pos, piece)| (pos.symmetries()[i], piece))
-                            .collect(),
+                        direction: direction.symmetries()[i],
+                        moves: moves.clone(),
                     })
                     .collect::<Vec<_>>()
                     .try_into()

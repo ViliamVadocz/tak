@@ -12,12 +12,12 @@ use crate::{
 pub enum Turn<const N: usize> {
     Place {
         pos: Pos<N>,
-        piece: Piece,
+        shape: Shape,
     },
     Move {
         pos: Pos<N>,
-        // at most N drops because of carry limit and you have to drop at least one
-        drops: ArrayVec<(Pos<N>, Piece), N>, // TODO simplify
+        direction: Direction,
+        moves: ArrayVec<bool, N>, // true means we moved one step for the next drop
     },
 }
 
@@ -26,24 +26,43 @@ impl<const N: usize> Game<N> {
         for neighbour in pos.neighbors() {
             let direction = (neighbour - pos).unwrap();
             let max_carry = min(tile.size(), N);
-            for i in 0..=(max_carry - 1) {
-                let mut carry: Vec<_> = tile
-                    .stack
-                    .iter()
-                    .map(|&colour| Piece {
-                        colour,
-                        shape: Shape::Flat,
-                    })
-                    .skip(tile.stack.len() - i)
-                    .collect();
-                carry.push(tile.top);
-                let possible_drops = self.try_drop(neighbour, direction, &carry);
-                turns.extend(
-                    possible_drops
-                        .into_iter()
-                        .filter(|drops| !drops.is_empty())
-                        .map(|drops| Turn::Move { pos, drops }),
-                );
+            for drop_choices in 0..max_carry {
+                let capstone = matches!(tile.top.shape, Shape::Capstone);
+                let mut tries = vec![(neighbour, drop_choices, ArrayVec::new())];
+                let mut possible_moves = Vec::new();
+                while let Some((pos, drop_choices, mut moves)) = tries.pop() {
+                    #[rustfmt::skip]
+                    let can_drop = match self.board[pos] {
+                        None => true,
+                        Some(Tile {top: Piece {shape: Shape::Flat, ..}, ..}) => true,
+                        Some(Tile {top: Piece {shape: Shape::Wall, ..}, ..})
+                            if drop_choices == 0 && capstone => true,
+                        _ => false,
+                    };
+
+                    if !can_drop {
+                        continue;
+                    }
+                    if drop_choices == 0 {
+                        moves.push(false);
+                        possible_moves.push(moves);
+                        continue;
+                    }
+
+                    if let Some(next) = pos.step(direction) {
+                        let mut copy = moves.clone();
+                        copy.push(true);
+                        tries.push((next, drop_choices - 1, copy));
+                    }
+                    moves.push(false);
+                    tries.push((pos, drop_choices - 1, moves));
+                }
+
+                turns.extend(possible_moves.into_iter().map(|moves| Turn::Move {
+                    pos,
+                    direction,
+                    moves,
+                }));
             }
         }
     }
@@ -53,26 +72,17 @@ impl<const N: usize> Game<N> {
         if stones > 0 {
             turns.push(Turn::Place {
                 pos,
-                piece: Piece {
-                    colour: self.to_move,
-                    shape: Shape::Flat,
-                },
+                shape: Shape::Flat,
             });
             turns.push(Turn::Place {
                 pos,
-                piece: Piece {
-                    colour: self.to_move,
-                    shape: Shape::Wall,
-                },
+                shape: Shape::Wall,
             });
         }
         if caps > 0 {
             turns.push(Turn::Place {
                 pos,
-                piece: Piece {
-                    colour: self.to_move,
-                    shape: Shape::Capstone,
-                },
+                shape: Shape::Capstone,
             });
         }
     }
@@ -86,10 +96,7 @@ impl<const N: usize> Game<N> {
                 if self.board[pos].is_none() {
                     turns.push(Turn::Place {
                         pos,
-                        piece: Piece {
-                            colour: self.to_move.next(),
-                            shape: Shape::Flat,
-                        },
+                        shape: Shape::Flat,
                     });
                 }
             }
@@ -106,45 +113,5 @@ impl<const N: usize> Game<N> {
             }
         }
         turns
-    }
-
-    // size of Vec is technically bounded by number of partitions of carry
-    // but it's too much effort to try and calculate that
-    fn try_drop(
-        &self,
-        pos: Pos<N>,
-        direction: Direction,
-        carry: &[Piece],
-    ) -> Vec<ArrayVec<(Pos<N>, Piece), N>> {
-        let mut all_drops = Vec::new();
-
-        #[rustfmt::skip]
-        let can_drop = match self.board[pos] {
-            None => true,
-            Some(Tile {top: Piece {shape: Shape::Flat, ..}, ..}) => true,
-            Some(Tile {top: Piece {shape: Shape::Wall, ..}, ..})
-                if carry.len() == 1 && carry[0].shape == Shape::Capstone => true,
-            _ => false,
-        };
-
-        if can_drop {
-            for i in 1..=(carry.len()) {
-                let (drops, sub_carry) = carry.split_at(i);
-                let here_drops: ArrayVec<_, N> = drops.iter().map(|&piece| (pos, piece)).collect();
-                if sub_carry.is_empty() {
-                    all_drops.push(here_drops);
-                } else if let Some(next) = pos.step(direction) {
-                    let possible_drops = self.try_drop(next, direction, sub_carry);
-                    debug_assert!(possible_drops.iter().all(|v| v.len() == sub_carry.len()));
-                    for possible in possible_drops {
-                        let mut clone = here_drops.clone();
-                        clone.extend(possible);
-                        all_drops.push(clone);
-                    }
-                }
-            }
-        }
-
-        all_drops
     }
 }
