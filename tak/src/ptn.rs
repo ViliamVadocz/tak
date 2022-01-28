@@ -9,6 +9,16 @@ use crate::{
     StrResult,
 };
 
+lazy_static! {
+    // (count)(square)(direction)(drop counts)(stone)
+    static ref TURN_MOVE_RE: Regex = Regex::new(r"([1-9]*)([a-z][1-9])([<>+-])([1-9]*)").unwrap();
+    // (stone)(square)
+    static ref TURN_PLACE_RE: Regex = Regex::new(r"([CS]?)([a-z][1-9])").unwrap();
+    static ref OPTIONS_RE: Regex = Regex::new(r#"\[(\S+) ["'](.*?)["']\]"#).unwrap();
+    static ref COMMENTS_RE: Regex = Regex::new(r"\{.*?\}").unwrap();
+    static ref PLY_SPLIT_RE: Regex = Regex::new(r"\s*\d*\. |\s+|1-0|R-0|F-0|0-1|0-R|0-F|1/2-1/2").unwrap();
+}
+
 pub trait FromPTN: Sized {
     fn from_ptn(s: &str) -> StrResult<Self>;
 }
@@ -86,9 +96,8 @@ impl ToPTN for Shape {
 impl<const N: usize> FromPTN for Turn<N> {
     fn from_ptn(s: &str) -> StrResult<Self> {
         assert!(N < 10); // the drop notation doesn't support N >= 10
-                         // (count)(square)(direction)(drop counts)(stone)
-        let re = Regex::new(r"([1-9]*)([a-z][1-9])([<>+-])([1-9]*)").unwrap();
-        if let Some(cap) = re.captures(s) {
+
+        if let Some(cap) = TURN_MOVE_RE.captures(s) {
             let carry_amount = cap[1].parse().unwrap_or(1);
             let pos = Pos::from_ptn(&cap[2])?;
             let direction = Direction::from_ptn(&cap[3])?;
@@ -111,9 +120,7 @@ impl<const N: usize> FromPTN for Turn<N> {
                 moves,
             })
         } else {
-            // (stone)(square)
-            let re = Regex::new(r"([CS]?)([a-z][1-9])").unwrap();
-            let cap = re.captures(s).ok_or("didn't recognize place ply")?;
+            let cap = TURN_PLACE_RE.captures(s).ok_or("didn't recognize place ply")?;
             let shape = Shape::from_ptn(&cap[1])?;
             let pos = Pos::from_ptn(&cap[2])?;
             Ok(Turn::Place { pos, shape })
@@ -152,8 +159,6 @@ impl<const N: usize> ToPTN for Turn<N> {
     }
 }
 
-// TODO lazy_static REGEX
-
 impl<const N: usize> FromPTN for Game<N>
 where
     [[Option<Tile>; N]; N]: Default,
@@ -162,8 +167,7 @@ where
         // parse game options
         let mut komi = 0;
         let (mut stones, mut caps) = default_starting_stones(N);
-        let options_re = Regex::new(r#"\[(\S+) ["'](.*?)["']\]"#).unwrap();
-        for option in options_re.captures_iter(s) {
+        for option in OPTIONS_RE.captures_iter(s) {
             let key = &option[0];
             let value = &option[1];
             match key {
@@ -180,13 +184,14 @@ where
         }
 
         // remove comments
-        let comments_re = Regex::new(r"\{.*?\}").unwrap();
-        let s = options_re.replace_all(s, "");
-        let s = comments_re.replace_all(&s, "");
+        let s = OPTIONS_RE.replace_all(s, "");
+        let s = COMMENTS_RE.replace_all(&s, "");
 
         // get individual plies (split at move numbers, space, and game result)
-        let re = Regex::new(r"\s*\d*\. |\s+|1-0|R-0|F-0|0-1|0-R|0-F|1/2-1/2").unwrap();
-        let moves = re.split(&s).filter(|ss| !ss.is_empty()).collect::<Vec<_>>();
+        let moves = PLY_SPLIT_RE
+            .split(&s)
+            .filter(|ss| !ss.is_empty())
+            .collect::<Vec<_>>();
 
         let mut game = Game {
             komi,

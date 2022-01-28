@@ -1,5 +1,8 @@
 #![feature(array_zip)]
 
+#[macro_use]
+extern crate lazy_static;
+
 pub mod board;
 pub mod colour;
 pub mod game;
