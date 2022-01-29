@@ -50,16 +50,12 @@ impl<const N: usize> Symmetry for Turn<N> {
                 moves,
             } => {
                 pos.symmetries()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, pos)| Turn::Move {
+                    .zip(direction.symmetries())
+                    .map(|(pos, direction)| Turn::Move {
                         pos,
-                        direction: direction.symmetries()[i],
+                        direction,
                         moves: moves.clone(),
                     })
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap() // UGLY
             }
         }
     }
