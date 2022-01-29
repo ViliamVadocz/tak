@@ -135,4 +135,17 @@ mod tests {
         assert_eq!(game.winner(), GameResult::Winner(Colour::White));
         Ok(())
     }
+
+    #[test]
+    fn flat_win() -> StrResult<()> {
+        let game = Game::<3>::from_ptn(
+            "1. a3 c1
+            2. c2 c3
+            3. b3 b2
+            4. b1 a1
+            5. a2 F-0"
+        )?;
+        assert_eq!(game.winner(), GameResult::Winner(Colour::White));
+        Ok(())
+    }
 }
