@@ -2,8 +2,9 @@ use arrayvec::ArrayVec;
 use regex::Regex;
 
 use crate::{
+    direction::Direction,
     game::{default_starting_stones, Game},
-    pos::{Direction, Pos},
+    pos::Pos,
     tile::{Shape, Tile},
     turn::Turn,
     StrResult,

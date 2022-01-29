@@ -31,13 +31,14 @@ impl Tile {
         }
     }
 
+    /// Get the number of pieces on this tile.
     pub fn size(&self) -> usize {
         1 + self.stack.len()
     }
 
+    /// Try to stack the piece on this tile.
     pub fn stack(mut self, piece: Piece) -> StrResult<Self> {
         // Only allow stacking on top of flats, or flattening walls.
-
         match self.top.shape {
             Shape::Flat => Ok(()),
             Shape::Wall => {
@@ -57,6 +58,8 @@ impl Tile {
         })
     }
 
+    /// Try taking the top `amount` pieces from this tile.
+    /// Returned ArrayVec is ordered top to bottom.
     pub fn take<const N: usize>(self, amount: usize) -> StrResult<(Option<Tile>, ArrayVec<Piece, N>)> {
         let count = self.size();
         if amount == 0 {
@@ -77,8 +80,6 @@ impl Tile {
             .chain(once(self.top))
             .rev();
 
-        // carry is ordered from top to bottom, so if you want to drop one-by-one, use
-        // pop or reverse it
         let carry = stack.by_ref().take(amount).collect();
 
         let left = stack.next().map(|top| Tile {

@@ -1,10 +1,4 @@
-use crate::{
-    board::Board,
-    game::Game,
-    pos::{Direction, Pos},
-    tile::Tile,
-    turn::Turn,
-};
+use crate::{board::Board, direction::Direction, game::Game, pos::Pos, tile::Tile, turn::Turn};
 
 pub trait Symmetry: Sized {
     fn symmetries(self) -> [Self; 8];
@@ -48,15 +42,14 @@ impl<const N: usize> Symmetry for Turn<N> {
                 pos,
                 direction,
                 moves,
-            } => {
-                pos.symmetries()
-                    .zip(direction.symmetries())
-                    .map(|(pos, direction)| Turn::Move {
-                        pos,
-                        direction,
-                        moves: moves.clone(),
-                    })
-            }
+            } => pos
+                .symmetries()
+                .zip(direction.symmetries())
+                .map(|(pos, direction)| Turn::Move {
+                    pos,
+                    direction,
+                    moves: moves.clone(),
+                }),
         }
     }
 }
@@ -170,7 +163,7 @@ mod tests {
         let [mut g0, mut g1, mut g2, mut g3, mut g4, mut g5, mut g6, mut g7] =
             Game::<5>::default().symmetries();
         while matches!(g0.winner(), GameResult::Ongoing) {
-            let turns = g0.move_gen();
+            let turns = g0.possible_turns();
             let turn = turns.into_iter().next().unwrap();
             println!("{:#?}", turn.clone().symmetries());
             let [t0, t1, t2, t3, t4, t5, t6, t7] = turn.symmetries();

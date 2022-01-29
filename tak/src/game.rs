@@ -5,7 +5,8 @@ use arrayvec::ArrayVec;
 use crate::{
     board::Board,
     colour::Colour,
-    pos::{Direction, Pos},
+    direction::Direction,
+    pos::Pos,
     tile::{Piece, Shape, Tile},
     turn::Turn,
     StrResult,
@@ -95,8 +96,8 @@ impl<const N: usize> Game<N> {
             return Err("openings should be played on an empty board with no previous plies");
         }
         let i = opening_index % (N * N * (N * N - 1));
-        self.play(self.move_gen().into_iter().nth(i / (N * N - 1)).unwrap())?;
-        self.play(self.move_gen().into_iter().nth(i % (N * N - 1)).unwrap())
+        self.play(self.possible_turns().into_iter().nth(i / (N * N - 1)).unwrap())?;
+        self.play(self.possible_turns().into_iter().nth(i % (N * N - 1)).unwrap())
     }
 
     pub fn get_counts(&self) -> (Stones, Capstones) {

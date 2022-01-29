@@ -5,6 +5,7 @@ extern crate lazy_static;
 
 pub mod board;
 pub mod colour;
+pub mod direction;
 pub mod game;
 pub mod pos;
 pub mod ptn;
@@ -27,7 +28,7 @@ mod tests {
     fn always_last_move() -> StrResult<()> {
         let mut game = Game::<6>::default();
         while let GameResult::Ongoing = game.winner() {
-            let mut moves = game.move_gen();
+            let mut moves = game.possible_turns();
             println!("{}", game.board);
             let tried = format!("{:?}", moves.last().unwrap());
             if game.play(moves.pop().unwrap()).is_err() {
@@ -41,7 +42,7 @@ mod tests {
     fn always_first_move() -> StrResult<()> {
         let mut game = Game::<6>::default();
         while let GameResult::Ongoing = game.winner() {
-            let mut moves = game.move_gen();
+            let mut moves = game.possible_turns();
             game.play(moves.swap_remove(0))?;
         }
         Ok(())
@@ -51,9 +52,9 @@ mod tests {
         if depth == 0 || !matches!(game.winner(), GameResult::Ongoing) {
             1
         } else if depth == 1 {
-            game.move_gen().len()
+            game.possible_turns().len()
         } else {
-            game.move_gen()
+            game.possible_turns()
                 .into_iter()
                 .map(|turn| {
                     let mut clone = game.clone();

@@ -3,8 +3,9 @@ use std::cmp::min;
 use arrayvec::ArrayVec;
 
 use crate::{
+    direction::Direction,
     game::Game,
-    pos::{Direction, Pos},
+    pos::Pos,
     tile::{Piece, Shape, Tile},
 };
 
@@ -22,6 +23,36 @@ pub enum Turn<const N: usize> {
 }
 
 impl<const N: usize> Game<N> {
+    /// Get all possible turns in this position.
+    pub fn possible_turns(&self) -> Vec<Turn<N>> {
+        let mut turns = Vec::new();
+
+        // can only place opponent's flat on the first two plies
+        if self.swap() {
+            for pos in (0..N).flat_map(|x| (0..N).map(move |y| Pos { x, y })) {
+                if self.board[pos].is_none() {
+                    turns.push(Turn::Place {
+                        pos,
+                        shape: Shape::Flat,
+                    });
+                }
+            }
+            return turns;
+        }
+
+        for pos in (0..N).flat_map(|x| (0..N).map(move |y| Pos { x, y })) {
+            if let Some(tile) = &self.board[pos] {
+                if tile.top.colour == self.to_move {
+                    self.add_moves(&mut turns, pos, tile);
+                }
+            } else {
+                self.add_places(&mut turns, pos);
+            }
+        }
+        turns
+    }
+
+    /// Add all possible move turns.
     fn add_moves(&self, turns: &mut Vec<Turn<N>>, pos: Pos<N>, tile: &Tile) {
         for neighbour in pos.neighbors() {
             let direction = (neighbour - pos).unwrap();
@@ -67,6 +98,7 @@ impl<const N: usize> Game<N> {
         }
     }
 
+    /// Add all possible place turns.
     fn add_places(&self, turns: &mut Vec<Turn<N>>, pos: Pos<N>) {
         let (stones, caps) = self.get_counts();
         if stones > 0 {
@@ -85,33 +117,5 @@ impl<const N: usize> Game<N> {
                 shape: Shape::Capstone,
             });
         }
-    }
-
-    pub fn move_gen(&self) -> Vec<Turn<N>> {
-        let mut turns = Vec::new();
-
-        // can only place opponent's flat on the first two plies
-        if self.swap() {
-            for pos in (0..N).flat_map(|x| (0..N).map(move |y| Pos { x, y })) {
-                if self.board[pos].is_none() {
-                    turns.push(Turn::Place {
-                        pos,
-                        shape: Shape::Flat,
-                    });
-                }
-            }
-            return turns;
-        }
-
-        for pos in (0..N).flat_map(|x| (0..N).map(move |y| Pos { x, y })) {
-            if let Some(tile) = &self.board[pos] {
-                if tile.top.colour == self.to_move {
-                    self.add_moves(&mut turns, pos, tile);
-                }
-            } else {
-                self.add_places(&mut turns, pos);
-            }
-        }
-        turns
     }
 }

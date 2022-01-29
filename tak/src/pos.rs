@@ -2,7 +2,7 @@ use std::{cmp::Ordering, ops::Sub};
 
 use arrayvec::ArrayVec;
 
-use crate::StrResult;
+use crate::{direction::Direction, StrResult};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Pos<const N: usize> {
@@ -35,7 +35,7 @@ impl<const N: usize> Pos<N> {
             .find(|&n| (n - self).unwrap() == direction)
     }
 
-    /// rotates a position 1 quarter turn counterclockwise
+    /// Rotates a position 1 quarter turn counterclockwise.
     #[must_use]
     pub const fn rotate(&self) -> Self {
         Pos {
@@ -44,7 +44,7 @@ impl<const N: usize> Pos<N> {
         }
     }
 
-    /// mirror along the x axis
+    /// Mirror along the x axis.
     #[must_use]
     pub const fn mirror(&self) -> Self {
         Pos {
@@ -73,38 +73,6 @@ impl<const N: usize> Sub for Pos<N> {
                 Ordering::Less => Ok(Direction::NegY),
                 Ordering::Equal => Err("cannot decide direction when positions are the same"),
             },
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Direction {
-    PosX,
-    PosY,
-    NegX,
-    NegY,
-}
-
-impl Direction {
-    /// rotates a direction 1 quarter turn counterclockwise
-    #[must_use]
-    pub const fn rotate(&self) -> Self {
-        match self {
-            Direction::PosX => Direction::NegY,
-            Direction::PosY => Direction::PosX,
-            Direction::NegX => Direction::PosY,
-            Direction::NegY => Direction::NegX,
-        }
-    }
-
-    /// mirror along the x axis
-    #[must_use]
-    pub const fn mirror(&self) -> Self {
-        match self {
-            Direction::PosX => Direction::PosX,
-            Direction::PosY => Direction::NegY,
-            Direction::NegX => Direction::NegX,
-            Direction::NegY => Direction::PosY,
         }
     }
 }
