@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 tak = {path = "../tak"}
 rand = "0.8"
-tch = { git = "https://github.com/ViliamVadocz/tch-rs", branch = "shuffle-device" }
+tch = { git = "https://github.com/LaurentMazare/tch-rs", branch = "main" }
 lazy_static = "1.4"
