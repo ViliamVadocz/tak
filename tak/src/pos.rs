@@ -101,9 +101,9 @@ impl Direction {
     #[must_use]
     pub const fn mirror(&self) -> Self {
         match self {
-            Direction::PosX => Direction::NegX,
+            Direction::PosX => Direction::PosX,
             Direction::PosY => Direction::NegY,
-            Direction::NegX => Direction::PosX,
+            Direction::NegX => Direction::NegX,
             Direction::NegY => Direction::PosY,
         }
     }

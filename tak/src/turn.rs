@@ -30,9 +30,9 @@ impl<const N: usize> Game<N> {
                 let capstone = matches!(tile.top.shape, Shape::Capstone);
                 let mut tries = vec![(neighbour, drop_choices, ArrayVec::new())];
                 let mut possible_moves = Vec::new();
-                while let Some((pos, drop_choices, mut moves)) = tries.pop() {
+                while let Some((current, drop_choices, mut moves)) = tries.pop() {
                     #[rustfmt::skip]
-                    let can_drop = match self.board[pos] {
+                    let can_drop = match self.board[current] {
                         None => true,
                         Some(Tile {top: Piece {shape: Shape::Flat, ..}, ..}) => true,
                         Some(Tile {top: Piece {shape: Shape::Wall, ..}, ..})
@@ -49,13 +49,13 @@ impl<const N: usize> Game<N> {
                         continue;
                     }
 
-                    if let Some(next) = pos.step(direction) {
+                    if let Some(next) = current.step(direction) {
                         let mut copy = moves.clone();
                         copy.push(true);
                         tries.push((next, drop_choices - 1, copy));
                     }
                     moves.push(false);
-                    tries.push((pos, drop_choices - 1, moves));
+                    tries.push((current, drop_choices - 1, moves));
                 }
 
                 turns.extend(possible_moves.into_iter().map(|moves| Turn::Move {

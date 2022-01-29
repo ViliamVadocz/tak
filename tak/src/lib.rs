@@ -143,7 +143,7 @@ mod tests {
             2. c2 c3
             3. b3 b2
             4. b1 a1
-            5. a2 F-0"
+            5. a2 F-0",
         )?;
         assert_eq!(game.winner(), GameResult::Winner(Colour::White));
         Ok(())
