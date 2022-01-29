@@ -29,7 +29,7 @@ where
         ..Default::default()
     };
     let mut i = 0;
-    for turn in game.move_gen() {
+    for turn in game.possible_turns() {
         assert!(matches!(turn, Turn::Place { .. }));
         map.insert(turn, i);
         i += 1;
@@ -57,7 +57,7 @@ where
         ..Default::default()
     };
 
-    for turn in game.move_gen() {
+    for turn in game.possible_turns() {
         assert!(matches!(turn, Turn::Move { .. }));
         map.insert(turn, i);
         i += 1;

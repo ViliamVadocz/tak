@@ -74,7 +74,7 @@ where
 
             let mut children = HashMap::new();
 
-            let turns = game.move_gen();
+            let turns = game.possible_turns();
             for turn in turns {
                 let move_index = turn.turn_map();
                 children.insert(turn, Node::init(policy[move_index]));
