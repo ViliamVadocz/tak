@@ -16,7 +16,7 @@ use crate::{
 };
 
 const EPOCHS: usize = 100;
-const BATCH_SIZE: i64 = 10_000; // just do whole dataset https://discord.com/channels/176389490762448897/932765511358513204/934552328479080479
+const BATCH_SIZE: i64 = 10_000;
 const LEARNING_RATE: f64 = 1e-3;
 const WEIGHT_DECAY: f64 = 1e-4;
 const MIN_LOSS_DIFF: f32 = 0.2;

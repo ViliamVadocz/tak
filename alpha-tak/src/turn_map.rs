@@ -25,8 +25,7 @@ where
     let mut map = HashMap::new();
     // create empty game and add all place moves
     let game = Game {
-        ply: 4, // to bypass first move swap
-        to_move: Colour::White,
+        ply: 4, // bypass opening weirdness
         ..Default::default()
     };
     let mut i = 0;
@@ -36,8 +35,8 @@ where
         i += 1;
     }
 
-    // create a board where all the spots are filled
-    // with tall stacks controlled by white
+    // create a board where all the spots
+    // are filled with tall stacks
     let mut board = Board::default();
     for y in 0..N {
         for x in 0..N {
@@ -53,7 +52,7 @@ where
     }
     let game = Game {
         board,
-        ply: 4, // to bypass first move swap
+        ply: 4, // to bypass opening weirdness
         to_move: Colour::White,
         ..Default::default()
     };
@@ -66,13 +65,6 @@ where
     map
 }
 
-fn to_white(piece: &Piece) -> Piece {
-    Piece {
-        shape: piece.shape,
-        colour: Colour::White,
-    }
-}
-
 pub trait LUT {
     fn turn_map(&self) -> usize;
 }
@@ -81,31 +73,9 @@ macro_rules! impl_lut {
     ($n:literal, $lut:ident) => {
         impl LUT for Turn<$n> {
             fn turn_map(&self) -> usize {
-                let key = match self {
-                    Turn::Place { pos, piece } => Turn::Place {
-                        pos: *pos,
-                        piece: to_white(piece),
-                    },
-                    Turn::Move { pos, drops } => Turn::Move {
-                        pos: *pos,
-                        // all moves with the same drop distributions map
-                        // to the same thing regardless of the piece types they drop
-                        drops: drops
-                            .clone()
-                            .into_iter()
-                            .map(|(pos, _piece)| {
-                                (pos, Piece {
-                                    shape: Shape::Flat,
-                                    colour: Colour::White,
-                                })
-                            })
-                            .collect(),
-                    },
-                };
-                *$lut.get(&key).expect(&format!(
-                    "could not map turn to index. {:?}, {:?}",
-                    self, key
-                ))
+                *$lut
+                    .get(self)
+                    .expect(&format!("could not map turn to index. {:?}", self))
             }
         }
     };

@@ -18,15 +18,20 @@ fn main() {
     tch::maybe_init_cuda();
     println!("CUDA: {}", Cuda::is_available());
 
-    let mut nn = if START == 0 {
-        Network::<4>::default()
+    let mut nn = if let Ok(nn) = Network::<4>::load(format!("models/{START:03}.model")) {
+        println!("using saved model");
+        nn
     } else {
-        Network::<4>::load(format!("models/{START:03}.model")).unwrap()
+        println!("generating random model");
+        Network::<4>::default()
     };
+
     let mut examples = Vec::new();
-    for i in (START + 1)..1000 {
+    let mut i = START;
+    loop {
         nn = play_until_better(nn, &mut examples);
         println!("saving model");
+        i += 1;
         nn.save(format!("models/{i:03}.model")).unwrap();
     }
 }
