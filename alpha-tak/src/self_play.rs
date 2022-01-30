@@ -10,7 +10,7 @@ use crate::{
     example::{Example, IncompleteExample},
     mcts::Node,
     network::Network,
-    turn_map::LUT,
+    turn_map::Lut,
 };
 
 const SELF_PLAY_GAMES: u32 = 1000;
@@ -22,7 +22,7 @@ const MAX_EXAMPLES: usize = 100_000;
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
     [[Option<Tile>; N]; N]: Default,
-    Turn<N>: LUT,
+    Turn<N>: Lut,
 {
     let mut examples = Vec::new();
 
@@ -86,7 +86,7 @@ impl PitResult {
 fn pit<const N: usize>(new: &Network<N>, old: &Network<N>) -> PitResult
 where
     [[Option<Tile>; N]; N]: Default,
-    Turn<N>: LUT,
+    Turn<N>: Lut,
 {
     println!("pitting two networks against each other");
     let mut wins = 0;
@@ -145,7 +145,7 @@ where
 pub fn play_until_better<const N: usize>(network: Network<N>, examples: &mut Vec<Example<N>>) -> Network<N>
 where
     [[Option<Tile>; N]; N]: Default,
-    Turn<N>: LUT,
+    Turn<N>: Lut,
 {
     println!("starting a new iteration of self-play");
     // copy network values by file (UGLY)

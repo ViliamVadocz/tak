@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use tak::{game::Game, symm::Symmetry, tile::Tile, turn::Turn};
 use tch::{Device, Tensor};
 
-use crate::{repr::moves_dims, turn_map::LUT};
+use crate::{repr::moves_dims, turn_map::Lut};
 
 #[derive(Debug)]
 pub struct IncompleteExample<const N: usize>
 where
-    Turn<N>: LUT,
+    Turn<N>: Lut,
 {
     pub game: Game<N>,
     pub policy: HashMap<Turn<N>, f32>,
@@ -16,7 +16,7 @@ where
 
 impl<const N: usize> IncompleteExample<N>
 where
-    Turn<N>: LUT,
+    Turn<N>: Lut,
     [[Option<Tile>; N]; N]: Default,
 {
     #[must_use]

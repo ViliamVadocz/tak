@@ -65,13 +65,13 @@ where
     map
 }
 
-pub trait LUT {
+pub trait Lut {
     fn turn_map(&self) -> usize;
 }
 
 macro_rules! impl_lut {
     ($n:literal, $lut:ident) => {
-        impl LUT for Turn<$n> {
+        impl Lut for Turn<$n> {
             fn turn_map(&self) -> usize {
                 *$lut
                     .get(self)

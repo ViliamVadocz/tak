@@ -9,7 +9,7 @@ use tak::{
     turn::Turn,
 };
 
-use crate::{network::Network, turn_map::LUT};
+use crate::{agent::Agent, network::Network, turn_map::Lut};
 
 const EXPLORATION: f32 = 1.0;
 
@@ -32,7 +32,7 @@ pub struct Node<const N: usize> {
 
 impl<const N: usize> Node<N>
 where
-    Turn<N>: LUT,
+    Turn<N>: Lut,
 {
     pub fn init(policy: f32) -> Self {
         Node {
