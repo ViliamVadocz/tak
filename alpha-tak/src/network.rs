@@ -35,15 +35,6 @@ pub struct Network<const N: usize> {
 }
 
 impl<const N: usize> Network<N> {
-    pub fn predict(&self, game: &Game<N>, train: bool) -> (Tensor, Tensor) {
-        let input = game_repr(game);
-        let output = self.forward_t(&input.unsqueeze(0), train);
-        let mut vec = output.split(moves_dims(N) as i64, 1);
-        let eval = vec.pop().unwrap();
-        let policy = vec.pop().unwrap();
-        (policy, eval)
-    }
-
     pub fn train(&mut self, examples: &[Example<N>]) {
         println!("starting training with {} examples", examples.len());
         let mut opt = nn::Adam {

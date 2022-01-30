@@ -5,12 +5,13 @@ use tch::Cuda;
 #[macro_use]
 extern crate lazy_static;
 
-pub mod example;
-pub mod mcts;
-pub mod network;
-pub mod repr;
-pub mod self_play;
-pub mod turn_map;
+mod agent;
+mod example;
+mod mcts;
+mod network;
+mod repr;
+mod self_play;
+mod turn_map;
 
 const START: usize = 0;
 

@@ -9,7 +9,7 @@ use tak::{
     turn::Turn,
 };
 
-use crate::{agent::Agent, network::Network, turn_map::Lut};
+use crate::{agent::Agent, turn_map::Lut};
 
 const EXPLORATION: f32 = 1.0;
 
@@ -41,7 +41,7 @@ where
         }
     }
 
-    pub fn rollout(&mut self, mut game: Game<N>, network: &Network<N>) -> f32 {
+    pub fn rollout<A: Agent<N>>(&mut self, mut game: Game<N>, agent: &A) -> f32 {
         self.visited_count += 1;
 
         // cache game result
@@ -68,9 +68,7 @@ where
         if self.children.is_none() {
             // use the neural network to get initial policy for children
             // and eval for this board
-            let (policy, eval) = network.predict(&game, false);
-            let policy: Vec<_> = policy.exp().into(); // undoing log
-            let eval: f32 = eval.into();
+            let (policy, eval) = agent.policy_and_eval(&game);
 
             let mut children = HashMap::new();
 
@@ -99,7 +97,7 @@ where
 
         // rollout next node
         game.play(turn.clone()).unwrap();
-        let eval = next_node.rollout(game, network);
+        let eval = next_node.rollout(game, agent);
         self.children = Some(children);
 
         // take the mean of the expected reward and eval
@@ -129,6 +127,7 @@ where
         let improved_policy = self.improved_policy();
 
         if exploitation {
+            // when exploiting always pick the move with largest policy
             improved_policy
                 .into_iter()
                 .max_by(|(_, a), (_, b)| a.partial_cmp(b).expect("tried comparing nan"))
