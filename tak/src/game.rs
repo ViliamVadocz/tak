@@ -93,7 +93,7 @@ impl<const N: usize> Game<N> {
 
     pub fn opening(&mut self, opening_index: usize) -> StrResult<()> {
         if !self.board.empty() || self.ply != 0 {
-            return Err("openings should be played on an empty board with no previous plies");
+            return Err("openings should be played on an empty board with no previous plies".to_string());
         }
         let i = opening_index % (N * N * (N * N - 1));
         self.play(self.possible_turns().into_iter().nth(i / (N * N - 1)).unwrap())?;
@@ -124,13 +124,25 @@ impl<const N: usize> Game<N> {
     fn execute_place(&mut self, pos: Pos<N>, shape: Shape) -> StrResult<()> {
         let (stones, caps) = self.get_counts();
         if self.board[pos].is_some() {
-            Err("cannot place a piece in that position because it is already occupied")
+            Err(format!(
+                "cannot place a piece in that position because it is already occupied, pos={pos:?}, {}",
+                self.board
+            ))
         } else if matches!(shape, Shape::Capstone) && (caps == 0) {
-            Err("there is no capstone to play")
+            Err(format!(
+                "there is no capstone to play, white=({}, {}), black=({}, {})",
+                self.white_stones, self.white_caps, self.black_stones, self.black_caps
+            ))
         } else if matches!(shape, Shape::Flat | Shape::Wall) && stones == 0 {
-            Err("cannot play a stone without stones")
+            Err(format!(
+                "cannot play a stone without stones, white=({}, {}), black=({}, {})",
+                self.white_stones, self.white_caps, self.black_stones, self.black_caps
+            ))
         } else if self.ply < 2 && matches!(shape, Shape::Wall | Shape::Capstone) {
-            Err("cannot play a wall or capstone on the first two plies")
+            Err(format!(
+                "cannot play a wall or capstone on the first two plies, ply={}",
+                self.ply
+            ))
         } else {
             self.board[pos] = Some(Tile::new(Piece {
                 colour: self.colour(),
@@ -149,22 +161,29 @@ impl<const N: usize> Game<N> {
         // take the pieces
         let on_square = self.board[pos].take().ok_or("cannot move from an empty square")?;
         if on_square.top.colour != self.to_move {
-            return Err("cannot move a stack that you do not own");
+            return Err(format!(
+                "cannot move a stack that you do not own, pos={pos:?}, {}",
+                self.board
+            ));
         }
         let (left, carry) = on_square.take::<N>(moves.len())?;
         self.board[pos] = left;
 
         let mut next = pos.step(direction);
-        for (carry, should_step) in carry.into_iter().rev().zip(moves) {
-            let pos = next.ok_or("cannot move out of board")?; // only unwrap the position when it is needed
-                                                               // stack the dropped piece on top
-            if let Some(t) = self.board[pos].take() {
-                self.board[pos] = Some(t.stack(carry)?);
+        for (carry, &should_step) in carry.into_iter().rev().zip(&moves) {
+            // only unwrap the position when it is needed
+            let p = next.ok_or(format!(
+                "cannot move out of board, pos={pos:?}, direction={direction:?}, moves={moves:?}"
+            ))?;
+
+            // stack the dropped piece on top
+            if let Some(t) = self.board[p].take() {
+                self.board[p] = Some(t.stack(carry)?);
             } else {
-                self.board[pos] = Some(Tile::new(carry));
+                self.board[p] = Some(Tile::new(carry));
             }
             if should_step {
-                next = pos.step(direction);
+                next = p.step(direction);
             }
         }
 

@@ -63,11 +63,13 @@ impl Tile {
     pub fn take<const N: usize>(self, amount: usize) -> StrResult<(Option<Tile>, ArrayVec<Piece, N>)> {
         let count = self.size();
         if amount == 0 {
-            return Err("cannot take 0 from a tile");
+            return Err("cannot take 0 from a tile".to_string());
         } else if amount > N {
-            return Err("cannot take more than the carry limit");
+            return Err(format!("cannot take more than the carry limit, amount={amount}"));
         } else if amount > count {
-            return Err("cannot take more pieces than there are on the tile");
+            return Err(format!(
+                "cannot take more pieces than there are on the tile, amount={amount}, count={count}"
+            ));
         }
 
         let mut stack = self

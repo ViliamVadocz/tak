@@ -13,7 +13,7 @@ pub mod symm;
 pub mod tile;
 pub mod turn;
 
-pub type StrResult<T> = Result<T, &'static str>;
+pub type StrResult<T> = Result<T, String>;
 
 #[cfg(test)]
 mod tests {

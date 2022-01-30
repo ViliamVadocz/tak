@@ -35,7 +35,7 @@ impl FromPTN for Direction {
             ">" => Ok(Direction::PosX),
             "+" => Ok(Direction::PosY),
             "-" => Ok(Direction::NegY),
-            _ => Err("unknown direction"),
+            _ => Err(format!("unknown direction {s}")),
         }
     }
 }
@@ -57,10 +57,10 @@ impl<const N: usize> FromPTN for Pos<N> {
         let x = (s.bytes().next().ok_or("position is too short")? - b'a') as usize;
         let y = s[1..]
             .parse::<usize>()
-            .map_err(|_| "couldn't parse vertical position")?
+            .map_err(|_| format!("couldn't parse vertical position {s}"))?
             - 1;
         if x >= N || y >= N {
-            return Err("position is out of bounds");
+            return Err(format!("position x={x} y={y} is out of bounds"));
         }
         Ok(Pos { x, y })
     }
@@ -78,7 +78,7 @@ impl FromPTN for Shape {
             "C" => Ok(Shape::Capstone),
             "S" => Ok(Shape::Wall),
             "" => Ok(Shape::Flat),
-            _ => Err("unknown shape"),
+            _ => Err(format!("unknown shape {s}")),
         }
     }
 }
@@ -177,7 +177,7 @@ where
                 "Caps" => caps = value.parse::<u8>().map_err(|_| "cannot parse caps")?,
                 "Size" => {
                     if value.parse::<usize>().map_err(|_| "cannot parse size")? != N {
-                        return Err("game size mismatch");
+                        return Err(format!("game size mismatch {value}"));
                     }
                 }
                 _ => {}
