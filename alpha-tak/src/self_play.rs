@@ -1,3 +1,5 @@
+use std::sync::mpsc::channel;
+
 use rand::random;
 use tak::{
     colour::Colour,
@@ -5,6 +7,7 @@ use tak::{
     tile::Tile,
     turn::Turn,
 };
+use threadpool::ThreadPool;
 
 use crate::{
     example::{Example, IncompleteExample},
@@ -13,60 +16,84 @@ use crate::{
     turn_map::Lut,
 };
 
-const SELF_PLAY_GAMES: u32 = 1000;
+const SELF_PLAY_GAMES: usize = 1000;
 const ROLLOUTS_PER_MOVE: u32 = 200;
 const PIT_GAMES: u32 = 200;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 const MAX_EXAMPLES: usize = 1_000_000;
 const OPENING_PLIES: usize = 6;
 
+const WORKERS: usize = 4;
+
+/// Run multiple games against self.
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    let mut examples = Vec::new();
-
-    // run multiple games against self
+    let pool = ThreadPool::new(WORKERS);
+    let (tx, rx) = channel();
     for i in 0..SELF_PLAY_GAMES {
-        println!("self_play game: {}", i);
-        let mut game_examples = Vec::new();
-        // TODO add komi?
-        let mut game = Game::default();
-        // make random moves for the first few turns to make games as unique as possible
-        for _ in 0..OPENING_PLIES {
-            game.nth_move(random()).unwrap();
-        }
+        let tx = tx.clone();
+        let nn = copy(network); // copying network because Tensor is not thread-safe
+                                // run game in its own thread
+        pool.execute(move || {
+            tx.send(self_play_game(&nn)).unwrap();
+            println!("self-play game {i}/{SELF_PLAY_GAMES}");
+        });
+    }
+    // collect examples
+    rx.iter().take(SELF_PLAY_GAMES).fold(Vec::new(), |mut a, b| {
+        a.extend(b.into_iter());
+        a
+    })
+}
 
-        let mut node = Node::default();
-        // play game
-        while matches!(game.winner(), GameResult::Ongoing) {
-            for _ in 0..ROLLOUTS_PER_MOVE {
-                node.rollout(game.clone(), network);
-            }
-            game_examples.push(IncompleteExample {
-                game: game.clone(),
-                policy: node.improved_policy(),
-            });
-            let turn = node.pick_move(false);
-            node = node.play(&turn);
-            game.play(turn).unwrap();
+/// Run a single game against self.
+fn self_play_game<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
+where
+    [[Option<Tile>; N]; N]: Default,
+    Turn<N>: Lut,
+{
+    let mut game_examples = Vec::new();
+    let mut game = Game::default(); // TODO add komi?
+                                    // make random moves for the first few turns to diversify training data
+    for _ in 0..OPENING_PLIES {
+        game.nth_move(random()).unwrap();
+    }
+
+    // initialize MCTS
+    let mut node = Node::default();
+    while matches!(game.winner(), GameResult::Ongoing) {
+        for _ in 0..ROLLOUTS_PER_MOVE {
+            node.rollout(game.clone(), network);
         }
-        println!("{:?} in {} plies\n{}", game.winner(), game.ply, game.board);
-        // complete examples
-        let result = match game.winner() {
-            GameResult::Winner(Colour::White) => 1.,
-            GameResult::Winner(Colour::Black) => -1.,
-            GameResult::Draw => 0.,
-            GameResult::Ongoing => unreachable!(),
-        };
-        // fill in examples with result
-        examples.extend(game_examples.into_iter().enumerate().map(|(ply, ex)| {
+        // and incomplete example
+        game_examples.push(IncompleteExample {
+            game: game.clone(),
+            policy: node.improved_policy(),
+        });
+        // pick a turn and play it
+        let turn = node.pick_move(false);
+        node = node.play(&turn);
+        game.play(turn).unwrap();
+    }
+    let winner = game.winner();
+    // complete examples by filling in game result
+    let result = match winner {
+        GameResult::Winner(Colour::White) => 1.,
+        GameResult::Winner(Colour::Black) => -1.,
+        GameResult::Draw => 0.,
+        GameResult::Ongoing => unreachable!(),
+    };
+    game_examples
+        .into_iter()
+        .enumerate()
+        .map(|(ply, ex)| {
             let perspective = if ply % 2 == 0 { result } else { -result };
             ex.complete(perspective)
-        }));
-    }
-    examples
+        })
+        .collect()
 }
 
 #[derive(Debug)]
@@ -85,8 +112,8 @@ impl PitResult {
     }
 }
 
-/// pits two networks against each other
-/// counts wins and losses of the new network
+/// Pits two networks against each other.
+/// Returns wins, draws, and losses of the match.
 fn pit<const N: usize>(new: &Network<N>, old: &Network<N>) -> PitResult
 where
     [[Option<Tile>; N]; N]: Default,
@@ -113,12 +140,12 @@ where
             break;
         }
 
-        println!("pit game: {}", i);
+        println!("pit game: {i}/{PIT_GAMES}");
         // TODO add komi?
         let mut game = Game::default();
-        game.opening(random()).unwrap();
-
+        game.opening(i as usize / 2).unwrap();
         let my_colour = if i % 2 == 0 { Colour::White } else { Colour::Black };
+
         let mut my_node = Node::default();
         let mut opp_node = Node::default();
         while matches!(game.winner(), GameResult::Ongoing) {
@@ -161,6 +188,8 @@ where
     PitResult { wins, draws, losses }
 }
 
+/// Do self-play and test against previous iteration
+/// until an improvement is seen.
 pub fn play_until_better<const N: usize>(network: Network<N>, examples: &mut Vec<Example<N>>) -> Network<N>
 where
     [[Option<Tile>; N]; N]: Default,
