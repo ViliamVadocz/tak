@@ -1,9 +1,11 @@
 use tak::{board::Board, colour::Colour, game::Game, pos::Pos, tile::Shape};
 use tch::{Device, Tensor};
 
+const STACK_DEPTH_BEYOND_CARRY: usize = 1;
+
 pub const fn input_dims(n: usize) -> [usize; 3] {
     // channels first
-    [n + 3 + 1, n, n]
+    [n + 3 + STACK_DEPTH_BEYOND_CARRY, n, n]
 }
 
 pub const fn moves_dims(n: usize) -> usize {
@@ -56,7 +58,7 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
     ];
 
     // other layers
-    for n in 0..(d1 - 3 - 1) {
+    for n in 0..(d1 - 3 - STACK_DEPTH_BEYOND_CARRY) {
         let mut layer = [[0.; N]; N];
         #[allow(clippy::needless_range_loop)]
         for y in 0..N {
@@ -74,7 +76,7 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
         );
     }
     // last layer for whose turn it is
-    let colour_layer: Vec<f32> = vec![if to_move == Colour::White { 1. } else { 0. }; N * N];
+    let colour_layer: Vec<f32> = vec![if to_move == Colour::White { 1. } else { -1. }; N * N];
     layers.push(Tensor::of_slice(&colour_layer).view(board_shape));
 
     Tensor::stack(&layers, 0).to_device(Device::cuda_if_available())
@@ -83,4 +85,155 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
 pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {
     // TODO add other info such as komi, fcd, total stones, reserves
     board_repr(&game.board, game.to_move)
+}
+
+#[cfg(test)]
+mod test {
+    use tak::{board::Board, colour::Colour, game::Game, ptn::FromPTN};
+    use tch::{Kind, Tensor};
+
+    use super::board_repr;
+    use crate::repr::input_dims;
+
+    fn dims(n: usize) -> [i64; 3] {
+        input_dims(n).map(|x| x as i64)
+    }
+
+    fn eq(a: &Tensor, b: &Tensor) -> bool {
+        let diff: f32 = (a - b).square().sum(Kind::Float).into();
+        diff < 1e-9
+    }
+
+    #[test]
+    fn empty_board() {
+        let repr = board_repr(&Board::<3>::default(), Colour::White);
+        #[rustfmt::skip]
+        let tensor = Tensor::of_slice(&[
+            // flats
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // walls
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // caps
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // layer 2
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // layer 3
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // layer 4 (since STACK_DEPTH_BEYOND_CARRY = 1)
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // white to move
+            1., 1., 1.,
+            1., 1., 1.,
+            1., 1., 1.,
+            ]
+        ).reshape(&dims(3));
+        assert!(eq(&repr, &tensor));
+    }
+
+    #[test]
+    fn no_stacks() {
+        let game = Game::<3>::from_ptn(
+            "
+            1. a1 b3
+            2. c3 Sa2
+            3. b2 c2",
+        )
+        .unwrap();
+        let board = game.board;
+        #[rustfmt::skip]
+        let white_perspective = Tensor::of_slice(&[
+            // flats
+            -1., 0., 0.,
+            0., 1., -1.,
+            0., 1., 1.,
+            // walls
+            0., 0., 0.,
+            -1., 0., 0.,
+            0., 0., 0.,
+            // caps
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // layer 2
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // layer 3
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // layer 4 (since STACK_DEPTH_BEYOND_CARRY = 1)
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // white to move
+            1., 1., 1.,
+            1., 1., 1.,
+            1., 1., 1.0f32,
+        ]).reshape(&dims(3));
+        assert!(eq(&board_repr(&board, Colour::White), &white_perspective));
+        assert!(eq(&board_repr(&board, Colour::Black), &-white_perspective));
+    }
+
+    #[test]
+    fn with_stacks() {
+        let game = Game::<3>::from_ptn(
+            "
+        1. a1 b1
+        2. b1< Sa2
+        3. b1 a2-
+        4. a2 a3
+        5. a2+ Sb3
+        6. a2 b2
+        7. a2> c2
+        8. b1+ a2",
+        )
+        .unwrap();
+        let board = game.board;
+        #[rustfmt::skip]
+        let white_perspective = Tensor::of_slice(&[
+            // flats
+            0., 0., 0.,
+            -1., 1., -1.,
+            1., 0., 0.,
+            // walls
+            -1., 0., 0.,
+            0., 0., 0.,
+            0., -1., 0.,
+            // caps
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // layer 2
+            1., 0., 0.,
+            0., 1., 0.,
+            -1., 0., 0.,
+            // layer 3
+            -1., 0., 0.,
+            0., -1., 0.,
+            0., 0., 0.,
+            // layer 4 (since STACK_DEPTH_BEYOND_CARRY = 1)
+            0., 0., 0.,
+            0., 0., 0.,
+            0., 0., 0.,
+            // white to move
+            1., 1., 1.,
+            1., 1., 1.,
+            1., 1., 1.0f32,
+        ]).reshape(&dims(3));
+        assert!(eq(&board_repr(&board, Colour::White), &white_perspective));
+        assert!(eq(&board_repr(&board, Colour::Black), &-white_perspective));
+    }
 }
