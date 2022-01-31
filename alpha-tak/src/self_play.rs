@@ -180,8 +180,8 @@ where
             GameResult::Ongoing => unreachable!(),
         }
         println!(
-            "{:?} as {:?} [{}/{}/{}]\n{}",
-            game_result, my_colour, wins, draws, losses, game.board
+            "{game_result:?} as {my_colour:?} in {} plies [{wins}/{draws}/{losses}]\n{}",
+            game.ply, game.board
         );
     }
 
