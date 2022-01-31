@@ -14,8 +14,8 @@ use crate::{
     repr::{game_repr, input_dims, moves_dims},
 };
 
-const EPOCHS: usize = 10;
-const BATCH_SIZE: i64 = 1_000_000;
+const EPOCHS: usize = 1; // idk seems to over-fit otherwise
+const BATCH_SIZE: i64 = 300_000;
 const LEARNING_RATE: f64 = 1e-4;
 const WEIGHT_DECAY: f64 = 1e-4;
 
@@ -72,7 +72,7 @@ impl<const N: usize> Network<N> {
 
                 let loss_p = -(p * policy).sum(Kind::Float) / batch_size;
                 let loss_z = (z - eval).square().sum(Kind::Float) / batch_size;
-                println!("{epoch}: p={loss_p:.4?}\tz={loss_z:.4?}");
+                println!("epoch {epoch}:\t p={loss_p:?}\t z={loss_z:?}");
                 let total_loss = loss_z + loss_p;
 
                 opt.backward_step(&total_loss);

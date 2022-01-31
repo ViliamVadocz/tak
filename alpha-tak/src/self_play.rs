@@ -17,7 +17,7 @@ const SELF_PLAY_GAMES: u32 = 1000;
 const ROLLOUTS_PER_MOVE: u32 = 100;
 const PIT_GAMES: u32 = 200;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
-const MAX_EXAMPLES: usize = 100_000;
+const MAX_EXAMPLES: usize = 10_000_000;
 
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
