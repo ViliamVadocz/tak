@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use network::Network;
 use self_play::play_until_better;
 use tch::Cuda;
@@ -29,7 +31,11 @@ fn main() {
     loop {
         nn = play_until_better(nn, &mut examples);
         println!("saving model");
-        let x = rand::random::<usize>() % 1_000_000;
-        nn.save(format!("models/{x:06}.model")).unwrap();
+
+        let sys_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        nn.save(format!("models/{sys_time}.model")).unwrap();
     }
 }
