@@ -15,7 +15,7 @@ use crate::{
 };
 
 const EPOCHS: usize = 1; // idk seems to over-fit otherwise
-const BATCH_SIZE: i64 = 300_000;
+const BATCH_SIZE: i64 = 20_000;
 const LEARNING_RATE: f64 = 1e-4;
 const WEIGHT_DECAY: f64 = 1e-4;
 
@@ -30,6 +30,7 @@ pub struct Network<const N: usize> {
 }
 
 impl<const N: usize> Network<N> {
+    // TODO validation data
     pub fn train(&mut self, examples: &[Example<N>]) {
         println!("starting training with {} examples", examples.len());
         let mut opt = nn::Adam {
@@ -54,7 +55,7 @@ impl<const N: usize> Network<N> {
                 Iter2::new(&Tensor::stack(&games, 0), &Tensor::stack(&targets, 0), BATCH_SIZE);
             let batch_iter = batch_iter
                 .to_device(Device::cuda_if_available())
-                .return_smaller_last_batch()
+                // .return_smaller_last_batch()
                 .shuffle();
 
             for (input, target) in batch_iter {

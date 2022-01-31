@@ -13,11 +13,11 @@ use crate::{
     turn_map::Lut,
 };
 
-const SELF_PLAY_GAMES: u32 = 1000;
+const SELF_PLAY_GAMES: u32 = 500;
 const ROLLOUTS_PER_MOVE: u32 = 100;
 const PIT_GAMES: u32 = 200;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
-const MAX_EXAMPLES: usize = 10_000_000;
+const MAX_EXAMPLES: usize = 1_000_000;
 
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
@@ -94,6 +94,13 @@ where
     let mut losses = 0;
 
     for i in 0..PIT_GAMES {
+        let win_all = PitResult {wins: wins + PIT_GAMES - i, draws, losses};
+        let lose_all = PitResult {wins, draws, losses: losses + PIT_GAMES - i};
+        if win_all.win_rate() < WIN_RATE_THRESHOLD || lose_all.win_rate() > WIN_RATE_THRESHOLD {
+            println!("ending early because result is already determined");
+            break;
+        }
+
         println!("pit game: {}", i);
         // TODO add komi?
         let mut game = Game::default();
@@ -147,13 +154,6 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    println!("starting a new iteration of self-play");
-    // copy network values by file (UGLY)
-    let mut dir = std::env::temp_dir();
-    dir.push("model");
-    network.save(&dir).unwrap();
-    let mut new_network = Network::<N>::load(&dir).unwrap();
-
     loop {
         examples.extend(self_play(&network).into_iter());
         if examples.len() > MAX_EXAMPLES {
@@ -162,6 +162,7 @@ where
             examples.reverse();
         }
 
+        let mut new_network = copy(&network);
         new_network.train(examples);
         let results = pit(&new_network, &network);
         println!("{:?}", results);
@@ -169,4 +170,12 @@ where
             return new_network;
         }
     }
+}
+
+fn copy<const N: usize>(network: &Network<N>) -> Network<N> {
+    // copy network values by file (UGLY)
+    let mut dir = std::env::temp_dir();
+    dir.push("model");
+    network.save(&dir).unwrap();
+    Network::<N>::load(&dir).unwrap()
 }
