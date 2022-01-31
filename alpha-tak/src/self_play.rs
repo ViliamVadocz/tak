@@ -13,11 +13,12 @@ use crate::{
     turn_map::Lut,
 };
 
-const SELF_PLAY_GAMES: u32 = 500;
-const ROLLOUTS_PER_MOVE: u32 = 100;
+const SELF_PLAY_GAMES: u32 = 1000;
+const ROLLOUTS_PER_MOVE: u32 = 200;
 const PIT_GAMES: u32 = 200;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 const MAX_EXAMPLES: usize = 1_000_000;
+const OPENING_PLIES: usize = 6;
 
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
@@ -32,7 +33,10 @@ where
         let mut game_examples = Vec::new();
         // TODO add komi?
         let mut game = Game::default();
-        game.opening(random()).unwrap();
+        // make random moves for the first few turns to make games as unique as possible
+        for _ in 0..OPENING_PLIES {
+            game.nth_move(random()).unwrap();
+        }
 
         let mut node = Node::default();
         // play game
@@ -57,7 +61,7 @@ where
             GameResult::Ongoing => unreachable!(),
         };
         // fill in examples with result
-        examples.extend(game_examples.into_iter().enumerate().flat_map(|(ply, ex)| {
+        examples.extend(game_examples.into_iter().enumerate().map(|(ply, ex)| {
             let perspective = if ply % 2 == 0 { result } else { -result };
             ex.complete(perspective)
         }));
@@ -94,8 +98,16 @@ where
     let mut losses = 0;
 
     for i in 0..PIT_GAMES {
-        let win_all = PitResult {wins: wins + PIT_GAMES - i, draws, losses};
-        let lose_all = PitResult {wins, draws, losses: losses + PIT_GAMES - i};
+        let win_all = PitResult {
+            wins: wins + PIT_GAMES - i,
+            draws,
+            losses,
+        };
+        let lose_all = PitResult {
+            wins,
+            draws,
+            losses: losses + PIT_GAMES - i,
+        };
         if win_all.win_rate() < WIN_RATE_THRESHOLD || lose_all.win_rate() > WIN_RATE_THRESHOLD {
             println!("ending early because result is already determined");
             break;

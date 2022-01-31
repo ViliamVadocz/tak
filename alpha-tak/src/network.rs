@@ -1,5 +1,6 @@
 use std::{error::Error, path::Path};
 
+use tak::{tile::Tile, turn::Turn};
 use tch::{
     data::Iter2,
     nn,
@@ -11,7 +12,8 @@ use tch::{
 
 use crate::{
     example::Example,
-    repr::{game_repr, input_dims, moves_dims},
+    repr::{input_dims, moves_dims},
+    turn_map::Lut,
 };
 
 const EPOCHS: usize = 1; // idk seems to over-fit otherwise
@@ -31,7 +33,11 @@ pub struct Network<const N: usize> {
 
 impl<const N: usize> Network<N> {
     // TODO validation data
-    pub fn train(&mut self, examples: &[Example<N>]) {
+    pub fn train(&mut self, examples: &[Example<N>])
+    where
+        Turn<N>: Lut,
+        [[Option<Tile>; N]; N]: Default,
+    {
         println!("starting training with {} examples", examples.len());
         let mut opt = nn::Adam {
             wd: WEIGHT_DECAY,
@@ -40,19 +46,21 @@ impl<const N: usize> Network<N> {
         .build(&self.vs, LEARNING_RATE)
         .unwrap();
 
-        let games: Vec<_> = examples
-            .iter()
-            .map(|Example { game, .. }| game_repr(game))
-            .collect();
-        let targets: Vec<_> = examples
-            .iter()
-            .map(|Example { pi, v, .. }| Tensor::cat(&[pi, v], 0))
-            .collect();
+        let symmetries = examples.iter().flat_map(|ex| ex.to_tensors());
+        let mut inputs = Vec::new();
+        let mut targets = Vec::new();
+        for (game, pi, v) in symmetries {
+            inputs.push(game);
+            targets.push(Tensor::cat(&[pi, v], 0));
+        }
 
         for epoch in 0..EPOCHS {
             // Batch examples
-            let mut batch_iter =
-                Iter2::new(&Tensor::stack(&games, 0), &Tensor::stack(&targets, 0), BATCH_SIZE);
+            let mut batch_iter = Iter2::new(
+                &Tensor::stack(&inputs, 0),
+                &Tensor::stack(&targets, 0),
+                BATCH_SIZE,
+            );
             let batch_iter = batch_iter
                 .to_device(Device::cuda_if_available())
                 // .return_smaller_last_batch()

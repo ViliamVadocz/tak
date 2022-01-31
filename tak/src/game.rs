@@ -100,6 +100,12 @@ impl<const N: usize> Game<N> {
         self.play(self.possible_turns().into_iter().nth(i % (N * N - 1)).unwrap())
     }
 
+    pub fn nth_move(&mut self, mut n: usize) -> StrResult<()> {
+        let turns = self.possible_turns();
+        n %= turns.len();
+        self.play(turns.into_iter().nth(n).unwrap())
+    }
+
     pub fn get_counts(&self) -> (Stones, Capstones) {
         match self.to_move {
             Colour::White => (self.white_stones, self.white_caps),
