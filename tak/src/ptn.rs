@@ -213,10 +213,8 @@ impl<const N: usize> Game<N> {
         [[Option<Tile>; N]; N]: Default,
     {
         for ply in moves {
-            println!("{}", ply);
             let turn = Turn::from_ptn(ply)?;
             self.play(turn)?;
-            println!("{}", self.board);
         }
         Ok(())
     }
