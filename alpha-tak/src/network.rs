@@ -1,5 +1,6 @@
 use std::{error::Error, path::Path};
 
+use arrayvec::ArrayVec;
 use tak::{tile::Tile, turn::Turn};
 use tch::{
     data::Iter2,
@@ -21,14 +22,15 @@ const BATCH_SIZE: i64 = 20_000;
 const LEARNING_RATE: f64 = 1e-4;
 const WEIGHT_DECAY: f64 = 1e-4;
 
+const CONV_LAYERS: usize = 16;
+
 #[derive(Debug)]
 pub struct Network<const N: usize> {
     vs: nn::VarStore,
-    conv1: nn::Conv2D,
-    conv2: nn::Conv2D,
-    conv3: nn::Conv2D,
-    fc1: nn::Linear,
-    fc2: nn::Linear,
+    convolutions: ArrayVec<nn::Conv2D, CONV_LAYERS>,
+    batch_norms: ArrayVec<nn::BatchNorm, CONV_LAYERS>,
+    fully_connected_policy: nn::Linear,
+    fully_connected_eval: nn::Linear,
 }
 
 impl<const N: usize> Network<N> {
@@ -107,45 +109,48 @@ impl<const N: usize> Default for Network<N> {
         let vs = nn::VarStore::new(Device::cuda_if_available());
         let root = &vs.root();
         let [d1, _d2, _d3] = input_dims(N);
-        let conv1 = nn::conv2d(root, d1 as i64, 128, 3, ConvConfig {
+
+        let conv_config = ConvConfig {
             padding: 1,
             ..Default::default()
-        });
-        let conv2 = nn::conv2d(root, 128, 128, 3, ConvConfig {
-            padding: 1,
-            ..Default::default()
-        });
-        let conv3 = nn::conv2d(root, 128, 128, 3, ConvConfig {
-            padding: 1,
-            ..Default::default()
-        });
-        let fc1 = nn::linear(
+        };
+        let mut convolutions = ArrayVec::new();
+        let mut batch_norms = ArrayVec::new();
+        convolutions.push(nn::conv2d(root, d1 as i64, 128, 3, conv_config));
+        batch_norms.push(nn::batch_norm2d(root, 128, Default::default()));
+        for _ in 1..CONV_LAYERS {
+            convolutions.push(nn::conv2d(root, 128, 128, 3, conv_config));
+            batch_norms.push(nn::batch_norm2d(root, 128, Default::default()));
+        }
+        let fully_connected_policy = nn::linear(
             root,
             (N * N * 128) as i64,
             moves_dims(N) as i64,
             Default::default(),
         );
-        let fc2 = nn::linear(root, (N * N * 128) as i64, 1, Default::default());
+        let fully_connected_eval = nn::linear(root, (N * N * 128) as i64, 1, Default::default());
         Network {
             vs,
-            conv1,
-            conv2,
-            conv3,
-            fc1,
-            fc2,
+            convolutions,
+            batch_norms,
+            fully_connected_policy,
+            fully_connected_eval,
         }
     }
 }
 
 impl<const N: usize> nn::ModuleT for Network<N> {
-    fn forward_t(&self, input: &Tensor, _train: bool) -> Tensor {
-        let s = input
-            .apply(&self.conv1)
-            .apply(&self.conv2)
-            .apply(&self.conv3)
+    fn forward_t(&self, input: &Tensor, train: bool) -> Tensor {
+        let s = self
+            .convolutions
+            .iter()
+            .zip(&self.batch_norms)
+            .fold(input.shallow_clone(), |s, (conv, norm)| {
+                s.apply(conv).apply_t(norm, train)
+            })
             .reshape(&[-1, (N * N * 128) as i64]);
-        let policy = s.apply(&self.fc1).log_softmax(1, Kind::Float);
-        let eval = s.apply(&self.fc2).tanh();
+        let policy = s.apply(&self.fully_connected_policy).log_softmax(1, Kind::Float);
+        let eval = s.apply(&self.fully_connected_eval).tanh();
         // would be nice if I could just return two values
         Tensor::cat(&[policy, eval], 1)
     }

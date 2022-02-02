@@ -11,3 +11,4 @@ tch = { git = "https://github.com/LaurentMazare/tch-rs", branch = "main" }
 rand = "0.8"
 lazy_static = "1.4"
 threadpool = "1.8"
+arrayvec = "0.7"
