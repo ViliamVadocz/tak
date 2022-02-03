@@ -23,14 +23,27 @@ const WIN_RATE_THRESHOLD: f64 = 0.55;
 const MAX_EXAMPLES: usize = 1_000_000;
 const OPENING_PLIES: usize = 6;
 
-const WORKERS: usize = 4;
-
 /// Run multiple games against self.
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
+    (0..SELF_PLAY_GAMES).fold(Vec::new(), |mut examples, i| {
+        examples.extend(self_play_game(network).into_iter());
+        println!("self-play game {i}/{SELF_PLAY_GAMES}");
+        examples
+    })
+}
+
+/// Run multiple games against self concurrently.
+fn self_play_pool<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
+where
+    [[Option<Tile>; N]; N]: Default,
+    Turn<N>: Lut,
+{
+    const WORKERS: usize = 4;
+
     let pool = ThreadPool::new(WORKERS);
     let (tx, rx) = channel();
     for i in 0..SELF_PLAY_GAMES {
