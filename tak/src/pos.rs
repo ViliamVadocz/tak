@@ -58,17 +58,17 @@ impl<const N: usize> Sub for Pos<N> {
     type Output = StrResult<Direction>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        let diagonal_err = Err(format!(
+        let diagonal_err = || Err(format!(
             "cannot have a diagonal direction, from={rhs:?}, to={self:?}"
         ));
         match self.x.cmp(&rhs.x) {
             Ordering::Greater => match self.y.cmp(&rhs.y) {
                 Ordering::Equal => Ok(Direction::PosX),
-                Ordering::Less | Ordering::Greater => diagonal_err,
+                Ordering::Less | Ordering::Greater => diagonal_err(),
             },
             Ordering::Less => match self.y.cmp(&rhs.y) {
                 Ordering::Equal => Ok(Direction::NegX),
-                Ordering::Less | Ordering::Greater => diagonal_err,
+                Ordering::Less | Ordering::Greater => diagonal_err(),
             },
             Ordering::Equal => match self.y.cmp(&rhs.y) {
                 Ordering::Greater => Ok(Direction::PosY),
