@@ -41,7 +41,7 @@ where
         }
     }
 
-    pub fn rollout<A: Agent<N>>(&mut self, mut game: Game<N>, agent: &A) -> f32 {
+    pub fn rollout<A: Agent<N>>(&mut self, game: Game<N>, agent: &A) -> f32 {
         self.visited_count += 1;
 
         // cache game result
@@ -66,24 +66,31 @@ where
         // if it is the first time we are vising this node
         // initialize all children
         if self.children.is_none() {
-            // use the neural network to get initial policy for children
-            // and eval for this board
-            let (policy, eval) = agent.policy_and_eval(&game);
+            return self.expand_node(game, agent);
+        }
+        // otherwise we have been at this node before
+        self.rollout_next(game, agent)
+    }
 
-            let mut children = HashMap::new();
+    fn expand_node<A: Agent<N>>(&mut self, game: Game<N>, agent: &A) -> f32 {
+        // use the neural network to get initial policy for children
+        // and eval for this board
+        let (policy, eval) = agent.policy_and_eval(&game);
 
-            let turns = game.possible_turns();
-            for turn in turns {
-                let move_index = turn.turn_map();
-                children.insert(turn, Node::init(policy[move_index]));
-            }
+        let mut children = HashMap::new();
 
-            self.expected_reward = -eval;
-            self.children = Some(children);
-            return -eval;
+        let turns = game.possible_turns();
+        for turn in turns {
+            let move_index = turn.turn_map();
+            children.insert(turn, Node::init(policy[move_index]));
         }
 
-        // otherwise we have been at this node before
+        self.expected_reward = -eval;
+        self.children = Some(children);
+        -eval
+    }
+
+    fn rollout_next<A: Agent<N>>(&mut self, mut game: Game<N>, agent: &A) -> f32 {
         // pick which node to rollout
         let mut children = self.children.take().unwrap();
         let (turn, next_node) = children
