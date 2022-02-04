@@ -1,5 +1,5 @@
 use tak::{board::Board, colour::Colour, game::Game, pos::Pos, tile::Shape};
-use tch::{Device, Tensor};
+use tch::Tensor;
 
 const STACK_DEPTH_BEYOND_CARRY: usize = 1;
 
@@ -79,7 +79,7 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
     let colour_layer: Vec<f32> = vec![if to_move == Colour::White { 1. } else { -1. }; N * N];
     layers.push(Tensor::of_slice(&colour_layer).view(board_shape));
 
-    Tensor::stack(&layers, 0).to_device(Device::cuda_if_available())
+    Tensor::stack(&layers, 0)
 }
 
 pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {

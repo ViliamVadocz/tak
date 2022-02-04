@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use tak::{game::Game, symm::Symmetry, tile::Tile, turn::Turn};
-use tch::{Device, Tensor};
+use tch::Tensor;
 
 use crate::{
     repr::{game_repr, moves_dims},
@@ -62,8 +62,8 @@ where
             .map(|(i, game)| {
                 (
                     game_repr(&game),
-                    Tensor::of_slice(&pi[i]).to_device(Device::cuda_if_available()),
-                    Tensor::of_slice(&[self.result]).to_device(Device::cuda_if_available()),
+                    Tensor::of_slice(&pi[i]),
+                    Tensor::of_slice(&[self.result]),
                 )
             })
             .collect()

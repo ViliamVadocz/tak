@@ -63,12 +63,12 @@ impl<const N: usize> Network<N> {
                 &Tensor::stack(&targets, 0),
                 BATCH_SIZE,
             );
-            let batch_iter = batch_iter
-                .to_device(Device::cuda_if_available())
-                // .return_smaller_last_batch()
-                .shuffle();
+            let batch_iter = batch_iter.shuffle();
 
-            for (input, target) in batch_iter {
+            for (mut input, mut target) in batch_iter {
+                input = input.to_device(Device::cuda_if_available());
+                target = target.to_device(Device::cuda_if_available());
+
                 let batch_size = input.size()[0];
                 let output = self.forward_t(&input, true);
                 // get prediction
@@ -86,6 +86,7 @@ impl<const N: usize> Network<N> {
                 println!("epoch {epoch}:\t p={loss_p:?}\t z={loss_z:?}");
                 let total_loss = loss_z + loss_p;
 
+                opt.zero_grad();
                 opt.backward_step(&total_loss);
             }
         }
