@@ -1,7 +1,7 @@
 use std::sync::mpsc::{Receiver, Sender};
 
 use tak::game::Game;
-use tch::{Device, Tensor};
+use tch::Device;
 
 use crate::{network::Network, repr::game_repr};
 

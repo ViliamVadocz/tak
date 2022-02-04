@@ -30,6 +30,7 @@ const MAX_EXAMPLES: usize = 1_000_000;
 const OPENING_PLIES: usize = 6;
 
 /// Run multiple games against self.
+#[allow(dead_code)]
 fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
     [[Option<Tile>; N]; N]: Default,
