@@ -1,10 +1,9 @@
-use tak::game::Game;
-use tch::{nn::ModuleT, Device};
+use std::sync::mpsc::{Receiver, Sender};
 
-use crate::{
-    network::Network,
-    repr::{game_repr, moves_dims},
-};
+use tak::game::Game;
+use tch::{Device, Tensor};
+
+use crate::{network::Network, repr::game_repr};
 
 pub trait Agent<const N: usize> {
     fn policy_and_eval(&self, game: &Game<N>) -> (Vec<f32>, f32);
@@ -13,10 +12,25 @@ pub trait Agent<const N: usize> {
 impl<const N: usize> Agent<N> for Network<N> {
     fn policy_and_eval(&self, game: &Game<N>) -> (Vec<f32>, f32) {
         let input = game_repr(game).to_device(Device::cuda_if_available());
-        let output = self.forward_t(&input.unsqueeze(0), false);
-        let mut vec = output.split(moves_dims(N) as i64, 1);
-        let eval = vec.pop().unwrap().into();
-        let policy = vec.pop().unwrap().exp().into(); // undoing log (UGLY)
-        (policy, eval)
+        let (policy, eval) = self.forward_mcts(input.unsqueeze(0));
+        (policy.into(), eval.into())
+    }
+}
+
+pub struct Batcher<const N: usize> {
+    tx: Sender<Game<N>>,
+    rx: Receiver<(Vec<f32>, f32)>,
+}
+
+impl<const N: usize> Batcher<N> {
+    pub fn new(tx: Sender<Game<N>>, rx: Receiver<(Vec<f32>, f32)>) -> Self {
+        Batcher { tx, rx }
+    }
+}
+
+impl<const N: usize> Agent<N> for Batcher<N> {
+    fn policy_and_eval(&self, game: &Game<N>) -> (Vec<f32>, f32) {
+        self.tx.send(game.clone()).unwrap();
+        self.rx.recv().unwrap()
     }
 }

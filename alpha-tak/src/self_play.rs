@@ -1,5 +1,9 @@
-use std::sync::mpsc::channel;
+use std::{
+    sync::mpsc::{channel, Receiver, Sender},
+    thread::{self, JoinHandle},
+};
 
+use arrayvec::ArrayVec;
 use rand::random;
 use tak::{
     colour::Colour,
@@ -7,12 +11,14 @@ use tak::{
     tile::Tile,
     turn::Turn,
 };
-use threadpool::ThreadPool;
+use tch::{Device, Tensor};
 
 use crate::{
+    agent::{Agent, Batcher},
     example::{Example, IncompleteExample},
     mcts::Node,
     network::Network,
+    repr::game_repr,
     turn_map::Lut,
 };
 
@@ -37,40 +43,117 @@ where
 }
 
 /// Run multiple games against self concurrently.
-fn self_play_pool<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
+pub fn self_play_batch<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    const WORKERS: usize = 4;
+    const WORKERS: usize = 256;
+    println!("Starting self-play with {WORKERS} workers");
 
-    let pool = ThreadPool::new(WORKERS);
-    let (tx, rx) = channel();
-    for i in 0..SELF_PLAY_GAMES {
-        let tx = tx.clone();
-        let nn = copy(network); // copying network because Tensor is not thread-safe
-                                // run game in its own thread
-        pool.execute(move || {
-            tx.send(self_play_game(&nn)).unwrap();
-            println!("self-play game {i}/{SELF_PLAY_GAMES}");
-        });
+    fn new_worker<const N: usize>(
+        tx: Sender<Vec<Example<N>>>,
+        receivers: &mut ArrayVec<Receiver<Game<N>>, WORKERS>,
+        transmitters: &mut ArrayVec<Sender<(Vec<f32>, f32)>, WORKERS>,
+        overwrite: Option<usize>,
+    ) -> JoinHandle<()>
+    where
+        [[Option<Tile>; N]; N]: Default,
+        Turn<N>: Lut,
+    {
+        let (game_tx, game_rx) = channel();
+        let (policy_tx, policy_rx) = channel();
+        if let Some(i) = overwrite {
+            receivers[i] = game_rx;
+            transmitters[i] = policy_tx;
+        } else {
+            receivers.push(game_rx);
+            transmitters.push(policy_tx);
+        }
+        let batcher = Batcher::new(game_tx, policy_rx);
+        thread::spawn(move || {
+            tx.send(self_play_game(&batcher)).unwrap();
+        })
     }
+
+    // initialize worker threads
+    let mut workers: ArrayVec<_, WORKERS> = ArrayVec::new();
+    let mut receivers: ArrayVec<_, WORKERS> = ArrayVec::new();
+    let mut transmitters: ArrayVec<_, WORKERS> = ArrayVec::new();
+    let (examples_tx, examples_rx) = channel();
+    for _ in 0..WORKERS {
+        workers.push(new_worker(
+            examples_tx.clone(),
+            &mut receivers,
+            &mut transmitters,
+            None,
+        ));
+    }
+
+    let mut completed_games = 0;
+    while completed_games < SELF_PLAY_GAMES {
+        // collect game states
+        let mut communicators: ArrayVec<_, WORKERS> = ArrayVec::new();
+        let mut batch: ArrayVec<_, WORKERS> = ArrayVec::new();
+        for (i, rx) in receivers.iter().enumerate() {
+            if let Ok(game) = rx.try_recv() {
+                communicators.push(i);
+                batch.push(game);
+            }
+        }
+        if batch.is_empty() {
+            continue;
+        }
+
+        // run prediction
+        let game_tensors: Vec<_> = batch.iter().map(game_repr).collect();
+        let input = Tensor::stack(&game_tensors, 0).to_device(Device::cuda_if_available());
+        let (policy, eval) = network.forward_mcts(input);
+        let policies: Vec<Vec<f32>> = policy.into();
+        let evals: Vec<f32> = eval.into();
+
+        // send out outputs
+        for (i, r) in communicators
+            .into_iter()
+            .zip(policies.into_iter().zip(evals.into_iter()))
+        {
+            transmitters[i].send(r).unwrap();
+        }
+
+        for (i, handle) in workers.iter_mut().enumerate() {
+            // track when threads finish
+            if !handle.is_running() {
+                completed_games += 1;
+                println!("self-play game {completed_games}/{SELF_PLAY_GAMES}");
+                if completed_games >= SELF_PLAY_GAMES {
+                    break;
+                }
+                // start a new thread when one finishes
+                *handle = new_worker(examples_tx.clone(), &mut receivers, &mut transmitters, Some(i));
+            }
+        }
+    }
+
     // collect examples
-    rx.iter().take(SELF_PLAY_GAMES).fold(Vec::new(), |mut a, b| {
-        a.extend(b.into_iter());
-        a
-    })
+    examples_rx
+        .iter()
+        .take(SELF_PLAY_GAMES)
+        .fold(Vec::new(), |mut a, b| {
+            a.extend(b.into_iter());
+            a
+        })
 }
 
 /// Run a single game against self.
-fn self_play_game<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
+fn self_play_game<const N: usize, A: Agent<N>>(agent: &A) -> Vec<Example<N>>
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
     let mut game_examples = Vec::new();
     let mut game = Game::default(); // TODO add komi?
-                                    // make random moves for the first few turns to diversify training data
+
+    // make random moves for the first few turns to diversify training data
     for _ in 0..OPENING_PLIES {
         game.nth_move(random()).unwrap();
     }
@@ -79,7 +162,7 @@ where
     let mut node = Node::default();
     while matches!(game.winner(), GameResult::Ongoing) {
         for _ in 0..ROLLOUTS_PER_MOVE {
-            node.rollout(game.clone(), network);
+            node.rollout(game.clone(), agent);
         }
         // and incomplete example
         game_examples.push(IncompleteExample {
@@ -209,7 +292,8 @@ where
     Turn<N>: Lut,
 {
     loop {
-        examples.extend(self_play(&network).into_iter());
+        // examples.extend(self_play(&network).into_iter());
+        examples.extend(self_play_batch(&network).into_iter());
         if examples.len() > MAX_EXAMPLES {
             examples.reverse();
             examples.truncate(MAX_EXAMPLES);

@@ -1,3 +1,5 @@
+#![feature(thread_is_running)]
+
 use std::time::SystemTime;
 
 use network::Network;
