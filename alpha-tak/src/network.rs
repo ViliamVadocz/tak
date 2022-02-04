@@ -5,7 +5,7 @@ use tak::{tile::Tile, turn::Turn};
 use tch::{
     data::Iter2,
     nn,
-    nn::{ConvConfig, ModuleT, OptimizerConfig},
+    nn::{ConvConfig, OptimizerConfig},
     Device,
     Kind,
     Tensor,
@@ -70,11 +70,7 @@ impl<const N: usize> Network<N> {
                 target = target.to_device(Device::cuda_if_available());
 
                 let batch_size = input.size()[0];
-                let output = self.forward_t(&input, true);
-                // get prediction
-                let mut vec = output.split(moves_dims(N) as i64, 1);
-                let eval = vec.pop().unwrap();
-                let policy = vec.pop().unwrap();
+                let (policy, eval) = self.forward_training(input);
 
                 // Get target
                 let mut vec = target.split(moves_dims(N) as i64, 1);
@@ -140,19 +136,30 @@ impl<const N: usize> Default for Network<N> {
     }
 }
 
-impl<const N: usize> nn::ModuleT for Network<N> {
-    fn forward_t(&self, input: &Tensor, train: bool) -> Tensor {
+// Like forward_t in the nn::ModuleT trait, except we return two values (policy,
+// eval)
+impl<const N: usize> Network<N> {
+    pub fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor) {
         let s = self
             .convolutions
             .iter()
             .zip(&self.batch_norms)
-            .fold(input.shallow_clone(), |s, (conv, norm)| {
-                s.apply(conv).apply_t(norm, train)
-            })
+            .fold(input, |s, (conv, norm)| s.apply(conv).apply_t(norm, false))
+            .reshape(&[-1, (N * N * 128) as i64]);
+        let policy = s.apply(&self.fully_connected_policy).softmax(1, Kind::Float);
+        let eval = s.apply(&self.fully_connected_eval).tanh();
+        (policy, eval)
+    }
+
+    pub fn forward_training(&self, input: Tensor) -> (Tensor, Tensor) {
+        let s = self
+            .convolutions
+            .iter()
+            .zip(&self.batch_norms)
+            .fold(input, |s, (conv, norm)| s.apply(conv).apply_t(norm, true))
             .reshape(&[-1, (N * N * 128) as i64]);
         let policy = s.apply(&self.fully_connected_policy).log_softmax(1, Kind::Float);
         let eval = s.apply(&self.fully_connected_eval).tanh();
-        // would be nice if I could just return two values
-        Tensor::cat(&[policy, eval], 1)
+        (policy, eval)
     }
 }
