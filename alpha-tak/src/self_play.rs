@@ -49,7 +49,7 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    const WORKERS: usize = 256;
+    const WORKERS: usize = 128;
     println!("Starting self-play with {WORKERS} workers");
 
     fn new_worker<const N: usize>(
@@ -92,7 +92,7 @@ where
     }
 
     let mut completed_games = 0;
-    while completed_games < SELF_PLAY_GAMES {
+    while completed_games < SELF_PLAY_GAMES || workers.iter().any(|handle| handle.is_running()) {
         // collect game states
         let mut communicators: ArrayVec<_, WORKERS> = ArrayVec::new();
         let mut batch: ArrayVec<_, WORKERS> = ArrayVec::new();
@@ -126,11 +126,10 @@ where
             if !handle.is_running() {
                 completed_games += 1;
                 println!("self-play game {completed_games}/{SELF_PLAY_GAMES}");
-                if completed_games >= SELF_PLAY_GAMES {
-                    break;
+                if completed_games < SELF_PLAY_GAMES {
+                    // start a new thread when one finishes
+                    *handle = new_worker(examples_tx.clone(), &mut receivers, &mut transmitters, Some(i));
                 }
-                // start a new thread when one finishes
-                *handle = new_worker(examples_tx.clone(), &mut receivers, &mut transmitters, Some(i));
             }
         }
     }
@@ -138,7 +137,7 @@ where
     // collect examples
     examples_rx
         .iter()
-        .take(SELF_PLAY_GAMES)
+        .take(completed_games)
         .fold(Vec::new(), |mut a, b| {
             a.extend(b.into_iter());
             a
@@ -156,7 +155,7 @@ where
 
     // make random moves for the first few turns to diversify training data
     for _ in 0..OPENING_PLIES {
-        game.nth_move(random()).unwrap();
+        game.nth_place(random()).unwrap();
     }
 
     // initialize MCTS
