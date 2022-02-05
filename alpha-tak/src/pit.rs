@@ -57,7 +57,7 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    println!("Starting {PIT_MATCHES} pit games asynchronously");
+    println!("Playing {PIT_MATCHES} pit matches at the same time");
 
     // initialize worker threads
     let mut workers: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
