@@ -105,7 +105,7 @@ impl<const N: usize> FromPTN for Turn<N> {
 
             let mut drop_counts: Vec<_> = cap[4].chars().map(|c| c.to_digit(10).unwrap()).collect();
             if drop_counts.is_empty() {
-                drop_counts = vec![carry_amount];
+                drop_counts.push(carry_amount);
             }
             let mut moves = ArrayVec::new();
             for drops in drop_counts {
@@ -152,6 +152,9 @@ impl<const N: usize> ToPTN for Turn<N> {
                         } else {
                             current += 1;
                         }
+                    }
+                    if current == moves.len() {
+                        drops.push_str(&current.to_string());
                     }
                     format!("{}{}{}{}", moves.len(), pos.to_ptn(), direction.to_ptn(), drops)
                 }
