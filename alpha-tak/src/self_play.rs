@@ -22,9 +22,9 @@ use crate::{
     turn_map::Lut,
 };
 
-const SELF_PLAY_GAMES: usize = 1000;
-const ROLLOUTS_PER_MOVE: u32 = 200;
-const PIT_GAMES: u32 = 200;
+const SELF_PLAY_GAMES: usize = 2000;
+const ROLLOUTS_PER_MOVE: u32 = 1000;
+const PIT_MATCHES: usize = 128;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 const MAX_EXAMPLES: usize = 1_000_000;
 const OPENING_PLIES: usize = 6;
@@ -44,7 +44,7 @@ where
 }
 
 /// Run multiple games against self concurrently.
-pub fn self_play_batch<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
+pub fn self_play_async<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
@@ -123,13 +123,11 @@ where
 
         for (i, handle) in workers.iter_mut().enumerate() {
             // track when threads finish
-            if !handle.is_running() {
+            if !handle.is_running() && completed_games < SELF_PLAY_GAMES {
                 completed_games += 1;
                 println!("self-play game {completed_games}/{SELF_PLAY_GAMES}");
-                if completed_games < SELF_PLAY_GAMES {
-                    // start a new thread when one finishes
-                    *handle = new_worker(examples_tx.clone(), &mut receivers, &mut transmitters, Some(i));
-                }
+                // start a new thread when one finishes
+                *handle = new_worker(examples_tx.clone(), &mut receivers, &mut transmitters, Some(i));
             }
         }
     }
@@ -192,7 +190,7 @@ where
         .collect()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct PitResult {
     wins: u32,
     #[allow(dead_code)]
@@ -202,46 +200,156 @@ struct PitResult {
 
 impl PitResult {
     pub fn win_rate(&self) -> f64 {
-        // (self.wins as f64 + self.draws as f64 / 2.) / (self.wins + self.draws +
-        // self.losses) as f64
+        // another option:
+        // (self.wins as f64 + self.draws as f64 / 2.) /
+        // (self.wins + self.draws + self.losses) as f64
         self.wins as f64 / (self.wins + self.losses) as f64
     }
+
+    pub fn update(&mut self, result: GameResult, colour: Colour) {
+        match result {
+            GameResult::Winner(winner) => {
+                if winner == colour {
+                    self.wins += 1
+                } else {
+                    self.losses += 1
+                }
+            }
+            GameResult::Draw => self.draws += 1,
+            GameResult::Ongoing => {}
+        }
+    }
+}
+
+// TODO cleanup
+fn pit_async<const N: usize>(new: &Network<N>, old: &Network<N>) -> PitResult
+where
+    [[Option<Tile>; N]; N]: Default,
+    Turn<N>: Lut,
+{
+    println!("Starting {PIT_MATCHES} pit games asynchronously");
+
+    // initialize worker threads
+    let mut workers: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
+    let mut receivers_old: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
+    let mut transmitters_old: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
+    let mut receivers_new: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
+    let mut transmitters_new: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
+    let (results_tx, results_rx) = channel();
+    for _ in 0..PIT_MATCHES {
+        let (game_tx_new, game_rx_new) = channel();
+        let (policy_tx_new, policy_rx_new) = channel();
+        receivers_new.push(game_rx_new);
+        transmitters_new.push(policy_tx_new);
+        let batcher_new = Batcher::new(game_tx_new, policy_rx_new);
+
+        let (game_tx_old, game_rx_old) = channel();
+        let (policy_tx_old, policy_rx_old) = channel();
+        let batcher_old = Batcher::new(game_tx_old, policy_rx_old);
+        receivers_old.push(game_rx_old);
+        transmitters_old.push(policy_tx_old);
+
+        let tx = results_tx.clone();
+        workers.push(thread::spawn(move || {
+            tx.send(play_pit_game(&batcher_new, &batcher_old)).unwrap();
+        }));
+    }
+
+    while workers.iter().any(|handle| handle.is_running()) {
+        // collect game states for new
+        let mut communicators = Vec::new();
+        let mut batch = Vec::new();
+        for (i, rx) in receivers_new.iter().enumerate() {
+            if let Ok(game) = rx.try_recv() {
+                communicators.push(i);
+                batch.push(game);
+            }
+        }
+        if !batch.is_empty() {
+            // run prediction
+            let game_tensors: Vec<_> = batch.iter().map(game_repr).collect();
+            let input = Tensor::stack(&game_tensors, 0).to_device(Device::cuda_if_available());
+            let (policy, eval) = new.forward_mcts(input);
+            let policies: Vec<Vec<f32>> = policy.into();
+            let evals: Vec<f32> = eval.into();
+
+            // send out outputs
+            for (i, r) in communicators
+                .into_iter()
+                .zip(policies.into_iter().zip(evals.into_iter()))
+            {
+                transmitters_new[i].send(r).unwrap();
+            }
+        }
+
+        // collect game states for old
+        let mut communicators = Vec::new();
+        let mut batch = Vec::new();
+        for (i, rx) in receivers_old.iter().enumerate() {
+            if let Ok(game) = rx.try_recv() {
+                communicators.push(i);
+                batch.push(game);
+            }
+        }
+        if !batch.is_empty() {
+            // run prediction
+            let game_tensors: Vec<_> = batch.iter().map(game_repr).collect();
+            let input = Tensor::stack(&game_tensors, 0).to_device(Device::cuda_if_available());
+            let (policy, eval) = old.forward_mcts(input);
+            let policies: Vec<Vec<f32>> = policy.into();
+            let evals: Vec<f32> = eval.into();
+
+            // send out outputs
+            for (i, r) in communicators
+                .into_iter()
+                .zip(policies.into_iter().zip(evals.into_iter()))
+            {
+                transmitters_old[i].send(r).unwrap();
+            }
+        }
+    }
+
+    // collect examples
+    results_rx
+        .iter()
+        .take(PIT_MATCHES)
+        .fold(PitResult::default(), |mut r, (as_white, as_black)| {
+            r.update(as_white, Colour::White);
+            r.update(as_black, Colour::Black);
+            r
+        })
 }
 
 /// Pits two networks against each other.
 /// Returns wins, draws, and losses of the match.
+#[allow(dead_code)]
 fn pit<const N: usize>(new: &Network<N>, old: &Network<N>) -> PitResult
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    println!("pitting two networks against each other");
-    let mut wins = 0;
-    let mut draws = 0;
-    let mut losses = 0;
+    (0..(PIT_MATCHES / 2)).fold(PitResult::default(), |mut result, _| {
+        let (as_white, as_black) = play_pit_game(new, old);
+        result.update(as_white, Colour::White);
+        result.update(as_black, Colour::Black);
+        result
+    })
+}
 
-    for i in 0..PIT_GAMES {
-        let win_all = PitResult {
-            wins: wins + PIT_GAMES - i,
-            draws,
-            losses,
-        };
-        let lose_all = PitResult {
-            wins,
-            draws,
-            losses: losses + PIT_GAMES - i,
-        };
-        if win_all.win_rate() < WIN_RATE_THRESHOLD || lose_all.win_rate() > WIN_RATE_THRESHOLD {
-            println!("ending early because result is already determined");
-            break;
-        }
+/// Play an opening from both sides with two different agents.
+fn play_pit_game<const N: usize, A: Agent<N>>(new: &A, old: &A) -> (GameResult, GameResult)
+where
+    [[Option<Tile>; N]; N]: Default,
+    Turn<N>: Lut,
+{
+    let id: usize = random();
 
-        println!("pit game: {i}/{PIT_GAMES}");
-        // TODO add komi?
-        let mut game = Game::default();
-        game.opening(i as usize / 2).unwrap();
-        let my_colour = if i % 2 == 0 { Colour::White } else { Colour::Black };
-
+    // Play game from both sides
+    let mut results = ArrayVec::<_, 2>::new();
+    for my_colour in [Colour::White, Colour::Black] {
+        let mut game = Game::default(); // TODO add komi?
+        game.opening(id).unwrap();
+        // Initialize MCTS
         let mut my_node = Node::default();
         let mut opp_node = Node::default();
         while matches!(game.winner(), GameResult::Ongoing) {
@@ -263,25 +371,10 @@ where
             opp_node = opp_node.play(&turn);
             game.play(turn).unwrap();
         }
-        let game_result = game.winner();
-        match game_result {
-            GameResult::Winner(winner) => {
-                if winner == my_colour {
-                    wins += 1;
-                } else {
-                    losses += 1;
-                }
-            }
-            GameResult::Draw => draws += 1,
-            GameResult::Ongoing => unreachable!(),
-        }
-        println!(
-            "{game_result:?} as {my_colour:?} in {} plies [{wins}/{draws}/{losses}]\n{}",
-            game.ply, game.board
-        );
-    }
 
-    PitResult { wins, draws, losses }
+        results.push(game.winner());
+    }
+    (results[0], results[1])
 }
 
 /// Do self-play and test against previous iteration
@@ -293,7 +386,7 @@ where
 {
     loop {
         // examples.extend(self_play(&network).into_iter());
-        examples.extend(self_play_batch(&network).into_iter());
+        examples.extend(self_play_async(&network).into_iter());
         if examples.len() > MAX_EXAMPLES {
             examples.reverse();
             examples.truncate(MAX_EXAMPLES);
@@ -302,7 +395,10 @@ where
 
         let mut new_network = copy(&network);
         new_network.train(examples);
-        let results = pit(&new_network, &network);
+
+        println!("pitting two networks against each other");
+        // let results = pit(&new_network, &network);
+        let results = pit_async(&new_network, &network);
         println!("{:?}", results);
         if results.win_rate() > WIN_RATE_THRESHOLD {
             return new_network;
