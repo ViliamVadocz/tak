@@ -6,6 +6,7 @@ use rand::{
 };
 use tak::{
     game::{Game, GameResult},
+    ptn::ToPTN,
     turn::Turn,
 };
 
@@ -41,6 +42,30 @@ where
         }
     }
 
+    pub fn debug(&self, game: &Game<N>) -> String {
+        format!(
+            "to move: {:?}\n{}turn     visited  policy  reward\n{}",
+            game.to_move,
+            game.board,
+            {
+                let mut p: Vec<_> = self.children.as_ref().unwrap().iter().collect();
+                p.sort_by_key(|(_turn, node)| node.visited_count);
+                p.reverse();
+                p.iter()
+                    .map(|(turn, node)| {
+                        format!(
+                            "{: <8}{: >8}  {:.4}  {:.4}\n",
+                            turn.to_ptn(),
+                            node.visited_count,
+                            node.policy,
+                            node.expected_reward
+                        )
+                    })
+                    .collect::<String>()
+            }
+        )
+    }
+
     pub fn rollout<A: Agent<N>>(&mut self, game: Game<N>, agent: &A) -> f32 {
         self.visited_count += 1;
 
@@ -57,7 +82,7 @@ where
             }
         }
         match self.result {
-            Some(GameResult::Winner(_winner)) => return self.expected_reward,
+            Some(GameResult::Winner(_winner)) => return -self.expected_reward,
             Some(GameResult::Draw) => return 0.,
             _ => {}
         }
@@ -86,7 +111,7 @@ where
 
         self.expected_reward = -eval;
         self.children = Some(children);
-        -eval
+        eval
     }
 
     fn rollout_next<A: Agent<N>>(&mut self, mut game: Game<N>, agent: &A) -> f32 {
@@ -153,5 +178,92 @@ where
             let index = distr.sample(&mut rng);
             turns.swap_remove(index)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tak::{
+        colour::Colour,
+        game::{Game, GameResult},
+        ptn::FromPTN,
+    };
+
+    use super::Node;
+    use crate::{agent::Agent, repr::moves_dims};
+
+    struct TestAgent {}
+    impl<const N: usize> Agent<N> for TestAgent {
+        fn policy_and_eval(&self, game: &Game<N>) -> (Vec<f32>, f32) {
+            let l = game.possible_turns().len() as f32;
+            (vec![1. / l; moves_dims(3)], 0.)
+        }
+    }
+
+    #[test]
+    fn mate_in_one() {
+        let mut game = Game::<3>::from_ptn(
+            "
+            1. a3 c3
+            2. c2 a2
+        ",
+        )
+        .unwrap();
+        let mut node = Node::default();
+        for _ in 0..1000 {
+            node.rollout(game.clone(), &TestAgent {});
+        }
+        let turn = node.pick_move(true);
+        game.play(turn).unwrap();
+        assert_eq!(game.winner(), GameResult::Winner(Colour::White))
+    }
+
+    #[test]
+    fn prevent_mate_in_two() {
+        let mut game = Game::<3>::from_ptn(
+            "
+            1. a3 c3
+            2. c2
+        ",
+        )
+        .unwrap();
+        let mut node = Node::default();
+
+        // black move
+        for _ in 0..1000 {
+            node.rollout(game.clone(), &TestAgent {});
+        }
+        let turn = node.pick_move(true);
+        node = node.play(&turn);
+        game.play(turn).unwrap();
+        assert_eq!(game.winner(), GameResult::Ongoing);
+
+        // white move
+        for _ in 0..1000 {
+            node.rollout(game.clone(), &TestAgent {});
+        }
+        let turn = node.pick_move(true);
+        let _ = node.play(&turn);
+        game.play(turn).unwrap();
+        assert_eq!(game.winner(), GameResult::Ongoing);
+    }
+
+    #[test]
+    fn white_win_3s() {
+        let mut game = Game::<3>::from_ptn("1. a3 c3").unwrap();
+        let mut node = Node::default();
+
+        while matches!(game.winner(), GameResult::Ongoing) {
+            for _ in 0..100_000 {
+                node.rollout(game.clone(), &TestAgent {});
+            }
+            println!("{}", node.debug(&game));
+
+            let turn = node.pick_move(true);
+            node = node.play(&turn);
+            game.play(turn).unwrap();
+        }
+
+        assert_eq!(game.winner(), GameResult::Winner(Colour::White));
     }
 }
