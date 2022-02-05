@@ -201,8 +201,12 @@ where
             opp_node = opp_node.play(&turn);
             game.play(turn).unwrap();
         }
-
-        results.push(game.winner());
+        let winner = game.winner();
+        println!(
+            "{winner:?} as {my_colour:?} in {} plies\n{}",
+            game.ply, game.board
+        );
+        results.push(winner);
     }
     (results[0], results[1])
 }
