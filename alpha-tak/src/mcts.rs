@@ -203,10 +203,7 @@ mod tests {
     #[test]
     fn mate_in_one() {
         let mut game = Game::<3>::from_ptn(
-            "
-            1. a3 c3
-            2. c2 a2
-        ",
+            "1. a3 c3 2. c2 a2",
         )
         .unwrap();
         let mut node = Node::default();
@@ -221,10 +218,7 @@ mod tests {
     #[test]
     fn prevent_mate_in_two() {
         let mut game = Game::<3>::from_ptn(
-            "
-            1. a3 c3
-            2. c2
-        ",
+            "1. a3 c3 2. c2",
         )
         .unwrap();
         let mut node = Node::default();
