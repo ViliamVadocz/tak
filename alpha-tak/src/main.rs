@@ -1,14 +1,20 @@
 #![feature(thread_is_running)]
 
-use std::time::SystemTime;
+use std::{fs::File, io::Write, time::SystemTime};
 
 use example::Example;
 use network::Network;
-use tak::{tile::Tile, turn::Turn};
+use tak::{
+    game::{Game, GameResult},
+    pos::Pos,
+    ptn::ToPTN,
+    tile::{Shape, Tile},
+    turn::Turn,
+};
 use tch::Cuda;
 use turn_map::Lut;
 
-use crate::{pit::pit_async, self_play::self_play_async};
+use crate::{mcts::Node, pit::pit_async, self_play::self_play_async};
 
 #[macro_use]
 extern crate lazy_static;
@@ -47,6 +53,8 @@ fn main() {
             .unwrap()
             .as_secs();
         nn.save(format!("models/{sys_time}.model")).unwrap();
+
+        example_game(&nn);
     }
 }
 
@@ -85,4 +93,64 @@ fn copy<const N: usize>(network: &Network<N>) -> Network<N> {
     dir.push("model");
     network.save(&dir).unwrap();
     Network::<N>::load(&dir).unwrap()
+}
+
+fn example_game<const N: usize>(network: &Network<N>)
+where
+    [[Option<Tile>; N]; N]: Default,
+    Turn<N>: Lut,
+{
+    const SECONDS_PER_TURN: u64 = 10;
+    println!("running example game with {SECONDS_PER_TURN} seconds per turn");
+
+    let mut game = Game::default();
+    let mut turns = Vec::new();
+    // opening
+    let turn0 = Turn::Place {
+        pos: Pos { x: 0, y: 0 },
+        shape: Shape::Flat,
+    };
+    let turn1 = Turn::Place {
+        pos: Pos { x: N - 1, y: 0 },
+        shape: Shape::Flat,
+    };
+    turns.push(turn0.to_ptn());
+    turns.push(turn1.to_ptn());
+    game.play(turn0).unwrap();
+    game.play(turn1).unwrap();
+
+    let mut node = Node::default();
+    while matches!(game.winner(), GameResult::Ongoing) {
+        // do rollouts
+        let start_turn = SystemTime::now();
+        while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < SECONDS_PER_TURN {
+            node.rollout(game.clone(), network);
+        }
+        println!("{}", node.debug(&game));
+        let turn = node.pick_move(true);
+        turns.push(turn.to_ptn());
+        node = node.play(&turn);
+        game.play(turn).unwrap();
+    }
+
+    println!("result: {:?}\n{}", game.winner(), game.board);
+
+    // save example for review
+    let sys_time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    if let Ok(mut file) = File::create(format!("examples/{}.ptn", sys_time)) {
+        let mut turns = turns.into_iter();
+        let mut turn_num = 1;
+        let mut out = String::new();
+        while let Some(white) = turns.next() {
+            out.push_str(&format!(
+                "{turn_num}. {white} {}\n",
+                turns.next().unwrap_or_default()
+            ));
+            turn_num += 1;
+        }
+        file.write_all(out.as_bytes()).unwrap();
+    };
 }
