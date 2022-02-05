@@ -47,18 +47,17 @@ where
         // cache game result
         if self.result.is_none() {
             self.result = Some(game.winner());
+            if let Some(GameResult::Winner(winner)) = self.result {
+                if winner == game.to_move {
+                    // means that the previous player played a losing move
+                    self.expected_reward = -1.;
+                } else {
+                    self.expected_reward = 1.;
+                }
+            }
         }
         match self.result {
-            Some(GameResult::Winner(winner)) => {
-                return {
-                    if winner == game.to_move {
-                        // means that the previous player played a losing move
-                        -1.
-                    } else {
-                        1.
-                    }
-                };
-            }
+            Some(GameResult::Winner(_winner)) => return self.expected_reward,
             Some(GameResult::Draw) => return 0.,
             _ => {}
         }
