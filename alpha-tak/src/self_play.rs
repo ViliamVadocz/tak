@@ -11,19 +11,17 @@ use tak::{
     tile::Tile,
     turn::Turn,
 };
-use tch::{Device, Tensor};
 
 use crate::{
     agent::{Agent, Batcher},
     example::{Example, IncompleteExample},
     mcts::Node,
     network::Network,
-    repr::game_repr,
     turn_map::Lut,
 };
 
-const SELF_PLAY_GAMES: usize = 2000;
-const ROLLOUTS_PER_MOVE: u32 = 1000;
+const SELF_PLAY_GAMES: usize = 4000;
+const ROLLOUTS_PER_MOVE: u32 = 2000;
 const OPENING_PLIES: usize = 6;
 
 /// Run multiple games against self.
@@ -46,7 +44,7 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    const WORKERS: usize = 128;
+    const WORKERS: usize = 4;
     println!("Starting self-play with {WORKERS} workers");
 
     fn new_worker<const N: usize>(
@@ -89,6 +87,7 @@ where
     }
 
     let mut completed_games = 0;
+    let mut done_threads = [false; WORKERS];
     while completed_games < SELF_PLAY_GAMES || workers.iter().any(|handle| handle.is_running()) {
         // collect game states
         let mut communicators: ArrayVec<_, WORKERS> = ArrayVec::new();
@@ -100,15 +99,12 @@ where
             }
         }
         if batch.is_empty() {
+            println!("empty batch!");
             continue;
         }
 
         // run prediction
-        let game_tensors: Vec<_> = batch.iter().map(game_repr).collect();
-        let input = Tensor::stack(&game_tensors, 0).to_device(Device::cuda_if_available());
-        let (policy, eval) = network.forward_mcts(input);
-        let policies: Vec<Vec<f32>> = policy.into();
-        let evals: Vec<f32> = eval.into();
+        let (policies, evals) = network.policy_eval_batch(&batch);
 
         // send out outputs
         for (i, r) in communicators
@@ -120,11 +116,15 @@ where
 
         for (i, handle) in workers.iter_mut().enumerate() {
             // track when threads finish
-            if !handle.is_running() && completed_games < SELF_PLAY_GAMES {
+            if !handle.is_running() && !done_threads[i] {
                 completed_games += 1;
                 println!("self-play game {completed_games}/{SELF_PLAY_GAMES}");
                 // start a new thread when one finishes
-                *handle = new_worker(examples_tx.clone(), &mut receivers, &mut transmitters, Some(i));
+                if completed_games < SELF_PLAY_GAMES - WORKERS {
+                    *handle = new_worker(examples_tx.clone(), &mut receivers, &mut transmitters, Some(i));
+                } else {
+                    done_threads[i] = true;
+                }
             }
         }
     }
@@ -170,6 +170,10 @@ where
         game.play(turn).unwrap();
     }
     let winner = game.winner();
+    println!(
+        "{winner:?} in {} plies\n{}",
+        game.ply, game.board
+    );
     // complete examples by filling in game result
     let result = match winner {
         GameResult::Winner(Colour::White) => 1.,

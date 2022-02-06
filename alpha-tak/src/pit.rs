@@ -8,13 +8,11 @@ use tak::{
     tile::Tile,
     turn::Turn,
 };
-use tch::{Device, Tensor};
 
 use crate::{
     agent::{Agent, Batcher},
     mcts::Node,
     network::Network,
-    repr::game_repr,
     turn_map::Lut,
 };
 
@@ -85,7 +83,10 @@ where
         }));
     }
 
-    while workers.iter().any(|handle| handle.is_running()) {
+    let mut done = false;
+    while !done {
+        done = true;
+
         // collect game states for new
         let mut communicators = Vec::new();
         let mut batch = Vec::new();
@@ -96,12 +97,9 @@ where
             }
         }
         if !batch.is_empty() {
+            done = false;
             // run prediction
-            let game_tensors: Vec<_> = batch.iter().map(game_repr).collect();
-            let input = Tensor::stack(&game_tensors, 0).to_device(Device::cuda_if_available());
-            let (policy, eval) = new.forward_mcts(input);
-            let policies: Vec<Vec<f32>> = policy.into();
-            let evals: Vec<f32> = eval.into();
+            let (policies, evals) = new.policy_eval_batch(&batch);
 
             // send out outputs
             for (i, r) in communicators
@@ -122,12 +120,9 @@ where
             }
         }
         if !batch.is_empty() {
+            done = false;
             // run prediction
-            let game_tensors: Vec<_> = batch.iter().map(game_repr).collect();
-            let input = Tensor::stack(&game_tensors, 0).to_device(Device::cuda_if_available());
-            let (policy, eval) = old.forward_mcts(input);
-            let policies: Vec<Vec<f32>> = policy.into();
-            let evals: Vec<f32> = eval.into();
+            let (policies, evals) = old.policy_eval_batch(&batch);
 
             // send out outputs
             for (i, r) in communicators

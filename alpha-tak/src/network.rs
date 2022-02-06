@@ -1,7 +1,7 @@
 use std::{error::Error, path::Path};
 
 use arrayvec::ArrayVec;
-use tak::{tile::Tile, turn::Turn};
+use tak::{tile::Tile, turn::Turn, game::Game};
 use tch::{
     data::Iter2,
     nn,
@@ -13,7 +13,7 @@ use tch::{
 
 use crate::{
     example::Example,
-    repr::{input_dims, moves_dims},
+    repr::{input_dims, moves_dims, game_repr},
     turn_map::Lut,
 };
 
@@ -161,5 +161,14 @@ impl<const N: usize> Network<N> {
         let policy = s.apply(&self.fully_connected_policy).log_softmax(1, Kind::Float);
         let eval = s.apply(&self.fully_connected_eval).tanh();
         (policy, eval)
+    }
+
+    pub fn policy_eval_batch(&self, games: &[Game<N>]) -> (Vec<Vec<f32>>, Vec<f32>) {
+        let game_tensors: Vec<_> = games.iter().map(game_repr).collect();
+        let input = Tensor::stack(&game_tensors, 0).to_device(Device::cuda_if_available());
+        let (policy, eval) = self.forward_mcts(input);
+        let policies: Vec<Vec<f32>> = policy.into();
+        let evals: Vec<f32> = eval.into();
+        (policies, evals)
     }
 }
