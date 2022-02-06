@@ -126,7 +126,7 @@ where
         while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < SECONDS_PER_TURN {
             node.rollout(game.clone(), network);
         }
-        println!("{}", node.debug(&game));
+        println!("{}", node.debug(&game, Some(5)));
         let turn = node.pick_move(true);
         turns.push(turn.to_ptn());
         node = node.play(&turn);

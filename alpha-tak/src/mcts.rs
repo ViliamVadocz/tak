@@ -43,7 +43,7 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn debug(&self, game: &Game<N>) -> String {
+    pub fn debug(&self, game: &Game<N>, limit: Option<usize>) -> String {
         format!(
             "to move: {:?}\n{}turn     visited  policy  reward\n{}",
             game.to_move,
@@ -53,6 +53,7 @@ where
                 p.sort_by_key(|(_turn, node)| node.visited_count);
                 p.reverse();
                 p.iter()
+                    .take(limit.unwrap_or(usize::MAX))
                     .map(|(turn, node)| {
                         format!(
                             "{: <8}{: >8}  {:.4}  {:.4}\n",
@@ -246,7 +247,7 @@ mod tests {
             for _ in 0..100_000 {
                 node.rollout(game.clone(), &TestAgent {});
             }
-            println!("{}", node.debug(&game));
+            println!("{}", node.debug(&game, None));
 
             let turn = node.pick_move(true);
             node = node.play(&turn);
