@@ -2,10 +2,21 @@ use tak::{board::Board, colour::Colour, game::Game, pos::Pos, tile::Shape};
 use tch::Tensor;
 
 const STACK_DEPTH_BEYOND_CARRY: usize = 1;
+const COLOUR_CHANNEL: usize = 1;
+const FCD_CHANNEL: usize = 1;
 
 pub const fn input_dims(n: usize) -> [usize; 3] {
     // channels first
-    [n + 3 + STACK_DEPTH_BEYOND_CARRY, n, n]
+    [
+        n + 2 + STACK_DEPTH_BEYOND_CARRY + COLOUR_CHANNEL + FCD_CHANNEL,
+        n,
+        n,
+    ]
+}
+
+pub const fn board_dims(n: usize) -> [usize; 3] {
+    let [d1, d2, d3] = input_dims(n);
+    [(d1 - FCD_CHANNEL), d2, d3]
 }
 
 pub const fn moves_dims(n: usize) -> usize {
@@ -31,7 +42,7 @@ fn colour_repr(colour: &Colour, to_move: &Colour) -> f32 {
 /// Creates a tensor which represents the board
 /// from the perspective of the current player.
 fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
-    let [d1, d2, d3] = input_dims(N);
+    let [d1, d2, d3] = board_dims(N);
     let board_shape = [d2 as i64, d3 as i64];
 
     let mut flats = [[0.; N]; N];
@@ -58,7 +69,7 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
     ];
 
     // other layers
-    for n in 0..(d1 - 3 - STACK_DEPTH_BEYOND_CARRY) {
+    for n in 0..(d1 - 2 - COLOUR_CHANNEL - 1) {
         let mut layer = [[0.; N]; N];
         #[allow(clippy::needless_range_loop)]
         for y in 0..N {
@@ -82,9 +93,19 @@ fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
     Tensor::stack(&layers, 0)
 }
 
+// TODO add other info such as reserves
 pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {
-    // TODO add other info such as komi, fcd, total stones, reserves
-    board_repr(&game.board, game.to_move)
+    let board = board_repr(&game.board, game.to_move);
+
+    let fcd = game.board.flat_diff() - game.komi;
+    let relative_fcd = fcd as f32 / (N * N) as f32;
+    Tensor::cat(
+        &[
+            board,
+            Tensor::of_slice(&vec![relative_fcd; N * N]).view([FCD_CHANNEL as i64, N as i64, N as i64]),
+        ],
+        0,
+    )
 }
 
 #[cfg(test)]
@@ -92,11 +113,10 @@ mod test {
     use tak::{board::Board, colour::Colour, game::Game, ptn::FromPTN};
     use tch::{Kind, Tensor};
 
-    use super::board_repr;
-    use crate::repr::input_dims;
+    use super::{board_dims, board_repr};
 
     fn dims(n: usize) -> [i64; 3] {
-        input_dims(n).map(|x| x as i64)
+        board_dims(n).map(|x| x as i64)
     }
 
     fn eq(a: &Tensor, b: &Tensor) -> bool {
