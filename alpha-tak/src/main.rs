@@ -14,7 +14,12 @@ use tak::{
 use tch::Cuda;
 use turn_map::Lut;
 
-use crate::{mcts::Node, pit::pit_async, self_play::self_play_async};
+#[allow(unused_imports)]
+use crate::{
+    mcts::Node,
+    pit::{pit, pit_async},
+    self_play::{self_play, self_play_async},
+};
 
 #[macro_use]
 extern crate lazy_static;
@@ -39,10 +44,10 @@ fn main() {
 
     let mut args = std::env::args();
     let mut nn = if let Some(model_path) = args.nth(1) {
-        Network::<4>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"))
+        Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"))
     } else {
         println!("generating random model");
-        Network::<4>::default()
+        Network::<5>::default()
     };
 
     let mut examples = Vec::new();

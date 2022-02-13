@@ -21,8 +21,8 @@ use crate::{
     KOMI,
 };
 
-const SELF_PLAY_GAMES: usize = 4000;
-const ROLLOUTS_PER_MOVE: u32 = 2000;
+const SELF_PLAY_GAMES: usize = 500;
+const ROLLOUTS_PER_MOVE: u32 = 1000;
 const OPENING_PLIES: usize = 6;
 
 /// Run multiple games against self.
@@ -45,7 +45,7 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    const WORKERS: usize = 4;
+    const WORKERS: usize = 128;
     println!("Starting self-play with {WORKERS} workers");
 
     fn new_worker<const N: usize>(
@@ -91,8 +91,8 @@ where
     let mut done_threads = [false; WORKERS];
     while completed_games < SELF_PLAY_GAMES || workers.iter().any(|handle| handle.is_running()) {
         // collect game states
-        let mut communicators: ArrayVec<_, WORKERS> = ArrayVec::new();
-        let mut batch: ArrayVec<_, WORKERS> = ArrayVec::new();
+        let mut communicators = Vec::with_capacity(WORKERS);
+        let mut batch = Vec::with_capacity(WORKERS);
         for (i, rx) in receivers.iter().enumerate() {
             if let Ok(game) = rx.try_recv() {
                 communicators.push(i);
@@ -171,10 +171,7 @@ where
         game.play(turn).unwrap();
     }
     let winner = game.winner();
-    println!(
-        "{winner:?} in {} plies\n{}",
-        game.ply, game.board
-    );
+    println!("{winner:?} in {} plies\n{}", game.ply, game.board);
     // complete examples by filling in game result
     let result = match winner {
         GameResult::Winner(Colour::White) => 1.,
