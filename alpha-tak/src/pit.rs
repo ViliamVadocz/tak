@@ -14,10 +14,11 @@ use crate::{
     mcts::Node,
     network::Network,
     turn_map::Lut,
+    KOMI,
 };
 
 const ROLLOUTS_PER_MOVE: u32 = 1000;
-const PIT_MATCHES: usize = 128;
+const PIT_MATCHES: usize = 64;
 
 #[derive(Debug, Default)]
 pub struct PitResult {
@@ -172,7 +173,7 @@ where
     // Play game from both sides
     let mut results = ArrayVec::<_, 2>::new();
     for my_colour in [Colour::White, Colour::Black] {
-        let mut game = Game::default(); // TODO add komi?
+        let mut game = Game::with_komi(KOMI);
         game.opening(id).unwrap();
         // Initialize MCTS
         let mut my_node = Node::default();

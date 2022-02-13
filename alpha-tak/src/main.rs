@@ -31,6 +31,8 @@ mod turn_map;
 const MAX_EXAMPLES: usize = 1_000_000;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 
+pub const KOMI: i32 = 2;
+
 fn main() {
     tch::maybe_init_cuda();
     println!("CUDA: {}", Cuda::is_available());

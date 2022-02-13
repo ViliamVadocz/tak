@@ -18,6 +18,7 @@ use crate::{
     mcts::Node,
     network::Network,
     turn_map::Lut,
+    KOMI,
 };
 
 const SELF_PLAY_GAMES: usize = 4000;
@@ -146,7 +147,7 @@ where
     Turn<N>: Lut,
 {
     let mut game_examples = Vec::new();
-    let mut game = Game::default(); // TODO add komi?
+    let mut game = Game::with_komi(KOMI);
 
     // make random moves for the first few turns to diversify training data
     for _ in 0..OPENING_PLIES {
