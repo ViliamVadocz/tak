@@ -1,7 +1,7 @@
 use std::{error::Error, path::Path};
 
 use arrayvec::ArrayVec;
-use tak::{tile::Tile, turn::Turn, game::Game};
+use tak::{game::Game, tile::Tile, turn::Turn};
 use tch::{
     data::Iter2,
     nn,
@@ -13,12 +13,12 @@ use tch::{
 
 use crate::{
     example::Example,
-    repr::{input_dims, moves_dims, game_repr},
+    repr::{game_repr, input_dims, moves_dims},
     turn_map::Lut,
 };
 
 const EPOCHS: usize = 1; // idk seems to over-fit otherwise
-const BATCH_SIZE: i64 = 20_000;
+const BATCH_SIZE: i64 = 10_000;
 const LEARNING_RATE: f64 = 1e-4;
 const WEIGHT_DECAY: f64 = 1e-4;
 
@@ -102,7 +102,6 @@ impl<const N: usize> Network<N> {
 
 impl<const N: usize> Default for Network<N> {
     fn default() -> Self {
-        // TODO make sure dimensions work for any board size
         let vs = nn::VarStore::new(Device::cuda_if_available());
         let root = &vs.root();
         let [d1, _d2, _d3] = input_dims(N);
