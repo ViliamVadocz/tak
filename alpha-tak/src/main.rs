@@ -116,7 +116,7 @@ where
     const SECONDS_PER_TURN: u64 = 10;
     println!("running example game with {SECONDS_PER_TURN} seconds per turn");
 
-    let mut game = Game::default();
+    let mut game = Game::with_komi(KOMI);
     let mut turns = Vec::new();
     // opening
     let turn0 = Turn::Place {
