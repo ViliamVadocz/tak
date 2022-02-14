@@ -108,7 +108,21 @@ impl<const N: usize> IndexMut<Pos<N>> for Board<N> {
 impl<const N: usize> Display for Board<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut output = String::new();
+
+        // header with letters
+        output.push(' ');
+        output.push(' ');
+        for x in 0..N {
+            output.push((b'a' + x as u8) as char);
+            output.push_str("   ");
+        }
+        output.push('\n');
+
         for y in 0..N {
+            // each line start with number
+            output.push_str(&(y + 1).to_string());
+            output.push(' ');
+            // then do each tile in row
             for x in 0..N {
                 let pos = Pos { x, y };
                 if let Some(tile) = &self[pos] {
