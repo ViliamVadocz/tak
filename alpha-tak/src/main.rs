@@ -35,6 +35,7 @@ mod turn_map;
 
 const MAX_EXAMPLES: usize = 1_000_000;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
+const CRUSHING_WIN_RATE: f64 = 0.9;
 
 pub const KOMI: i32 = 2;
 
@@ -89,6 +90,11 @@ where
         let results = pit_async(&new_network, &network);
         println!("{:?}", results);
         if results.win_rate() > WIN_RATE_THRESHOLD {
+            if results.win_rate() > CRUSHING_WIN_RATE {
+                // this network is so much better we should forget the old examples
+                println!("crushing victory invalidates old examples!");
+                examples.clear()
+            }
             return new_network;
         }
     }
