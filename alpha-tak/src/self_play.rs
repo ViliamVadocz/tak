@@ -121,7 +121,7 @@ where
                 completed_games += 1;
                 println!("self-play game {completed_games}/{SELF_PLAY_GAMES}");
                 // start a new thread when one finishes
-                if completed_games < SELF_PLAY_GAMES - WORKERS {
+                if completed_games <= SELF_PLAY_GAMES - WORKERS + 1 {
                     *handle = new_worker(examples_tx.clone(), &mut receivers, &mut transmitters, Some(i));
                 } else {
                     done_threads[i] = true;
