@@ -107,6 +107,10 @@ impl<const N: usize> FromPTN for Turn<N> {
             if drop_counts.is_empty() {
                 drop_counts.push(carry_amount);
             }
+            if carry_amount != drop_counts.iter().sum() {
+                return Err(format!("picked up {carry_amount} and tried dropping {drop_counts:?} which does not match"));
+            }
+
             let mut moves = ArrayVec::new();
             for drops in drop_counts {
                 for _ in 0..(drops - 1) {
@@ -114,6 +118,8 @@ impl<const N: usize> FromPTN for Turn<N> {
                 }
                 moves.push(true);
             }
+            let last = moves.last_mut().unwrap();
+            *last = false;
 
             Ok(Turn::Move {
                 pos,
@@ -153,8 +159,8 @@ impl<const N: usize> ToPTN for Turn<N> {
                             current += 1;
                         }
                     }
-                    if current == moves.len() {
-                        drops.push_str(&current.to_string());
+                    if current > 1 && moves.len() != current - 1 {
+                        drops.push_str(&(current - 1).to_string());
                     }
                     format!("{}{}{}{}", moves.len(), pos.to_ptn(), direction.to_ptn(), drops)
                 }
