@@ -135,8 +135,8 @@ impl<const N: usize> Default for Network<N> {
     }
 }
 
-// Like forward_t in the nn::ModuleT trait, except we return two values (policy,
-// eval)
+// Like forward_t in the nn::ModuleT trait,
+// except we return two values (policy, eval)
 impl<const N: usize> Network<N> {
     pub fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor) {
         let s = self

@@ -108,7 +108,9 @@ impl<const N: usize> FromPTN for Turn<N> {
                 drop_counts.push(carry_amount);
             }
             if carry_amount != drop_counts.iter().sum() {
-                return Err(format!("picked up {carry_amount} and tried dropping {drop_counts:?} which does not match"));
+                return Err(format!(
+                    "picked up {carry_amount} and tried dropping {drop_counts:?} which does not match"
+                ));
             }
 
             let mut moves = ArrayVec::new();

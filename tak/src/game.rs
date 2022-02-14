@@ -109,7 +109,11 @@ impl<const N: usize> Game<N> {
 
     /// Like nth_move except limited to only placing.
     pub fn nth_place(&mut self, mut n: usize) -> StrResult<()> {
-        let turns: Vec<_> = self.possible_turns().into_iter().filter(|t| matches!(t, Turn::Place {..})).collect();
+        let turns: Vec<_> = self
+            .possible_turns()
+            .into_iter()
+            .filter(|t| matches!(t, Turn::Place { .. }))
+            .collect();
         n %= turns.len();
         self.play(turns.into_iter().nth(n).unwrap())
     }
