@@ -17,7 +17,7 @@ use crate::{
     KOMI,
 };
 
-const ROLLOUTS_PER_MOVE: u32 = 1000;
+const ROLLOUTS_PER_MOVE: u32 = 500;
 const PIT_MATCHES: usize = 64;
 
 #[derive(Debug, Default)]
@@ -57,6 +57,7 @@ where
     Turn<N>: Lut,
 {
     println!("Playing {PIT_MATCHES} pit matches at the same time");
+    let opening = random::<usize>() / 2; // avoid overflow
 
     // initialize worker threads
     let mut workers: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
@@ -65,7 +66,7 @@ where
     let mut receivers_new: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
     let mut transmitters_new: ArrayVec<_, PIT_MATCHES> = ArrayVec::new();
     let (results_tx, results_rx) = channel();
-    for _ in 0..PIT_MATCHES {
+    for i in 0..PIT_MATCHES {
         let (game_tx_new, game_rx_new) = channel();
         let (policy_tx_new, policy_rx_new) = channel();
         receivers_new.push(game_rx_new);
@@ -80,14 +81,12 @@ where
 
         let tx = results_tx.clone();
         workers.push(thread::spawn(move || {
-            tx.send(play_pit_game(&batcher_new, &batcher_old)).unwrap();
+            tx.send(play_pit_game(&batcher_new, &batcher_old, opening + i))
+                .unwrap();
         }));
     }
 
-    let mut done = false;
-    while !done {
-        done = true;
-
+    while workers.iter().any(|thread| thread.is_running()) {
         // collect game states for new
         let mut communicators = Vec::new();
         let mut batch = Vec::new();
@@ -98,7 +97,6 @@ where
             }
         }
         if !batch.is_empty() {
-            done = false;
             // run prediction
             let (policies, evals) = new.policy_eval_batch(&batch);
 
@@ -121,7 +119,6 @@ where
             }
         }
         if !batch.is_empty() {
-            done = false;
             // run prediction
             let (policies, evals) = old.policy_eval_batch(&batch);
 
@@ -154,8 +151,9 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    (0..(PIT_MATCHES / 2)).fold(PitResult::default(), |mut result, _| {
-        let (as_white, as_black) = play_pit_game(new, old);
+    let opening = random::<usize>() / 2; // avoid overflow
+    (0..(PIT_MATCHES / 2)).fold(PitResult::default(), |mut result, i| {
+        let (as_white, as_black) = play_pit_game(new, old, opening + i);
         result.update(as_white, Colour::White);
         result.update(as_black, Colour::Black);
         result
@@ -163,18 +161,16 @@ where
 }
 
 /// Play an opening from both sides with two different agents.
-fn play_pit_game<const N: usize, A: Agent<N>>(new: &A, old: &A) -> (GameResult, GameResult)
+fn play_pit_game<const N: usize, A: Agent<N>>(new: &A, old: &A, opening: usize) -> (GameResult, GameResult)
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    let id: usize = random();
-
     // Play game from both sides
     let mut results = ArrayVec::<_, 2>::new();
     for my_colour in [Colour::White, Colour::Black] {
         let mut game = Game::with_komi(KOMI);
-        game.opening(id).unwrap();
+        game.opening(opening).unwrap();
         // Initialize MCTS
         let mut my_node = Node::default();
         let mut opp_node = Node::default();
