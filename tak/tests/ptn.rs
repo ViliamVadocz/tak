@@ -1,7 +1,7 @@
 use tak::{
     ptn::{FromPTN, ToPTN},
     turn::Turn,
-    StrResult,
+    StrResult, game::Game,
 };
 
 const PLIES: &[&str] = &[
@@ -15,6 +15,46 @@ fn ptn_consistency() -> StrResult<()> {
     for ply in PLIES {
         let turn = Turn::<6>::from_ptn(ply)?;
         assert_eq!(turn, Turn::from_ptn(&turn.to_ptn())?);
+    }
+    Ok(())
+}
+
+#[test]
+fn move_gen_ptn_consistency() -> StrResult<()> {
+    let game = Game::<6>::from_ptn(
+        "1. c4 d4
+        2. d3 Sc3
+        3. d3+ d3
+        4. 2d4<11 b5
+        5. 2c4< b5-
+        6. c4 b3
+        7. Sd4 e4
+        8. e3 e5
+        9. d5 e5<
+        10. Cc5 2d5>
+        11. d5 2e5<
+        12. c5> b5
+        13. b6 c5
+        14. b6- c5<
+        15. c4< 3b5-
+        16. b2 c2
+        17. d2 e2
+        18. d2+ e2+
+        19. 2d3> Ce2"
+    )?;
+
+    for turn in game.possible_turns() {
+        if matches!(turn, Turn::Move {..}) {
+            println!("{} {turn:?}", turn.to_ptn());
+        }
+        // consistent for white moves
+        assert_eq!(turn, Turn::from_ptn(&turn.to_ptn())?);
+        let mut g = game.clone();
+        g.play(turn)?;
+        for turn in g.possible_turns() {
+            // consistent for black moves
+            assert_eq!(turn, Turn::from_ptn(&turn.to_ptn())?);
+        }
     }
     Ok(())
 }
