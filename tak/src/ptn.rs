@@ -2,10 +2,12 @@ use arrayvec::ArrayVec;
 use regex::Regex;
 
 use crate::{
+    board::Board,
+    colour::Colour,
     direction::Direction,
     game::{default_starting_stones, Game},
     pos::Pos,
-    tile::{Shape, Tile},
+    tile::{Piece, Shape, Tile},
     turn::Turn,
     StrResult,
 };
@@ -18,6 +20,8 @@ lazy_static! {
     static ref OPTIONS_RE: Regex = Regex::new(r#"\[(\S+) ["'](.*?)["']\]"#).unwrap();
     static ref COMMENTS_RE: Regex = Regex::new(r"\{.*?\}").unwrap();
     static ref PLY_SPLIT_RE: Regex = Regex::new(r"\s*\d*\. |\s+|1-0|R-0|F-0|0-1|0-R|0-F|1/2-1/2").unwrap();
+    static ref EMPTY_TILE_RE: Regex = Regex::new("x([0-9]?)").unwrap();
+    static ref STACK_TILE_RE: Regex = Regex::new("([12]*)([12])([CS]?)").unwrap();
 }
 
 pub trait FromPTN: Sized {
@@ -94,6 +98,26 @@ impl ToPTN for Shape {
     }
 }
 
+impl ToPTN for Colour {
+    fn to_ptn(&self) -> String {
+        match self {
+            Colour::White => '1',
+            Colour::Black => '2',
+        }
+        .to_string()
+    }
+}
+
+impl FromPTN for Colour {
+    fn from_ptn(s: &str) -> StrResult<Self> {
+        match s {
+            "1" => Ok(Colour::White),
+            "2" => Ok(Colour::Black),
+            _ => Err(format!("unknown colour {s}")),
+        }
+    }
+}
+
 impl<const N: usize> FromPTN for Turn<N> {
     fn from_ptn(s: &str) -> StrResult<Self> {
         assert!(N < 10); // the drop notation doesn't support N >= 10
@@ -129,7 +153,9 @@ impl<const N: usize> FromPTN for Turn<N> {
                 moves,
             })
         } else {
-            let cap = TURN_PLACE_RE.captures(s).ok_or("didn't recognize place ply")?;
+            let cap = TURN_PLACE_RE
+                .captures(s)
+                .ok_or_else(|| format!("didn't recognize ply {s}"))?;
             let shape = Shape::from_ptn(&cap[1])?;
             let pos = Pos::from_ptn(&cap[2])?;
             Ok(Turn::Place { pos, shape })
@@ -228,5 +254,84 @@ impl<const N: usize> Game<N> {
             self.play(turn)?;
         }
         Ok(())
+    }
+}
+
+impl<const N: usize> ToPTN for Board<N> {
+    /// Get board TPS
+    fn to_ptn(&self) -> String {
+        let mut out = String::new();
+
+        // combine empty squares
+        let add_empty = |out: &mut String, empty: usize| {
+            if empty > 0 {
+                out.push('x');
+                if empty > 1 {
+                    out.push_str(&empty.to_string());
+                }
+                out.push(',');
+            }
+            0
+        };
+
+        // for each row
+        for y in (0..N).rev() {
+            let mut empty = 0;
+            // for each tile
+            for x in 0..N {
+                let pos = Pos { x, y };
+                if let Some(tile) = &self[pos] {
+                    empty = add_empty(&mut out, empty);
+                    for colour in &tile.stack {
+                        out.push_str(&colour.to_ptn());
+                    }
+                    out.push_str(&tile.top.colour.to_ptn());
+                    out.push_str(&tile.top.shape.to_ptn());
+                    out.push(',');
+                } else {
+                    empty += 1;
+                }
+            }
+            add_empty(&mut out, empty);
+            out.pop().unwrap(); // remove last comma
+            out.push('/');
+        }
+        out.pop().unwrap(); // remove last slash
+        out
+    }
+}
+
+impl<const N: usize> FromPTN for Board<N>
+where
+    [[Option<Tile>; N]; N]: Default,
+{
+    /// Translate from board TPS
+    fn from_ptn(s: &str) -> StrResult<Self> {
+        let mut board = Board::default();
+        for (i, row) in s.split('/').enumerate() {
+            let y = N - i - 1;
+            let mut x = 0;
+            for tile in row.split(',') {
+                if let Some(cap) = EMPTY_TILE_RE.captures(tile) {
+                    x += cap[1].parse::<usize>().unwrap_or(1);
+                } else {
+                    let pos = Pos { x, y };
+                    let cap = STACK_TILE_RE
+                        .captures(tile)
+                        .ok_or_else(|| format!("didn't recognize stack {tile}"))?;
+                    let stack = cap[1]
+                        .chars()
+                        .map(|c| Colour::from_ptn(&c.to_string()))
+                        .collect::<StrResult<Vec<_>>>()?;
+                    let piece = Piece {
+                        shape: Shape::from_ptn(&cap[3])?,
+                        colour: Colour::from_ptn(&cap[2])?,
+                    };
+                    board[pos] = Some(Tile { top: piece, stack });
+                    x += 1;
+                }
+            }
+        }
+        Ok(board)
     }
 }

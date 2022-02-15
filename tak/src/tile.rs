@@ -17,7 +17,7 @@ pub struct Piece {
     pub shape: Shape,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tile {
     pub top: Piece,
     pub stack: Vec<Colour>,
