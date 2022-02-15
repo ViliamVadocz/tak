@@ -140,12 +140,12 @@ where
         -eval
     }
 
-    pub fn improved_policy(&self) -> HashMap<Turn<N>, f32> {
+    pub fn improved_policy(&self) -> HashMap<Turn<N>, u32> {
         let mut policy = HashMap::new();
         // after many rollouts the visited counts become a better estimate for policy
+        // (not normalized)
         for (turn, child) in self.children.as_ref().unwrap() {
-            let p = child.visited_count as f32 / self.visited_count as f32;
-            policy.insert(turn.clone(), p);
+            policy.insert(turn.clone(), child.visited_count);
         }
         policy
     }
@@ -163,7 +163,7 @@ where
             // when exploiting always pick the move with largest policy
             improved_policy
                 .into_iter()
-                .max_by(|(_, a), (_, b)| a.partial_cmp(b).expect("tried comparing nan"))
+                .max_by_key(|(_, value)| *value)
                 .unwrap()
                 .0
         } else {

@@ -11,7 +11,7 @@ use crate::{
 #[derive(Debug)]
 pub struct IncompleteExample<const N: usize> {
     pub game: Game<N>,
-    pub policy: HashMap<Turn<N>, f32>,
+    pub policy: HashMap<Turn<N>, u32>,
 }
 
 impl<const N: usize> IncompleteExample<N> {
@@ -28,7 +28,7 @@ impl<const N: usize> IncompleteExample<N> {
 #[derive(Debug)]
 pub struct Example<const N: usize> {
     pub game: Game<N>,
-    pub policy: HashMap<Turn<N>, f32>,
+    pub policy: HashMap<Turn<N>, u32>,
     pub result: f32,
 }
 
@@ -48,9 +48,10 @@ where
             vec![0.; moves_dims(N)],
             vec![0.; moves_dims(N)],
         ];
+        let total = self.policy.iter().map(|(_, c)| c).sum::<u32>() as f32;
         for (turn, &value) in self.policy.iter() {
             for (i, symm) in turn.clone().symmetries().into_iter().enumerate() {
-                pi[i][symm.turn_map()] = value;
+                pi[i][symm.turn_map()] = value as f32 / total;
             }
         }
 

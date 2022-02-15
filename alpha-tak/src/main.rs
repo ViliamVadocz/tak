@@ -4,6 +4,7 @@ use std::{fs::File, io::Write, time::SystemTime};
 
 use example::Example;
 use network::Network;
+use rand::random;
 use tak::{
     game::{Game, GameResult},
     pos::Pos,
@@ -33,7 +34,7 @@ mod repr;
 mod self_play;
 mod turn_map;
 
-const MAX_EXAMPLES: usize = 1_000_000;
+const MAX_EXAMPLES: usize = 100_000;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 const CRUSHING_WIN_RATE: f64 = 0.9;
 
@@ -55,12 +56,7 @@ fn main() {
     loop {
         nn = play_until_better(nn, &mut examples);
         println!("saving model");
-
-        let sys_time = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        nn.save(format!("models/{sys_time}.model")).unwrap();
+        nn.save(format!("models/{}.model", sys_time())).unwrap();
 
         example_game(&nn);
     }
@@ -74,8 +70,9 @@ where
     Turn<N>: Lut,
 {
     loop {
-        // examples.extend(self_play(&network).into_iter());
-        examples.extend(self_play_async(&network).into_iter());
+        let new_examples = self_play_async(&network);
+        save_examples(&new_examples);
+        examples.extend(new_examples.into_iter());
         if examples.len() > MAX_EXAMPLES {
             examples.reverse();
             examples.truncate(MAX_EXAMPLES);
@@ -86,7 +83,6 @@ where
         new_network.train(examples);
 
         println!("pitting two networks against each other");
-        // let results = pit(&new_network, &network);
         let results = pit_async(&new_network, &network);
         println!("{:?}", results);
         if results.win_rate() > WIN_RATE_THRESHOLD {
@@ -124,7 +120,11 @@ where
         shape: Shape::Flat,
     };
     let turn1 = Turn::Place {
-        pos: Pos { x: N - 1, y: 0 },
+        // randomly pick between diagonal or adjacent corners
+        pos: Pos {
+            x: N - 1,
+            y: if random::<f64>() < 0.5 { 0 } else { N - 1 },
+        },
         shape: Shape::Flat,
     };
     turns.push(turn0.to_ptn());
@@ -149,14 +149,10 @@ where
     println!("result: {:?}\n{}", game.winner(), game.board);
 
     // save example for review
-    let sys_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    if let Ok(mut file) = File::create(format!("examples/{}.ptn", sys_time)) {
+    if let Ok(mut file) = File::create(format!("examples/{}.ptn", sys_time())) {
         let mut turns = turns.into_iter();
         let mut turn_num = 1;
-        let mut out = String::new();
+        let mut out = format!("[Size \"{N}\"]\n[Komi \"{KOMI}\"]\n");
         while let Some(white) = turns.next() {
             out.push_str(&format!(
                 "{turn_num}. {white} {}\n",
@@ -166,4 +162,32 @@ where
         }
         file.write_all(out.as_bytes()).unwrap();
     };
+}
+
+fn save_examples<const N: usize>(examples: &[Example<N>]) {
+    if let Ok(mut file) = File::create(format!("examples/{}.data", sys_time())) {
+        let out = examples
+            .iter()
+            .map(|example| {
+                format!(
+                    "{}\n{}\n{}\n",
+                    example.game.board.to_ptn(),
+                    example.result,
+                    example
+                        .policy
+                        .iter()
+                        .map(|(turn, visits)| format!("{} {visits}\n", turn.to_ptn()))
+                        .collect::<String>()
+                )
+            })
+            .collect::<String>();
+        file.write_all(out.as_bytes()).unwrap();
+    }
+}
+
+fn sys_time() -> u64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
 }
