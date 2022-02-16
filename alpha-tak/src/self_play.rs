@@ -22,8 +22,8 @@ use crate::{
 };
 
 const SELF_PLAY_GAMES: usize = 500;
-const ROLLOUTS_PER_MOVE: u32 = 1000;
-const OPENING_PLIES: usize = 6;
+const ROLLOUTS_PER_MOVE: u32 = 2000;
+const OPENING_PLIES: usize = 3;
 
 /// Run multiple games against self.
 #[allow(dead_code)]
@@ -100,7 +100,7 @@ where
             }
         }
         if batch.is_empty() {
-            println!("empty batch!");
+            // println!("empty batch!");
             continue;
         }
 
@@ -183,7 +183,11 @@ where
         .into_iter()
         .enumerate()
         .map(|(ply, ex)| {
-            let perspective = if ply % 2 == 0 { result } else { -result };
+            let perspective = if (ply + OPENING_PLIES) % 2 == 0 {
+                result
+            } else {
+                -result
+            };
             ex.complete(perspective)
         })
         .collect()
