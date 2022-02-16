@@ -1,10 +1,23 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Read, Write},
+};
 
-use tak::{game::Game, symm::Symmetry, tile::Tile, turn::Turn};
+use tak::{
+    board::Board,
+    colour::Colour,
+    game::Game,
+    ptn::{FromPTN, ToPTN},
+    symm::Symmetry,
+    tile::Tile,
+    turn::Turn,
+};
 use tch::Tensor;
 
 use crate::{
     repr::{game_repr, moves_dims},
+    sys_time,
     turn_map::Lut,
 };
 
@@ -69,4 +82,89 @@ where
             })
             .collect()
     }
+}
+
+pub fn save_examples<const N: usize>(examples: &[Example<N>]) {
+    if let Ok(mut file) = File::create(format!("examples/{}.data", sys_time())) {
+        let out = examples
+            .iter()
+            .map(|example| {
+                format!(
+                    "{};{};{}\n",
+                    example.game.to_ptn(),
+                    example.result,
+                    example
+                        .policy
+                        .iter()
+                        .map(|(turn, visits)| format!("{} {visits},", turn.to_ptn()))
+                        .collect::<String>()
+                )
+            })
+            .collect::<String>();
+        file.write_all(out.as_bytes()).unwrap();
+    }
+}
+
+// TODO clean this up
+pub fn load_examples<const N: usize>(path: &str) -> Vec<Example<N>>
+where
+    [[Option<Tile>; N]; N]: Default,
+{
+    let mut file = File::open(path).unwrap();
+    let mut s = String::new();
+    file.read_to_string(&mut s).unwrap();
+
+    s.split_terminator('\n')
+        .map(|example| {
+            let mut chunks = example.split(';');
+            let mut tps = chunks.next().expect("missing board").split(' ');
+
+            // TODO put this ugly code into different functions, clean it up a bit
+            let board = Board::from_ptn(tps.next().expect("missing board")).unwrap();
+            let to_move = Colour::from_ptn(tps.next().expect("missing to_move")).unwrap();
+            let ply = (tps.next().expect("missing move number").parse::<u64>().unwrap() - 1) * 2
+                + match to_move {
+                    Colour::White => 0,
+                    Colour::Black => 1,
+                };
+            let mut white_reserves = tps.next().expect("missing white reserves").split('/');
+            let white_stones = white_reserves.next().unwrap()[1..].parse().unwrap();
+            let white_caps = white_reserves.next().unwrap().replace(')', "").parse().unwrap();
+            let mut black_reserves = tps.next().expect("missing black reserves").split('/');
+            let black_stones = black_reserves.next().unwrap()[1..].parse().unwrap();
+            let black_caps = black_reserves.next().unwrap().replace(')', "").parse().unwrap();
+            let komi = tps.next().expect("missing komi").parse::<i32>().unwrap();
+
+            let game = Game {
+                board,
+                to_move,
+                white_caps,
+                black_caps,
+                white_stones,
+                black_stones,
+                ply,
+                komi,
+            };
+
+            let result = chunks
+                .next()
+                .expect("missing result")
+                .parse::<f32>()
+                .expect("game result cannot be parsed");
+
+            let mut policy = HashMap::new();
+            for line in chunks.next().expect("missing turns").split_terminator(',') {
+                let mut words = line.split(' ');
+                let turn = Turn::from_ptn(words.next().expect("missing turn")).expect("invalid turn");
+                let visited = words
+                    .next()
+                    .expect("missing visited count")
+                    .parse::<u32>()
+                    .expect("invalid visited count");
+                policy.insert(turn, visited);
+            }
+
+            Example { game, policy, result }
+        })
+        .collect()
 }

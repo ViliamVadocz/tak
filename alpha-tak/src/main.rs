@@ -2,7 +2,7 @@
 
 use std::{fs::File, io::Write, time::SystemTime};
 
-use example::Example;
+use example::{save_examples, Example};
 use network::Network;
 use rand::random;
 use tak::{
@@ -15,6 +15,7 @@ use tak::{
 use tch::Cuda;
 use turn_map::Lut;
 
+use crate::example::load_examples;
 #[allow(unused_imports)]
 use crate::{
     mcts::Node,
@@ -36,7 +37,6 @@ mod turn_map;
 
 const MAX_EXAMPLES: usize = 100_000;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
-const CRUSHING_WIN_RATE: f64 = 0.9;
 
 pub const KOMI: i32 = 2;
 
@@ -45,53 +45,67 @@ fn main() {
     println!("CUDA: {}", Cuda::is_available());
 
     let mut args = std::env::args();
-    let mut nn = if let Some(model_path) = args.nth(1) {
+    let _ = args.next();
+
+    // load or create network
+    let network = if let Some(model_path) = args.next() {
         Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"))
     } else {
         println!("generating random model");
         Network::<5>::default()
     };
 
+    // optionally load examples
     let mut examples = Vec::new();
-    loop {
-        nn = play_until_better(nn, &mut examples);
-        println!("saving model");
-        nn.save(format!("models/{}.model", sys_time())).unwrap();
-
-        example_game(&nn);
+    for examples_path in args {
+        println!("loading {examples_path}");
+        examples.extend(load_examples(&examples_path).into_iter());
     }
+
+    // begin training loop
+    training_loop(network, examples)
 }
 
-/// Do self-play and test against previous iteration
-/// until an improvement is seen.
-pub fn play_until_better<const N: usize>(network: Network<N>, examples: &mut Vec<Example<N>>) -> Network<N>
+pub fn training_loop<const N: usize>(mut network: Network<N>, mut examples: Vec<Example<N>>) -> !
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
     loop {
+        if !examples.is_empty() {
+            let new_network = {
+                let mut nn = copy(&network);
+                nn.train(&examples);
+                nn
+            };
+
+            println!("pitting two networks against each other");
+            let results = pit_async(&new_network, &network);
+            println!("{:?}", results);
+
+            if results.win_rate() > WIN_RATE_THRESHOLD {
+                network = new_network;
+                println!("saving model");
+                network.save(format!("models/{}.model", sys_time())).unwrap();
+
+                // it seems it improves more often if only training on fresh examples
+                examples.clear();
+
+                // run an example game to qualitative analysis
+                example_game(&network);
+            }
+        }
+
+        // do self-play to get new examples
         let new_examples = self_play_async(&network);
         save_examples(&new_examples);
+
+        // keep only the latest MAX_EXAMPLES examples
         examples.extend(new_examples.into_iter());
         if examples.len() > MAX_EXAMPLES {
             examples.reverse();
             examples.truncate(MAX_EXAMPLES);
             examples.reverse();
-        }
-
-        let mut new_network = copy(&network);
-        new_network.train(examples);
-
-        println!("pitting two networks against each other");
-        let results = pit_async(&new_network, &network);
-        println!("{:?}", results);
-        if results.win_rate() > WIN_RATE_THRESHOLD {
-            if results.win_rate() > CRUSHING_WIN_RATE {
-                // this network is so much better we should forget the old examples
-                println!("crushing victory invalidates old examples!");
-                examples.clear()
-            }
-            return new_network;
         }
     }
 }
@@ -109,7 +123,7 @@ where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    const SECONDS_PER_TURN: u64 = 10;
+    const SECONDS_PER_TURN: u64 = 30;
     println!("running example game with {SECONDS_PER_TURN} seconds per turn");
 
     let mut game = Game::with_komi(KOMI);
@@ -164,28 +178,7 @@ where
     };
 }
 
-fn save_examples<const N: usize>(examples: &[Example<N>]) {
-    if let Ok(mut file) = File::create(format!("examples/{}.data", sys_time())) {
-        let out = examples
-            .iter()
-            .map(|example| {
-                format!(
-                    "{}\n{}\n{}\n",
-                    example.game.board.to_ptn(),
-                    example.result,
-                    example
-                        .policy
-                        .iter()
-                        .map(|(turn, visits)| format!("{} {visits}\n", turn.to_ptn()))
-                        .collect::<String>()
-                )
-            })
-            .collect::<String>();
-        file.write_all(out.as_bytes()).unwrap();
-    }
-}
-
-fn sys_time() -> u64 {
+pub fn sys_time() -> u64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
