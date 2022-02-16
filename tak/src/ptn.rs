@@ -257,6 +257,24 @@ impl<const N: usize> Game<N> {
     }
 }
 
+impl<const N: usize> ToPTN for Game<N> {
+    /// Technically this is modified TPS, not PTN
+    fn to_ptn(&self) -> String {
+        // TPS to_move move_num (white_reserves) (black_reserves)
+        format!(
+            "{} {} {} ({}/{}) ({}/{}) {}",
+            self.board.to_ptn(),
+            self.to_move.to_ptn(),
+            (self.ply / 2) + 1,
+            self.white_stones,
+            self.white_caps,
+            self.black_stones,
+            self.black_caps,
+            self.komi
+        )
+    }
+}
+
 impl<const N: usize> ToPTN for Board<N> {
     /// Get board TPS
     fn to_ptn(&self) -> String {
