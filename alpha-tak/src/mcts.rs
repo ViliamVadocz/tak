@@ -13,6 +13,7 @@ use tak::{
 use crate::{agent::Agent, turn_map::Lut};
 
 const EXPLORATION: f32 = 1.0;
+const CONTEMPT: f32 = 0.05;
 
 fn upper_confidence_bound<const N: usize>(parent: &Node<N>, child: &Node<N>) -> f32 {
     // U(s, a) = Q(s, a) + c * P(s, a) * sqrt(sum_b(N(s, b))) / (1 + N(s, a))
@@ -74,19 +75,21 @@ where
         // cache game result
         if self.result.is_none() {
             self.result = Some(game.winner());
-            if let Some(GameResult::Winner(winner)) = self.result {
-                if winner == game.to_move {
-                    // means that the previous player played a losing move
-                    self.expected_reward = -1.;
-                } else {
-                    self.expected_reward = 1.;
+            self.expected_reward = match self.result {
+                Some(GameResult::Winner(winner)) => {
+                    if winner == game.to_move {
+                        // means that the previous player played a losing move
+                        -1.
+                    } else {
+                        1.
+                    }
                 }
-            }
+                Some(GameResult::Draw) => -CONTEMPT,
+                _ => 0.,
+            };
         }
-        match self.result {
-            Some(GameResult::Winner(_winner)) => return -self.expected_reward,
-            Some(GameResult::Draw) => return 0.,
-            _ => {}
+        if let Some(GameResult::Winner(_) | GameResult::Draw) = self.result {
+            return -self.expected_reward;
         }
 
         // if it is the first time we are vising this node
