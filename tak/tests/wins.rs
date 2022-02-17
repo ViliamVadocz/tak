@@ -33,3 +33,18 @@ fn flat_win() -> StrResult<()> {
     assert_eq!(game.winner(), GameResult::Winner(Colour::White));
     Ok(())
 }
+
+#[test]
+fn road_win() -> StrResult<()> {
+    let game = Game::<5>::from_ptn(
+        "1. d2 a5
+        2. b4 d3
+        3. Cc3 Cc2
+        4. b2 b1
+        5. b3 a1
+        6. c4 c1
+        7. e2 e3",
+    )?;
+    assert_eq!(game.winner(), GameResult::Winner(Colour::Black));
+    Ok(())
+}

@@ -51,7 +51,7 @@ impl<const N: usize> Board<N> {
         }
         // check horizontal paths
         let mut seen = HashSet::new();
-        for y in 1..N {
+        for y in 0..N {
             let pos = Pos { x: 0, y };
             self.find_paths_recursive(pos, colour, &mut seen);
         }
