@@ -15,6 +15,7 @@ use crate::{
     example::Example,
     repr::{game_repr, input_dims, moves_dims},
     turn_map::Lut,
+    MAX_EXAMPLES,
 };
 
 const EPOCHS: usize = 1; // idk seems to over-fit otherwise
@@ -40,7 +41,14 @@ impl<const N: usize> Network<N> {
         Turn<N>: Lut,
         [[Option<Tile>; N]; N]: Default,
     {
+        if examples.len() > MAX_EXAMPLES {
+            println!("too many examples, splitting training up");
+            self.train(&examples[0..MAX_EXAMPLES]);
+            self.train(&examples[MAX_EXAMPLES..]);
+            return;
+        }
         println!("starting training with {} examples", examples.len());
+
         let mut opt = nn::Adam {
             wd: WEIGHT_DECAY,
             ..Default::default()
