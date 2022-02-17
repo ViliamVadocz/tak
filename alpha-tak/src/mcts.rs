@@ -12,13 +12,18 @@ use tak::{
 
 use crate::{agent::Agent, turn_map::Lut};
 
-const EXPLORATION: f32 = 1.0;
+const EXPLORATION_BASE: f32 = 1000.0;
+const EXPLORATION_INIT: f32 = 1.5;
 const CONTEMPT: f32 = 0.05;
 
+fn exploration_rate(n: f32) -> f32 {
+    ((1.0 + n + EXPLORATION_BASE) / EXPLORATION_BASE).ln() + EXPLORATION_INIT
+}
+
 fn upper_confidence_bound<const N: usize>(parent: &Node<N>, child: &Node<N>) -> f32 {
-    // U(s, a) = Q(s, a) + c * P(s, a) * sqrt(sum_b(N(s, b))) / (1 + N(s, a))
+    // U(s, a) = Q(s, a) + C(s) * P(s, a) * sqrt(N(s)) / (1 + N(s, a))
     child.expected_reward
-        + EXPLORATION
+        + exploration_rate(parent.visited_count as f32)
             * child.policy
             * ((parent.visited_count as f32).sqrt() / (1.0 + child.visited_count as f32))
 }
