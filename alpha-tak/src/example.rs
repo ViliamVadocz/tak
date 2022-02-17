@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    error::Error,
     fs::File,
     io::{Read, Write},
 };
@@ -106,13 +107,13 @@ pub fn save_examples<const N: usize>(examples: &[Example<N>]) {
 }
 
 // TODO clean this up
-pub fn load_examples<const N: usize>(path: &str) -> Vec<Example<N>>
+pub fn load_examples<const N: usize>(path: &str) -> Result<Vec<Example<N>>, Box<dyn Error>>
 where
     [[Option<Tile>; N]; N]: Default,
 {
-    let mut file = File::open(path).unwrap();
+    let mut file = File::open(path)?;
     let mut s = String::new();
-    file.read_to_string(&mut s).unwrap();
+    file.read_to_string(&mut s)?;
 
     s.split_terminator('\n')
         .map(|example| {
@@ -164,7 +165,7 @@ where
                 policy.insert(turn, visited);
             }
 
-            Example { game, policy, result }
+            Ok(Example { game, policy, result })
         })
         .collect()
 }
