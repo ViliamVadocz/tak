@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use rand::{
     distributions::{Distribution, WeightedIndex},
@@ -44,29 +44,43 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn debug(&self, game: &Game<N>, limit: Option<usize>) -> String {
-        format!(
-            "to move: {:?}\n{}turn     visited  policy  reward\n{}",
-            game.to_move,
-            game.board,
-            {
-                let mut p: Vec<_> = self.children.as_ref().unwrap().iter().collect();
-                p.sort_by_key(|(_turn, node)| node.visited_count);
-                p.reverse();
-                p.iter()
-                    .take(limit.unwrap_or(usize::MAX))
-                    .map(|(turn, node)| {
-                        format!(
-                            "{: <8}{: >8}  {:.4}  {:.4}\n",
-                            turn.to_ptn(),
-                            node.visited_count,
-                            node.policy,
-                            node.expected_reward
-                        )
-                    })
-                    .collect::<String>()
-            }
-        )
+    pub fn debug(&self, limit: Option<usize>) -> String {
+        format!("turn     visited  policy  reward  continuation\n{}", {
+            let mut p: Vec<_> = self.children.as_ref().unwrap().iter().collect();
+            p.sort_by_key(|(_turn, node)| node.visited_count);
+            p.reverse();
+            p.iter()
+                .take(limit.unwrap_or(usize::MAX))
+                .map(|(turn, node)| {
+                    let continuation = node
+                        .continuation(3)
+                        .into_iter()
+                        .map(|t| t.to_ptn())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    format!(
+                        "{: <8}{: >8}  {:.4}  {:.4}  {}\n",
+                        turn.to_ptn(),
+                        node.visited_count,
+                        node.policy,
+                        node.expected_reward,
+                        continuation,
+                    )
+                })
+                .collect::<String>()
+        })
+    }
+
+    pub fn continuation(&self, depth: u8) -> VecDeque<Turn<N>> {
+        if depth == 0 || self.children.is_none() {
+            return VecDeque::new();
+        }
+        let turn = self.pick_move(true);
+        let children = self.children.as_ref().unwrap();
+        let node = children.get(&turn).unwrap();
+        let mut turns = node.continuation(depth - 1);
+        turns.push_front(turn);
+        turns
     }
 
     pub fn rollout<A: Agent<N>>(&mut self, game: Game<N>, agent: &A) -> f32 {
@@ -147,7 +161,7 @@ where
         let mut policy = HashMap::new();
         // after many rollouts the visited counts become a better estimate for policy
         // (not normalized)
-        for (turn, child) in self.children.as_ref().unwrap() {
+        for (turn, child) in self.children.as_ref().expect("you must rollout at least once") {
             policy.insert(turn.clone(), child.visited_count);
         }
         policy
@@ -250,7 +264,7 @@ mod tests {
             for _ in 0..100_000 {
                 node.rollout(game.clone(), &TestAgent {});
             }
-            println!("{}", node.debug(&game, None));
+            println!("{}", node.debug(None));
 
             let turn = node.pick_move(true);
             node = node.play(&turn);
