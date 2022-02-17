@@ -1,14 +1,22 @@
 #![feature(thread_is_running)]
 
-use std::{fs::File, io::Write, time::SystemTime};
+use std::{
+    env::Args,
+    fs::File,
+    io::Write,
+    sync::mpsc::channel,
+    thread,
+    time::{Duration, SystemTime},
+};
 
 use example::{save_examples, Example};
 use network::Network;
 use rand::random;
 use tak::{
+    colour::Colour,
     game::{Game, GameResult},
     pos::Pos,
-    ptn::ToPTN,
+    ptn::{FromPTN, ToPTN},
     tile::{Shape, Tile},
     turn::Turn,
 };
@@ -46,7 +54,93 @@ fn main() {
 
     let mut args = std::env::args();
     let _ = args.next();
+    match args.next() {
+        Some(s) if s == "play" => play(args),
+        Some(s) if s == "train" => train(args),
+        _ => println!("usage: alpha-tak (play|train) <model_path> [<example_path>*]"),
+    }
+}
 
+fn play(mut args: Args) {
+    const SECONDS_PER_MOVE: u64 = 10;
+
+    // load or create network
+    let model_path = args.next().expect("you need to supply a model path");
+    let network =
+        Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"));
+
+    let mut game = Game::<5>::with_komi(KOMI);
+    let colour = if random() { Colour::White } else { Colour::Black };
+    println!("the network is playing as {colour:?}");
+
+    let mut debug_info = String::new();
+
+    let mut node = Node::default();
+    while matches!(game.winner(), GameResult::Ongoing) {
+        if game.to_move == colour {
+            // do rollouts
+            let start_turn = SystemTime::now();
+            while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < SECONDS_PER_MOVE {
+                for _ in 0..100 {
+                    node.rollout(game.clone(), &network);
+                }
+            }
+            debug_info += &node.debug(&game, None);
+            debug_info.push('\n');
+
+            let turn = node.pick_move(game.ply > 3);
+            println!("network plays: {}", turn.to_ptn());
+            node = node.play(&turn);
+            game.play(turn).unwrap();
+        } else {
+            // create a thread to get input from user
+            let (tx, rx) = channel();
+            thread::spawn(move || {
+                let turn = loop {
+                    print!("your move: ");
+                    std::io::stdout().flush().unwrap();
+                    let mut line = String::new();
+                    let _ = std::io::stdin().read_line(&mut line).unwrap();
+                    match Turn::from_ptn(&line) {
+                        Ok(turn) => break turn,
+                        Err(err) => println!("{err}"),
+                    }
+                };
+                tx.send(turn).unwrap();
+            });
+            // think on opponent's turn
+            let turn = loop {
+                match rx.try_recv() {
+                    Ok(t) => break t,
+                    Err(_) => {
+                        for _ in 0..100 {
+                            node.rollout(game.clone(), &network);
+                        }
+                    }
+                }
+            };
+            // try playing your move
+            let backup = game.clone();
+            match game.play(turn.clone()) {
+                Ok(_) => {
+                    debug_info += &node.debug(&backup, None);
+                    debug_info.push('\n');
+                    node = node.play(&turn);
+                }
+                Err(err) => {
+                    println!("{err}");
+                    game = backup;
+                }
+            }
+        }
+    }
+
+    println!("game ended! result: {:?}", game.winner());
+    thread::sleep(Duration::from_secs(3));
+    println!("{debug_info}");
+}
+
+fn train(mut args: Args) {
     // load or create network
     let network = if let Some(model_path) = args.next() {
         Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"))
@@ -59,7 +153,11 @@ fn main() {
     let mut examples = Vec::new();
     for examples_path in args {
         println!("loading {examples_path}");
-        examples.extend(load_examples(&examples_path).into_iter());
+        examples.extend(
+            load_examples(&examples_path)
+                .unwrap_or_else(|_| panic!("could not load example at {examples_path}"))
+                .into_iter(),
+        );
     }
 
     // begin training loop
