@@ -23,7 +23,7 @@ use tak::{
     tile::{Shape, Tile},
     turn::Turn,
 };
-use tch::Cuda;
+use tch::{Cuda, Device};
 use turn_map::Lut;
 
 use crate::example::load_examples;
@@ -51,6 +51,10 @@ const MAX_EXAMPLES: usize = 100_000;
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 
 pub const KOMI: i32 = 2;
+
+lazy_static! {
+    static ref DEVICE: Device = Device::cuda_if_available();
+}
 
 fn main() {
     tch::maybe_init_cuda();
@@ -225,12 +229,13 @@ fn copy<const N: usize>(network: &Network<N>) -> Network<N> {
     Network::<N>::load(&dir).unwrap()
 }
 
+// TODO use example game as training data
 fn example_game<const N: usize>(network: &Network<N>)
 where
     [[Option<Tile>; N]; N]: Default,
     Turn<N>: Lut,
 {
-    const SECONDS_PER_TURN: u64 = 30;
+    const SECONDS_PER_TURN: u64 = 10;
     println!("running example game with {SECONDS_PER_TURN} seconds per turn");
 
     let mut game = Game::with_komi(KOMI);
@@ -260,7 +265,7 @@ where
         while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < SECONDS_PER_TURN {
             node.rollout(game.clone(), network);
         }
-        println!("{}", node.debug(None));
+        println!("ply: {}\n{}", game.ply, node.debug(None));
         let turn = node.pick_move(true);
         turns.push(turn.to_ptn());
         node = node.play(&turn);

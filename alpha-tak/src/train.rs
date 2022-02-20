@@ -2,12 +2,11 @@ use tak::{tile::Tile, turn::Turn};
 use tch::{
     data::Iter2,
     nn::{self, OptimizerConfig},
-    Device,
     Kind,
     Tensor,
 };
 
-use crate::{example::Example, network::Network, repr::moves_dims, turn_map::Lut, MAX_EXAMPLES};
+use crate::{example::Example, network::Network, repr::moves_dims, turn_map::Lut, DEVICE, MAX_EXAMPLES};
 
 const EPOCHS: usize = 1; // idk seems to over-fit otherwise
 const BATCH_SIZE: i64 = 10_000;
@@ -36,6 +35,7 @@ impl<const N: usize> Network<N> {
         .build(&self.vs, LEARNING_RATE)
         .unwrap();
 
+        println!("creating symmetries");
         let symmetries = examples.iter().flat_map(|ex| ex.to_tensors());
         let mut inputs = Vec::new();
         let mut targets = Vec::new();
@@ -54,8 +54,8 @@ impl<const N: usize> Network<N> {
             let batch_iter = batch_iter.shuffle();
 
             for (mut input, mut target) in batch_iter {
-                input = input.to_device(Device::cuda_if_available());
-                target = target.to_device(Device::cuda_if_available());
+                input = input.to_device_(*DEVICE, Kind::Float, true, false);
+                target = target.to_device_(*DEVICE, Kind::Float, true, false);
 
                 let batch_size = input.size()[0];
                 let (policy, eval) = self.forward_training(input);
@@ -67,7 +67,7 @@ impl<const N: usize> Network<N> {
 
                 // calculate loss
                 let loss_p = -(p * policy).sum(Kind::Float) / batch_size;
-                let loss_z = (z - eval).square().sum(Kind::Float) / batch_size;
+                let loss_z = (z - eval).square_().sum(Kind::Float) / batch_size;
                 println!("epoch {epoch}:\t p={loss_p:?}\t z={loss_z:?}");
                 let total_loss = loss_z + loss_p;
 

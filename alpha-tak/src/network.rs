@@ -2,9 +2,12 @@ use std::{error::Error, ops::Add, path::Path};
 
 use arrayvec::ArrayVec;
 use tak::game::Game;
-use tch::{nn, nn::ConvConfig, Device, Kind, Tensor};
+use tch::{nn, nn::ConvConfig, Kind, Tensor};
 
-use crate::repr::{game_repr, input_channels, moves_dims};
+use crate::{
+    repr::{game_repr, input_channels, moves_dims},
+    DEVICE,
+};
 
 const RES_BLOCKS: usize = 8;
 const FILTERS: i64 = 128;
@@ -22,11 +25,11 @@ impl ResBlock {
         input
             .apply_t(&self.conv1, train)
             .apply_t(&self.batch_norm1, train)
-            .relu()
+            .relu_()
             .apply_t(&self.conv2, train)
             .apply_t(&self.batch_norm2, train)
             .add(&input)
-            .relu()
+            .relu_()
     }
 }
 
@@ -55,7 +58,7 @@ impl<const N: usize> Network<N> {
 
 impl<const N: usize> Default for Network<N> {
     fn default() -> Self {
-        let vs = nn::VarStore::new(Device::cuda_if_available());
+        let vs = nn::VarStore::new(*DEVICE);
         let root = &vs.root();
 
         let conv_config = ConvConfig {
@@ -109,7 +112,7 @@ impl<const N: usize> Network<N> {
                 input
                     .apply_t(&self.initial_conv, train)
                     .apply_t(&self.initial_batch_norm, train)
-                    .relu(),
+                    .relu_(),
                 |prev, res_block| res_block.forward(prev, train),
             )
             .view([-1, FILTERS * (N * N) as i64])
@@ -118,23 +121,53 @@ impl<const N: usize> Network<N> {
     pub fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor) {
         let s = self.forward_conv(input, false);
         let policy = s.apply(&self.fully_connected_policy).softmax(1, Kind::Float);
-        let eval = s.apply(&self.fully_connected_eval).tanh();
+        let eval = s.apply(&self.fully_connected_eval).tanh_();
         (policy, eval)
     }
 
     pub fn forward_training(&self, input: Tensor) -> (Tensor, Tensor) {
         let s = self.forward_conv(input, true);
         let policy = s.apply(&self.fully_connected_policy).log_softmax(1, Kind::Float);
-        let eval = s.apply(&self.fully_connected_eval).tanh();
+        let eval = s.apply(&self.fully_connected_eval).tanh_();
         (policy, eval)
     }
 
     pub fn policy_eval_batch(&self, games: &[Game<N>]) -> (Vec<Vec<f32>>, Vec<f32>) {
         let game_tensors: Vec<_> = games.iter().map(game_repr).collect();
-        let input = Tensor::stack(&game_tensors, 0).to_device(Device::cuda_if_available());
+        let input = Tensor::stack(&game_tensors, 0).to_device_(*DEVICE, Kind::Float, true, false);
         let (policy, eval) = self.forward_mcts(input);
         let policies: Vec<Vec<f32>> = policy.into();
         let evals: Vec<f32> = eval.into();
         (policies, evals)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use tak::game::Game;
+    use test::Bencher;
+
+    use super::Network;
+    use crate::agent::Agent;
+
+    #[bench]
+    fn forward_pass_1(b: &mut Bencher) {
+        // tch::maybe_init_cuda();
+        let game = Game::<5>::default();
+        let network = Network::<5>::default();
+        b.iter(|| network.policy_and_eval(&game))
+    }
+
+    fn forward_pass_n(b: &mut Bencher, n: usize) {
+        tch::maybe_init_cuda();
+        let game = Game::<5>::default();
+        let games = vec![game; n];
+        let network = Network::<5>::default();
+        b.iter(|| network.policy_eval_batch(&games))
+    }
+
+    #[bench]
+    fn forward_pass_128(b: &mut Bencher) {
+        forward_pass_n(b, 128)
     }
 }
