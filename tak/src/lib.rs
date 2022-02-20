@@ -11,6 +11,7 @@ pub mod pos;
 pub mod ptn;
 pub mod symm;
 pub mod tile;
+pub mod tps;
 pub mod turn;
 
 pub type StrResult<T> = Result<T, String>;

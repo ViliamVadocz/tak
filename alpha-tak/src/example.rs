@@ -12,6 +12,7 @@ use tak::{
     ptn::{FromPTN, ToPTN},
     symm::Symmetry,
     tile::Tile,
+    tps::{FromTPS, ToTPS},
     turn::Turn,
 };
 use tch::Tensor;
@@ -92,7 +93,7 @@ pub fn save_examples<const N: usize>(examples: &[Example<N>]) {
             .map(|example| {
                 format!(
                     "{};{};{}\n",
-                    example.game.to_ptn(),
+                    example.game.to_tps(),
                     example.result,
                     example
                         .policy
@@ -121,7 +122,8 @@ where
             let mut tps = chunks.next().expect("missing board").split(' ');
 
             // TODO put this ugly code into different functions, clean it up a bit
-            let board = Board::from_ptn(tps.next().expect("missing board")).unwrap();
+            // MOVE IT TO FromTPS for Game
+            let board = Board::from_tps(tps.next().expect("missing board")).unwrap();
             let to_move = Colour::from_ptn(tps.next().expect("missing to_move")).unwrap();
             let ply = (tps.next().expect("missing move number").parse::<u64>().unwrap() - 1) * 2
                 + match to_move {

@@ -144,7 +144,7 @@ pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {
 
 #[cfg(test)]
 mod test {
-    use tak::{board::Board, colour::Colour, game::Game, ptn::FromPTN};
+    use tak::{board::Board, colour::Colour, game::Game, ptn::FromPTN, tps::FromTPS};
     use tch::{kind::FLOAT_CPU, Tensor};
     use test::Bencher;
 
@@ -162,7 +162,7 @@ mod test {
 
     #[test]
     fn complicated_board() {
-        let board = Board::<5>::from_ptn("x2,1221,x,1S/2,2C,2,1,x/x,212,21C,2S,2/2211S,2,21,1,1/x2,221S,2,x")
+        let board = Board::<5>::from_tps("x2,1221,x,1S/2,2C,2,1,x/x,212,21C,2S,2/2211S,2,21,1,1/x2,221S,2,x")
             .unwrap();
         let (x, o) = (true, false);
         #[rustfmt::skip]
