@@ -91,6 +91,10 @@ where
 {
     fn from_tps(s: &str) -> StrResult<Self> {
         let mut board = Board::default();
+        let row_count = s.split('/').count();
+        if row_count != N {
+            return Err(format!("expected {N} rows, got {row_count}"));
+        }
         for (i, row) in s.split('/').enumerate() {
             let y = N - i - 1;
             let mut x = 0;
@@ -113,6 +117,9 @@ where
                     board[pos] = Some(Tile { top: piece, stack });
                     x += 1;
                 }
+            }
+            if x != N {
+                return Err(format!("only got {x} tiles in row number {y}, expected {N}"));
             }
         }
         Ok(board)
