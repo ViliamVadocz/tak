@@ -41,6 +41,7 @@ mod network;
 mod pit;
 mod repr;
 mod self_play;
+mod train;
 mod turn_map;
 
 const MAX_EXAMPLES: usize = 100_000;

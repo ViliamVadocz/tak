@@ -1,101 +1,46 @@
-use std::{error::Error, path::Path};
+use std::{error::Error, ops::Add, path::Path};
 
 use arrayvec::ArrayVec;
-use tak::{game::Game, tile::Tile, turn::Turn};
-use tch::{
-    data::Iter2,
-    nn,
-    nn::{ConvConfig, OptimizerConfig},
-    Device,
-    Kind,
-    Tensor,
-};
+use tak::game::Game;
+use tch::{nn, nn::ConvConfig, Device, Kind, Tensor};
 
-use crate::{
-    example::Example,
-    repr::{game_repr, input_dims, moves_dims},
-    turn_map::Lut,
-    MAX_EXAMPLES,
-};
+use crate::repr::{game_repr, input_channels, moves_dims};
 
-const EPOCHS: usize = 1; // idk seems to over-fit otherwise
-const BATCH_SIZE: i64 = 10_000;
-const LEARNING_RATE: f64 = 1e-4;
-const WEIGHT_DECAY: f64 = 1e-4;
+const RES_BLOCKS: usize = 8;
+const FILTERS: i64 = 256;
 
-const CONV_LAYERS: usize = 16;
+#[derive(Debug)]
+struct ResBlock {
+    conv1: nn::Conv2D,
+    conv2: nn::Conv2D,
+    batch_norm1: nn::BatchNorm,
+    batch_norm2: nn::BatchNorm,
+}
+
+impl ResBlock {
+    fn forward(&self, input: Tensor, train: bool) -> Tensor {
+        input
+            .apply_t(&self.conv1, train)
+            .apply_t(&self.batch_norm1, train)
+            .relu()
+            .apply_t(&self.conv2, train)
+            .apply_t(&self.batch_norm2, train)
+            .add(&input)
+            .relu()
+    }
+}
 
 #[derive(Debug)]
 pub struct Network<const N: usize> {
-    vs: nn::VarStore,
-    convolutions: ArrayVec<nn::Conv2D, CONV_LAYERS>,
-    batch_norms: ArrayVec<nn::BatchNorm, CONV_LAYERS>,
+    pub vs: nn::VarStore,
+    initial_conv: nn::Conv2D,
+    initial_batch_norm: nn::BatchNorm,
+    residual_blocks: ArrayVec<ResBlock, RES_BLOCKS>,
     fully_connected_policy: nn::Linear,
     fully_connected_eval: nn::Linear,
 }
 
 impl<const N: usize> Network<N> {
-    // TODO validation data
-    pub fn train(&mut self, examples: &[Example<N>])
-    where
-        Turn<N>: Lut,
-        [[Option<Tile>; N]; N]: Default,
-    {
-        if examples.len() > MAX_EXAMPLES {
-            println!("too many examples, splitting training up");
-            self.train(&examples[0..MAX_EXAMPLES]);
-            self.train(&examples[MAX_EXAMPLES..]);
-            return;
-        }
-        println!("starting training with {} examples", examples.len());
-
-        let mut opt = nn::Adam {
-            wd: WEIGHT_DECAY,
-            ..Default::default()
-        }
-        .build(&self.vs, LEARNING_RATE)
-        .unwrap();
-
-        let symmetries = examples.iter().flat_map(|ex| ex.to_tensors());
-        let mut inputs = Vec::new();
-        let mut targets = Vec::new();
-        for (game, pi, v) in symmetries {
-            inputs.push(game);
-            targets.push(Tensor::cat(&[pi, v], 0));
-        }
-
-        for epoch in 0..EPOCHS {
-            // Batch examples
-            let mut batch_iter = Iter2::new(
-                &Tensor::stack(&inputs, 0),
-                &Tensor::stack(&targets, 0),
-                BATCH_SIZE,
-            );
-            let batch_iter = batch_iter.shuffle();
-
-            for (mut input, mut target) in batch_iter {
-                input = input.to_device(Device::cuda_if_available());
-                target = target.to_device(Device::cuda_if_available());
-
-                let batch_size = input.size()[0];
-                let (policy, eval) = self.forward_training(input);
-
-                // Get target
-                let mut vec = target.split(moves_dims(N) as i64, 1);
-                let z = vec.pop().unwrap();
-                let p = vec.pop().unwrap();
-
-                let loss_p = -(p * policy).sum(Kind::Float) / batch_size;
-                let loss_z = (z - eval).square().sum(Kind::Float) / batch_size;
-                println!("epoch {epoch}:\t p={loss_p:?}\t z={loss_z:?}");
-                let total_loss = loss_z + loss_p;
-
-                opt.zero_grad();
-                opt.backward_step(&total_loss);
-            }
-        }
-    }
-
     pub fn save<T: AsRef<Path>>(&self, path: T) -> Result<(), Box<dyn Error>> {
         self.vs.save(path)?;
         Ok(())
@@ -112,31 +57,42 @@ impl<const N: usize> Default for Network<N> {
     fn default() -> Self {
         let vs = nn::VarStore::new(Device::cuda_if_available());
         let root = &vs.root();
-        let [d1, _d2, _d3] = input_dims(N);
 
         let conv_config = ConvConfig {
             padding: 1,
             ..Default::default()
         };
-        let mut convolutions = ArrayVec::new();
-        let mut batch_norms = ArrayVec::new();
-        convolutions.push(nn::conv2d(root, d1 as i64, 128, 3, conv_config));
-        batch_norms.push(nn::batch_norm2d(root, 128, Default::default()));
-        for _ in 1..CONV_LAYERS {
-            convolutions.push(nn::conv2d(root, 128, 128, 3, conv_config));
-            batch_norms.push(nn::batch_norm2d(root, 128, Default::default()));
+
+        let initial_conv = nn::conv2d(root, input_channels(N) as i64, FILTERS, 3, conv_config);
+        let initial_batch_norm = nn::batch_norm2d(root, FILTERS, Default::default());
+
+        let mut residual_blocks = ArrayVec::new();
+        for _ in 0..RES_BLOCKS {
+            let conv1 = nn::conv2d(root, FILTERS, FILTERS, 3, conv_config);
+            let conv2 = nn::conv2d(root, FILTERS, FILTERS, 3, conv_config);
+            let batch_norm1 = nn::batch_norm2d(root, FILTERS, Default::default());
+            let batch_norm2 = nn::batch_norm2d(root, FILTERS, Default::default());
+            residual_blocks.push(ResBlock {
+                conv1,
+                conv2,
+                batch_norm1,
+                batch_norm2,
+            });
         }
+
         let fully_connected_policy = nn::linear(
             root,
-            (N * N * 128) as i64,
+            FILTERS * (N * N) as i64,
             moves_dims(N) as i64,
             Default::default(),
         );
-        let fully_connected_eval = nn::linear(root, (N * N * 128) as i64, 1, Default::default());
+        let fully_connected_eval = nn::linear(root, FILTERS * (N * N) as i64, 1, Default::default());
+
         Network {
             vs,
-            convolutions,
-            batch_norms,
+            initial_conv,
+            initial_batch_norm,
+            residual_blocks,
             fully_connected_policy,
             fully_connected_eval,
         }
@@ -146,25 +102,28 @@ impl<const N: usize> Default for Network<N> {
 // Like forward_t in the nn::ModuleT trait,
 // except we return two values (policy, eval)
 impl<const N: usize> Network<N> {
-    pub fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor) {
-        let s = self
-            .convolutions
+    fn forward_conv(&self, input: Tensor, train: bool) -> Tensor {
+        self.residual_blocks
             .iter()
-            .zip(&self.batch_norms)
-            .fold(input, |s, (conv, norm)| s.apply(conv).apply_t(norm, false))
-            .reshape(&[-1, (N * N * 128) as i64]);
+            .fold(
+                input
+                    .apply_t(&self.initial_conv, train)
+                    .apply_t(&self.initial_batch_norm, train)
+                    .relu(),
+                |prev, res_block| res_block.forward(prev, train),
+            )
+            .view([-1, FILTERS * (N * N) as i64])
+    }
+
+    pub fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor) {
+        let s = self.forward_conv(input, false);
         let policy = s.apply(&self.fully_connected_policy).softmax(1, Kind::Float);
         let eval = s.apply(&self.fully_connected_eval).tanh();
         (policy, eval)
     }
 
     pub fn forward_training(&self, input: Tensor) -> (Tensor, Tensor) {
-        let s = self
-            .convolutions
-            .iter()
-            .zip(&self.batch_norms)
-            .fold(input, |s, (conv, norm)| s.apply(conv).apply_t(norm, true))
-            .reshape(&[-1, (N * N * 128) as i64]);
+        let s = self.forward_conv(input, true);
         let policy = s.apply(&self.fully_connected_policy).log_softmax(1, Kind::Float);
         let eval = s.apply(&self.fully_connected_eval).tanh();
         (policy, eval)
