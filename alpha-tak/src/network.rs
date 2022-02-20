@@ -7,7 +7,7 @@ use tch::{nn, nn::ConvConfig, Device, Kind, Tensor};
 use crate::repr::{game_repr, input_channels, moves_dims};
 
 const RES_BLOCKS: usize = 8;
-const FILTERS: i64 = 256;
+const FILTERS: i64 = 128;
 
 #[derive(Debug)]
 struct ResBlock {
