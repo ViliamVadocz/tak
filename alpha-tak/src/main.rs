@@ -145,11 +145,14 @@ fn play(mut args: Args) {
 
 fn train(mut args: Args) {
     // load or create network
-    let network = if let Some(model_path) = args.next() {
-        Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"))
-    } else {
-        println!("generating random model");
-        Network::<5>::default()
+    let network = match args.next() {
+        Some(model_path) if model_path != "random" => {
+            Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"))
+        }
+        _ => {
+            println!("generating random model");
+            Network::<5>::default()
+        }
     };
 
     // optionally load examples
