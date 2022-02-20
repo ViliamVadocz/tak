@@ -12,8 +12,8 @@ use tak::{
 
 use crate::{agent::Agent, turn_map::Lut};
 
-const EXPLORATION_BASE: f32 = 1000.0;
-const EXPLORATION_INIT: f32 = 1.5;
+const EXPLORATION_BASE: f32 = 500.0;
+const EXPLORATION_INIT: f32 = 2.0;
 const CONTEMPT: f32 = 0.05;
 
 fn exploration_rate(n: f32) -> f32 {
