@@ -5,7 +5,7 @@ use tak::{
     pos::Pos,
     tile::Shape,
 };
-use tch::{Kind, Tensor};
+use tch::{kind::FLOAT_CPU, Tensor};
 
 const STACK_DEPTH_BEYOND_CARRY: usize = 6;
 const COLOUR_CHANNEL: usize = 1;
@@ -35,86 +35,63 @@ pub const fn moves_dims(n: usize) -> usize {
 /// Creates a tensor which represents the board
 /// from the perspective of the current player.
 fn board_repr<const N: usize>(board: &Board<N>, to_move: Colour) -> Tensor {
-    let board_shape = [N as i64, N as i64];
+    // track the positions of all ones in the input tensor
+    let mut positions = Vec::new();
 
-    // handle top layer
-    // each shape type has its own channel, different colours also go on seperate
-    // channels
-    let mut my_flats = vec![false; N * N];
-    let mut en_flats = vec![false; N * N];
-    let mut my_walls = vec![false; N * N];
-    let mut en_walls = vec![false; N * N];
-    let mut my_caps = vec![false; N * N];
-    let mut en_caps = vec![false; N * N];
+    // top layer of stack has 6 channels in total
+    // 2 for flats (1 per player)
+    // 2 for walls (1 per player)
+    // 2 for caps (1 per player)
     for y in 0..N {
         for x in 0..N {
             let pos = Pos { x, y };
             if let Some(tile) = &board[pos] {
-                let i = N * y + x;
-                if tile.top.colour == to_move {
-                    match tile.top.shape {
-                        Shape::Flat => my_flats[i] = true,
-                        Shape::Wall => my_walls[i] = true,
-                        Shape::Capstone => my_caps[i] = true,
-                    }
-                } else {
-                    match tile.top.shape {
-                        Shape::Flat => en_flats[i] = true,
-                        Shape::Wall => en_walls[i] = true,
-                        Shape::Capstone => en_caps[i] = true,
-                    }
-                }
+                let board_offset = N * y + x;
+                let channel = match tile.top.shape {
+                    Shape::Flat => 0,
+                    Shape::Wall => 2,
+                    Shape::Capstone => 4,
+                } + if tile.top.colour == to_move { 0 } else { 1 };
+                positions.push((board_offset + N * N * channel) as i64);
             }
         }
     }
 
-    let mut layers = vec![
-        Tensor::of_slice(&my_flats).view(board_shape),
-        Tensor::of_slice(&en_flats).view(board_shape),
-        Tensor::of_slice(&my_walls).view(board_shape),
-        Tensor::of_slice(&en_walls).view(board_shape),
-        Tensor::of_slice(&my_caps).view(board_shape),
-        Tensor::of_slice(&en_caps).view(board_shape),
-    ];
-
-    // other layers
+    // other layers of stacks
+    // alternating mine and opponent's
     for n in 0..(N + STACK_DEPTH_BEYOND_CARRY - 1) {
-        let mut my_layer = vec![false; N * N];
-        let mut en_layer = vec![false; N * N];
         for y in 0..N {
             for x in 0..N {
                 let pos = Pos { x, y };
                 if let Some(tile) = &board[pos] {
-                    let i = N * y + x;
+                    let board_offset = N * y + x;
                     if let Some(&colour) = tile.stack.iter().rev().nth(n) {
-                        if to_move == colour {
-                            my_layer[i] = true;
-                        } else {
-                            en_layer[i] = true;
-                        }
+                        positions.push(
+                            (board_offset + N * N * (6 + 2 * n + if to_move == colour { 0 } else { 1 }))
+                                as i64,
+                        );
                     }
                 }
             }
         }
-        layers.push(Tensor::of_slice(&my_layer).view(board_shape));
-        layers.push(Tensor::of_slice(&en_layer).view(board_shape));
     }
 
-    Tensor::stack(&layers, 0)
+    let index = Tensor::of_slice(&positions);
+    let ones = Tensor::ones(&[positions.len() as i64], FLOAT_CPU);
+    let mut zeros = Tensor::zeros(&[board_channels(N) as i64, N as i64, N as i64], FLOAT_CPU);
+    zeros.put_(&index, &ones, false)
 }
 
 fn create_reserves_tensor<const N: usize>(stones: u8, max: u8) -> Tensor {
-    let mut reserves = vec![vec![false; N * N]; max as usize];
+    let mut reserves = Tensor::zeros(&[max as i64, N as i64, N as i64], FLOAT_CPU);
     if stones > 0 {
-        reserves[(stones - 1) as usize] = vec![true; N * N];
+        reserves = reserves.index_put_(
+            &[Some(Tensor::of_slice(&[(stones - 1) as i64])), None, None],
+            &Tensor::ones(&[N as i64, N as i64], FLOAT_CPU),
+            false,
+        );
     }
-    Tensor::stack(
-        &reserves
-            .into_iter()
-            .map(|v| Tensor::of_slice(&v).view([N as i64, N as i64]))
-            .collect::<Vec<_>>(),
-        0,
-    )
+    reserves
 }
 
 fn reserves_repr<const N: usize>(game: &Game<N>) -> (Tensor, Tensor, Tensor, Tensor) {
@@ -140,20 +117,25 @@ pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {
     let (my_stones, en_stones, my_caps, en_caps) = reserves_repr(game);
 
     // layer for whose turn it is
-    let colour_layer = Tensor::of_slice(&vec![game.to_move == Colour::White; N * N]).view(layer_shape);
+    let colour_layer = Tensor::full(
+        &layer_shape,
+        if game.to_move == Colour::White { 1. } else { 0. },
+        FLOAT_CPU,
+    );
 
     // layer for fcd (+ komi)
     let fcd = game.board.flat_diff() - game.komi;
-    let fcd_layer = Tensor::of_slice(&vec![fcd as f32 / (N * N) as f32; N * N]).view(layer_shape);
+    let relative_fcd = fcd as f64 / (N * N) as f64;
+    let fcd_layer = Tensor::full(&layer_shape, relative_fcd, FLOAT_CPU);
 
     Tensor::cat(
         &[
-            board.to_kind(Kind::Float),
-            my_stones.to_kind(Kind::Float),
-            en_stones.to_kind(Kind::Float),
-            my_caps.to_kind(Kind::Float),
-            en_caps.to_kind(Kind::Float),
-            colour_layer.to_kind(Kind::Float),
+            board,
+            my_stones,
+            en_stones,
+            my_caps,
+            en_caps,
+            colour_layer,
             fcd_layer,
         ],
         0,
@@ -162,30 +144,26 @@ pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {
 
 #[cfg(test)]
 mod test {
-    use tak::{board::Board, colour::Colour, ptn::FromPTN};
-    use tch::{Device, Kind, Tensor};
+    use tak::{board::Board, colour::Colour, game::Game, ptn::FromPTN};
+    use tch::{kind::FLOAT_CPU, Tensor};
+    use test::Bencher;
 
-    use super::board_repr;
+    use super::{board_repr, game_repr};
     use crate::repr::board_channels;
-    // fn eq(a: &Tensor, b: &Tensor) -> bool {
-    //     let diff: f32 = (a - b).square().sum(Kind::Float).into();
-    //     diff < 1e-9
-    // }
 
     #[test]
     fn empty_board() {
         let board = Board::<5>::default();
         assert_eq!(
             board_repr(&board, Colour::White),
-            Tensor::zeros(&[board_channels(5) as i64, 5, 5], (Kind::Bool, Device::Cpu))
+            Tensor::zeros(&[board_channels(5) as i64, 5, 5], FLOAT_CPU)
         );
     }
 
     #[test]
     fn complicated_board() {
-        let board =
-            Board::<5>::from_ptn("x2,1221,x,1S/2,2C,2,1,x/x,212,21C,2S,2/2211S,2,21,1,1/x2,221S,2,x 2 21")
-                .unwrap();
+        let board = Board::<5>::from_ptn("x2,1221,x,1S/2,2C,2,1,x/x,212,21C,2S,2/2211S,2,21,1,1/x2,221S,2,x")
+            .unwrap();
         let (x, o) = (true, false);
         #[rustfmt::skip]
         let handmade = Tensor::cat(&[
@@ -263,13 +241,41 @@ mod test {
                 o, o, o, o, o,
                 o, o, o, o, o,
             ]).view([12, 5, 5]),
-            Tensor::zeros(&[board_channels(5) as  i64 - 12, 5, 5], (Kind::Bool, Device::Cpu))
+            Tensor::zeros(&[board_channels(5) as  i64 - 12, 5, 5], FLOAT_CPU)
         ], 0);
 
-        let a: Vec<bool> = board_repr(&board, Colour::White).into();
-        let b: Vec<bool> = handmade.into();
+        let a: Vec<f32> = handmade.into();
+        let b: Vec<f32> = board_repr(&board, Colour::White).into();
         assert_eq!(a, b);
-        // assert_eq!(board_repr(&board, Colour::Black), handmade) // idk
-        // doesn't work
+    }
+
+    #[bench]
+    fn game_repr_bench(b: &mut Bencher) {
+        let game = Game::<5>::from_ptn(
+            "1. b3 c3
+            2. Cc4 Sd3
+            3. c3< c3
+            4. c4- Cb4
+            5. b2 c2
+            6. d2 a2
+            7. Sb1 a1
+            8. b1+ a1+
+            9. 2b2< b2
+            10. a5 b5
+            11. c5 d5
+            12. Se5 a4
+            13. a5> d5<
+            14. 2b5> c4
+            15. c1 d1
+            16. c1+ c1
+            17. d4 b1
+            18. Sa1 a3
+            19. a1> a3>
+            20. 2b1> e3
+            21. e2",
+        )
+        .unwrap();
+
+        b.iter(|| game_repr(&game));
     }
 }

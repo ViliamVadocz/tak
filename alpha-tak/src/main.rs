@@ -1,4 +1,7 @@
 #![feature(thread_is_running)]
+#![feature(test)]
+
+extern crate test;
 
 use std::{
     env::Args,
