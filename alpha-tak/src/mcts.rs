@@ -25,7 +25,7 @@ fn upper_confidence_bound<const N: usize>(parent: &Node<N>, child: &Node<N>) -> 
     // U(s, a) = Q(s, a) + C(s) * P(s, a) * sqrt(N(s)) / (1 + N(s, a))
     child.expected_reward
         + exploration_rate(parent.visited_count as f32)
-            * (child.policy + child.dirichlet)
+            * child.policy
             * ((parent.visited_count as f32).sqrt() / (1.0 + child.visited_count as f32))
 }
 
@@ -33,7 +33,6 @@ fn upper_confidence_bound<const N: usize>(parent: &Node<N>, child: &Node<N>) -> 
 pub struct Node<const N: usize> {
     result: Option<GameResult>,
     policy: f32,
-    dirichlet: f32,
     expected_reward: f32,
     visited_count: u32,
     children: Option<HashMap<Turn<N>, Node<N>>>,
@@ -52,34 +51,30 @@ where
 
     #[allow(dead_code)]
     pub fn debug(&self, limit: Option<usize>) -> String {
-        format!(
-            "turn      visited   reward   policy    noise | continuation\n{}",
-            {
-                let mut p: Vec<_> = self.children.as_ref().unwrap().iter().collect();
-                p.sort_by_key(|(_turn, node)| node.visited_count);
-                p.reverse();
-                p.iter()
-                    .take(limit.unwrap_or(usize::MAX))
-                    .map(|(turn, node)| {
-                        let continuation = node
-                            .continuation(3)
-                            .into_iter()
-                            .map(|t| t.to_ptn())
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        format!(
-                            "{: <8} {: >8} {: >8.4} {: >8.4} {: >8.4} | {}\n",
-                            turn.to_ptn(),
-                            node.visited_count,
-                            node.expected_reward,
-                            node.policy,
-                            node.dirichlet,
-                            continuation,
-                        )
-                    })
-                    .collect::<String>()
-            }
-        )
+        format!("turn      visited   reward   policy | continuation\n{}", {
+            let mut p: Vec<_> = self.children.as_ref().unwrap().iter().collect();
+            p.sort_by_key(|(_turn, node)| node.visited_count);
+            p.reverse();
+            p.iter()
+                .take(limit.unwrap_or(usize::MAX))
+                .map(|(turn, node)| {
+                    let continuation = node
+                        .continuation(3)
+                        .into_iter()
+                        .map(|t| t.to_ptn())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    format!(
+                        "{: <8} {: >8} {: >8.4} {: >8.4} | {}\n",
+                        turn.to_ptn(),
+                        node.visited_count,
+                        node.expected_reward,
+                        node.policy,
+                        continuation,
+                    )
+                })
+                .collect::<String>()
+        })
     }
 
     pub fn continuation(&self, depth: u8) -> VecDeque<Turn<N>> {
@@ -177,7 +172,8 @@ where
         let dirichlet = Dirichlet::new(&vec![alpha; count]).unwrap();
         let samples = dirichlet.sample(&mut rand::thread_rng());
         for (node, noise) in self.children.as_mut().unwrap().values_mut().zip(samples) {
-            node.dirichlet = noise;
+            // just average the policy with the noise
+            node.policy = (node.policy + noise) / 2.;
         }
     }
 

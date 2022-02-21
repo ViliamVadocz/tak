@@ -24,7 +24,7 @@ use crate::{
 const SELF_PLAY_GAMES: usize = 1000;
 const ROLLOUTS_PER_MOVE: u32 = 1000;
 const OPENING_PLIES: usize = 4;
-const DIRICHLET_NOISE: f32 = 0.2;
+const DIRICHLET_NOISE: f32 = 0.15;
 
 /// Run multiple games against self.
 #[allow(dead_code)]
