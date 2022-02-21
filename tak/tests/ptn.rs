@@ -1,5 +1,6 @@
 use tak::{
-    game::Game,
+    colour::Colour,
+    game::{Game, GameResult},
     ptn::{FromPTN, ToPTN},
     turn::Turn,
     StrResult,
@@ -57,5 +58,25 @@ fn move_gen_ptn_consistency() -> StrResult<()> {
             assert_eq!(turn, Turn::from_ptn(&turn.to_ptn())?);
         }
     }
+    Ok(())
+}
+
+#[test]
+fn game_options() -> StrResult<()> {
+    let game = Game::<6>::from_ptn(
+        r#"
+        [Site "ptn.ninja"]
+        [Size "6"]
+        [TPS "1,1,1,1,1,2/2,2,2,2,2,1/1,1,1,1,1,2/2,2,2,2,2,1/x6/x6 2 5"]
+        [Opening "swap"]
+        [Date "2022.02.21"]
+        [Time "17:28:50"]
+        [Result "0-R"]
+
+        5. -- e2
+        6. Cd2 Cf2 0-R"#,
+    )?;
+    assert_eq!(game.ply, 12);
+    assert_eq!(game.winner(), GameResult::Winner(Colour::Black));
     Ok(())
 }

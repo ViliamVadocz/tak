@@ -2,11 +2,13 @@ use arrayvec::ArrayVec;
 use regex::Regex;
 
 use crate::{
+    board::Board,
     colour::Colour,
     direction::Direction,
     game::{default_starting_stones, Game},
     pos::Pos,
     tile::{Shape, Tile},
+    tps::FromTPS,
     turn::Turn,
     StrResult,
 };
@@ -18,7 +20,7 @@ lazy_static! {
     static ref TURN_PLACE_RE: Regex = Regex::new(r"([CS]?)([a-z][1-9])").unwrap();
     static ref OPTIONS_RE: Regex = Regex::new(r#"\[(\S+) ["'](.*?)["']\]"#).unwrap();
     static ref COMMENTS_RE: Regex = Regex::new(r"\{.*?\}").unwrap();
-    static ref PLY_SPLIT_RE: Regex = Regex::new(r"\s*\d*\. |\s+|1-0|R-0|F-0|0-1|0-R|0-F|1/2-1/2").unwrap();
+    static ref PLY_SPLIT_RE: Regex = Regex::new(r"\s*\d*\. |\s+|1-0|R-0|F-0|0-1|0-R|0-F|1/2-1/2|--").unwrap();
 }
 
 pub trait FromPTN: Sized {
@@ -202,9 +204,12 @@ where
         // parse game options
         let mut komi = 0;
         let (mut stones, mut caps) = default_starting_stones(N);
+        let mut ply = 0;
+        let mut board = Board::default();
+        let mut to_move = Colour::White;
         for option in OPTIONS_RE.captures_iter(s) {
-            let key = &option[0];
-            let value = &option[1];
+            let key = &option[1];
+            let value = &option[2];
             match key {
                 "Komi" => komi = value.parse::<i32>().map_err(|_| "cannot parse komi")?,
                 "Flats" => stones = value.parse::<u8>().map_err(|_| "cannot parse flats")?,
@@ -213,6 +218,22 @@ where
                     if value.parse::<usize>().map_err(|_| "cannot parse size")? != N {
                         return Err(format!("game size mismatch {value}"));
                     }
+                }
+                "TPS" => {
+                    let mut tps = value.split_whitespace();
+                    board = Board::from_tps(tps.next().ok_or("missing board in TPS")?)?;
+                    to_move = Colour::from_ptn(tps.next().ok_or("missing who is moving in TPS")?)?;
+                    ply = (tps
+                        .next()
+                        .ok_or("missing move number in TPS")?
+                        .parse::<u64>()
+                        .map_err(|_| "cannot parse move number")?
+                        - 1)
+                        * 2
+                        + match to_move {
+                            Colour::White => 0,
+                            Colour::Black => 1,
+                        };
                 }
                 _ => {}
             }
@@ -234,7 +255,9 @@ where
             black_stones: stones,
             white_caps: caps,
             black_caps: caps,
-            ..Default::default()
+            board,
+            to_move,
+            ply,
         };
         game.play_ptn_moves(&moves)?;
         Ok(game)
