@@ -21,9 +21,10 @@ use crate::{
     KOMI,
 };
 
-const SELF_PLAY_GAMES: usize = 500;
-const ROLLOUTS_PER_MOVE: u32 = 2000;
-const OPENING_PLIES: usize = 3;
+const SELF_PLAY_GAMES: usize = 1000;
+const ROLLOUTS_PER_MOVE: u32 = 1000;
+const OPENING_PLIES: usize = 4;
+const DIRICHLET_NOISE: f32 = 0.2;
 
 /// Run multiple games against self.
 #[allow(dead_code)]
@@ -157,6 +158,8 @@ where
     // initialize MCTS
     let mut node = Node::default();
     while matches!(game.winner(), GameResult::Ongoing) {
+        node.rollout(game.clone(), agent); // at least one rollout to initialize children.
+        node.apply_dirichlet(DIRICHLET_NOISE);
         for _ in 0..ROLLOUTS_PER_MOVE {
             node.rollout(game.clone(), agent);
         }
