@@ -171,3 +171,35 @@ where
         })
         .collect()
 }
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use tak::{game::Game, turn::Turn, ptn::FromPTN};
+    use test::Bencher;
+
+    use super::Example;
+
+    #[bench]
+    fn to_tensors_bench(b: &mut Bencher) {
+        let game = Game::<5>::from_ptn("
+            1. a1 e1
+            2. c3 Cd3
+            3. d4 c4
+            4. c2 d2
+            5. b4 c5
+        ").unwrap();
+        let policy = game
+            .possible_turns()
+            .into_iter()
+            .map(|t| (t, 1))
+            .collect::<HashMap<Turn<5>, u32>>();
+        let example = Example {
+            game,
+            policy,
+            result: 1.0,
+        };
+        b.iter(|| example.to_tensors())
+    }
+}
