@@ -52,7 +52,7 @@ where
     Turn<N>: Lut,
     [[Option<Tile>; N]; N]: Default,
 {
-    pub fn to_tensors(&self) -> Vec<(Tensor, Tensor, Tensor)> {
+    pub fn to_tensors(&self) -> Vec<(Tensor, Tensor, f32)> {
         let mut pi = [
             vec![0.; moves_dims(N)],
             vec![0.; moves_dims(N)],
@@ -75,13 +75,7 @@ where
             .symmetries()
             .into_iter()
             .enumerate()
-            .map(|(i, game)| {
-                (
-                    game_repr(&game),
-                    Tensor::of_slice(&pi[i]),
-                    Tensor::of_slice(&[self.result]),
-                )
-            })
+            .map(|(i, game)| (game_repr(&game), Tensor::of_slice(&pi[i]), self.result))
             .collect()
     }
 }
@@ -176,20 +170,23 @@ where
 mod test {
     use std::collections::HashMap;
 
-    use tak::{game::Game, turn::Turn, ptn::FromPTN};
+    use tak::{game::Game, ptn::FromPTN, turn::Turn};
     use test::Bencher;
 
     use super::Example;
 
     #[bench]
     fn to_tensors_bench(b: &mut Bencher) {
-        let game = Game::<5>::from_ptn("
+        let game = Game::<5>::from_ptn(
+            "
             1. a1 e1
             2. c3 Cd3
             3. d4 c4
             4. c2 d2
             5. b4 c5
-        ").unwrap();
+        ",
+        )
+        .unwrap();
         let policy = game
             .possible_turns()
             .into_iter()
