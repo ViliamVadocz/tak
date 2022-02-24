@@ -2,7 +2,7 @@ use tak::{
     colour::Colour,
     game::{Game, GameResult},
     ptn::FromPTN,
-    StrResult,
+    StrResult, turn::Turn,
 };
 
 #[test]
@@ -46,5 +46,16 @@ fn road_win() -> StrResult<()> {
         7. e2 e3",
     )?;
     assert_eq!(game.winner(), GameResult::Winner(Colour::Black));
+    Ok(())
+}
+
+#[test]
+fn road_beats_flats() -> StrResult<()> {
+    let mut game = Game::<5>::from_ptn(
+        "[TPS \"2,1,1,1,2/x,1,11211112C,221C,21/1212,x,2,x2/x,1112S,x,2,1/221S,2121,x,2,x 1 42\"]
+        [Komi \"2\"]"
+    )?;
+    game.play(Turn::from_ptn("a4")?)?;
+    assert_eq!(game.winner(), GameResult::Winner(Colour::White));
     Ok(())
 }

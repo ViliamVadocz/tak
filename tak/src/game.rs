@@ -223,7 +223,11 @@ impl<const N: usize> Game<N> {
     }
 
     pub fn winner(&self) -> GameResult {
-        if self.white_caps == 0 && self.white_stones == 0
+        if self.board.find_paths(self.to_move.next()) {
+            GameResult::Winner(self.to_move.next())
+        } else if self.board.find_paths(self.to_move) {
+            GameResult::Winner(self.to_move)
+        } else if self.white_caps == 0 && self.white_stones == 0
             || self.black_caps == 0 && self.black_stones == 0
             || self.board.full()
         {
@@ -232,11 +236,7 @@ impl<const N: usize> Game<N> {
                 Ordering::Greater => GameResult::Winner(Colour::White),
                 Ordering::Less => GameResult::Winner(Colour::Black),
                 Ordering::Equal => GameResult::Draw,
-            }
-        } else if self.board.find_paths(self.to_move.next()) {
-            GameResult::Winner(self.to_move.next())
-        } else if self.board.find_paths(self.to_move) {
-            GameResult::Winner(self.to_move)
+            } 
         } else if self.ply >= TURN_LIMIT {
             GameResult::Draw
         } else {
