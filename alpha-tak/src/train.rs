@@ -1,13 +1,15 @@
+use rand::{prelude::SliceRandom, thread_rng};
 use tak::{tile::Tile, turn::Turn};
 use tch::{
     data::Iter2,
-    nn::{self, OptimizerConfig},
+    nn::{self, Optimizer, OptimizerConfig},
     Kind,
     Tensor,
 };
 
-use crate::{example::Example, network::Network, repr::moves_dims, turn_map::Lut, DEVICE, MAX_EXAMPLES};
+use crate::{example::Example, network::Network, repr::moves_dims, turn_map::Lut, DEVICE};
 
+const MAX_TRAIN_SIZE: usize = 50_000;
 const BATCH_SIZE: i64 = 10_000;
 const LEARNING_RATE: f64 = 1e-4;
 const WEIGHT_DECAY: f64 = 1e-4;
@@ -19,12 +21,6 @@ impl<const N: usize> Network<N> {
         Turn<N>: Lut,
         [[Option<Tile>; N]; N]: Default,
     {
-        if examples.len() > MAX_EXAMPLES {
-            println!("too many examples, splitting training up");
-            self.train(&examples[0..MAX_EXAMPLES]);
-            self.train(&examples[MAX_EXAMPLES..]);
-            return;
-        }
         println!("starting training with {} examples", examples.len());
 
         let mut opt = nn::Adam {
@@ -34,6 +30,20 @@ impl<const N: usize> Network<N> {
         .build(&self.vs, LEARNING_RATE)
         .unwrap();
 
+        // shuffle only the references to the examples so that the real storage
+        // of examples preserves order from oldest to newest.
+        let mut refs: Vec<_> = examples.iter().collect();
+        refs.shuffle(&mut thread_rng());
+        for window in refs.windows(MAX_TRAIN_SIZE) {
+            self.train_inner(&mut opt, window)
+        }
+    }
+
+    fn train_inner(&mut self, opt: &mut Optimizer, examples: &[&Example<N>])
+    where
+        Turn<N>: Lut,
+        [[Option<Tile>; N]; N]: Default,
+    {
         // batch examples
         let mut batch_iter = {
             println!("creating symmetries");
