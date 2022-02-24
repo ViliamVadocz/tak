@@ -78,7 +78,8 @@ where
     }
 
     pub fn continuation(&self, depth: u8) -> VecDeque<Turn<N>> {
-        if depth == 0 || self.children.is_none() {
+        const MIN_VISIT_COUNT: u32 = 1;
+        if depth == 0 || self.children.is_none() || self.visited_count <= MIN_VISIT_COUNT {
             return VecDeque::new();
         }
         let turn = self.pick_move(true);
