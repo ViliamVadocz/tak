@@ -34,8 +34,8 @@ impl<const N: usize> Network<N> {
         // of examples preserves order from oldest to newest.
         let mut refs: Vec<_> = examples.iter().collect();
         refs.shuffle(&mut thread_rng());
-        for window in refs.windows(MAX_TRAIN_SIZE) {
-            self.train_inner(&mut opt, window)
+        for chunk in refs.chunks(MAX_TRAIN_SIZE) {
+            self.train_inner(&mut opt, chunk)
         }
     }
 
