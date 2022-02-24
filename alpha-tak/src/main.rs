@@ -132,8 +132,13 @@ fn play(mut args: Args) {
             let backup = game.clone();
             match game.play(turn.clone()) {
                 Ok(_) => {
-                    debug_info += &format!("ply: {}\n", backup.ply);
-                    debug_info += &node.debug(None);
+                    debug_info += &format!(
+                        "move: {}, to move: {:?},  ply: {}\n{}",
+                        backup.ply / 2 + 1,
+                        backup.to_move,
+                        backup.ply,
+                        node.debug(None)
+                    );
                     debug_info.push('\n');
                     node = node.play(&turn);
                 }
@@ -265,7 +270,13 @@ where
         while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < SECONDS_PER_TURN {
             node.rollout(game.clone(), network);
         }
-        println!("ply: {}\n{}", game.ply, node.debug(None));
+        println!(
+            "move: {}, to move: {:?},  ply: {}\n{}",
+            game.ply / 2 + 1,
+            game.to_move,
+            game.ply,
+            node.debug(None)
+        );
         let turn = node.pick_move(true);
         turns.push(turn.to_ptn());
         node = node.play(&turn);
