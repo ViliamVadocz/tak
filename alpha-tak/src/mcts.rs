@@ -164,7 +164,7 @@ where
         -eval
     }
 
-    pub fn apply_dirichlet(&mut self, alpha: f32) {
+    pub fn apply_dirichlet(&mut self, alpha: f32, ratio: f32) {
         let count = self
             .children
             .as_ref()
@@ -173,8 +173,7 @@ where
         let dirichlet = Dirichlet::new(&vec![alpha; count]).unwrap();
         let samples = dirichlet.sample(&mut rand::thread_rng());
         for (node, noise) in self.children.as_mut().unwrap().values_mut().zip(samples) {
-            // just average the policy with the noise
-            node.policy = (node.policy + noise) / 2.;
+            node.policy = noise * ratio + node.policy * (1. - ratio);
         }
     }
 
