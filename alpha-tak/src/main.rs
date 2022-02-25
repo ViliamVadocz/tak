@@ -93,7 +93,13 @@ fn play(mut args: Args) {
                     node.rollout(game.clone(), &network);
                 }
             }
-            debug_info += &format!("ply: {}\n", game.ply);
+            debug_info += &format!(
+                "move: {}, to move: {:?},  ply: {}\n{}",
+                game.ply / 2 + 1,
+                game.to_move,
+                game.ply,
+                node.debug(None)
+            );
             debug_info += &node.debug(None);
             debug_info.push('\n');
 
