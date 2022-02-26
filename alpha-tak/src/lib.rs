@@ -4,7 +4,6 @@
 extern crate test;
 
 use std::{
-    env::Args,
     fs::File,
     io::Write,
     sync::mpsc::channel,
@@ -37,17 +36,18 @@ use crate::{
 #[macro_use]
 extern crate lazy_static;
 
-mod agent;
-mod example;
-mod mcts;
-mod network;
-mod pit;
-mod repr;
-mod self_play;
-mod train;
-mod turn_map;
+pub mod agent;
+pub mod example;
+pub mod mcts;
+pub mod network;
+pub mod pit;
+pub mod player;
+pub mod repr;
+pub mod self_play;
+pub mod train;
+pub mod turn_map;
 
-const MAX_EXAMPLES: usize = 100_000;
+const MAX_EXAMPLES: usize = 250_000; // probably too high and I will run out of memory
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 
 pub const KOMI: i32 = 2;
@@ -56,39 +56,29 @@ lazy_static! {
     static ref DEVICE: Device = Device::cuda_if_available();
 }
 
-fn main() {
+/// Try initializing CUDA
+/// Returns whether CUDA is available
+pub fn use_cuda() -> bool {
     tch::maybe_init_cuda();
-    println!("CUDA: {}", Cuda::is_available());
-
-    let mut args = std::env::args();
-    let _ = args.next();
-    match args.next() {
-        Some(s) if s == "play" => play(args),
-        Some(s) if s == "train" => train(args),
-        _ => println!("usage: alpha-tak (play|train) <model_path> [<example_path>*]"),
-    }
+    Cuda::is_available()
 }
 
-fn play(mut args: Args) {
-    const SECONDS_PER_MOVE: u64 = 10;
-
+pub fn play(model_path: String, colour: Colour, seconds_per_move: u64) {
     // load or create network
-    let model_path = args.next().expect("you need to supply a model path");
     let network =
         Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"));
 
     let mut game = Game::<5>::with_komi(KOMI);
-    let colour = if random() { Colour::White } else { Colour::Black };
-    println!("the network is playing as {colour:?}");
+    let net_colour = colour.next();
 
     let mut debug_info = String::new();
 
     let mut node = Node::default();
     while matches!(game.winner(), GameResult::Ongoing) {
-        if game.to_move == colour {
+        if game.to_move == net_colour {
             // do rollouts
             let start_turn = SystemTime::now();
-            while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < SECONDS_PER_MOVE {
+            while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < seconds_per_move {
                 for _ in 0..100 {
                     node.rollout(game.clone(), &network);
                 }
@@ -161,12 +151,10 @@ fn play(mut args: Args) {
     println!("{debug_info}");
 }
 
-fn train(mut args: Args) {
+pub fn train(model_path: Option<String>, example_paths: Vec<String>) {
     // load or create network
-    let network = match args.next() {
-        Some(model_path) if model_path != "random" => {
-            Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"))
-        }
+    let network = match &model_path {
+        Some(m) if m != "random" => Network::<5>::load(m).unwrap_or_else(|_| panic!("couldn't load model at {m}")),
         _ => {
             println!("generating random model");
             Network::<5>::default()
@@ -175,7 +163,7 @@ fn train(mut args: Args) {
 
     // optionally load examples
     let mut examples = Vec::new();
-    for examples_path in args {
+    for examples_path in example_paths {
         println!("loading {examples_path}");
         examples.extend(
             load_examples(&examples_path)
@@ -211,7 +199,7 @@ where
                 network.save(format!("models/{}.model", sys_time())).unwrap();
 
                 // it seems it improves more often if only training on fresh examples
-                examples.clear();
+                // examples.clear();
 
                 // run an example game to qualitative analysis
                 example_game(&network);
