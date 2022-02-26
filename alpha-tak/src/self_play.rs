@@ -23,9 +23,9 @@ use crate::{
 
 const SELF_PLAY_GAMES: usize = 1000;
 const ROLLOUTS_PER_MOVE: u32 = 1000;
-const OPENING_PLIES: usize = 2;
+const OPENING_PLIES: usize = 3;
 const DIRICHLET_NOISE: f32 = 0.15;
-const NOISE_RATIO: f32 = 0.75;
+const NOISE_RATIO: f32 = 0.6;
 const TEMPERATURE_PLIES: u64 = 20;
 
 /// Run multiple games against self.
