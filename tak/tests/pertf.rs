@@ -1,7 +1,4 @@
-use tak::{
-    game::{Game, GameResult},
-    StrResult,
-};
+use tak::*;
 
 fn perf_count<const N: usize>(game: Game<N>, depth: usize) -> usize {
     if depth == 0 || !matches!(game.winner(), GameResult::Ongoing) {

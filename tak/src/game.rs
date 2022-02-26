@@ -236,7 +236,7 @@ impl<const N: usize> Game<N> {
                 Ordering::Greater => GameResult::Winner(Colour::White),
                 Ordering::Less => GameResult::Winner(Colour::Black),
                 Ordering::Equal => GameResult::Draw,
-            } 
+            }
         } else if self.ply >= TURN_LIMIT {
             GameResult::Draw
         } else {

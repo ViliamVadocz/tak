@@ -1,11 +1,4 @@
-use tak::{
-    board::Board,
-    game::Game,
-    pos::Pos,
-    ptn::FromPTN,
-    tps::{FromTPS, ToTPS},
-    StrResult,
-};
+use tak::*;
 
 #[test]
 fn empty_board_tps() {

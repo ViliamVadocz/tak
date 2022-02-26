@@ -1,9 +1,4 @@
-use tak::{
-    game::{Game, GameResult},
-    pos::Pos,
-    symm::Symmetry,
-    StrResult,
-};
+use tak::*;
 
 #[test]
 fn rotate_even() {

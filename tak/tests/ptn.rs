@@ -1,10 +1,4 @@
-use tak::{
-    colour::Colour,
-    game::{Game, GameResult},
-    ptn::{FromPTN, ToPTN},
-    turn::Turn,
-    StrResult,
-};
+use tak::*;
 
 const PLIES: &[&str] = &[
     "a6", "f6", "Cd4", "Cc4", "Sd3", "Sc3", "d5", "c5", "d5<", "c4+", "d5", "Se5", "b5", "2c5>11*", "2d5<11",
