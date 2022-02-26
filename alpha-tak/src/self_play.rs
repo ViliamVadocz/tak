@@ -26,6 +26,7 @@ const ROLLOUTS_PER_MOVE: u32 = 1000;
 const OPENING_PLIES: usize = 2;
 const DIRICHLET_NOISE: f32 = 0.15;
 const NOISE_RATIO: f32 = 0.75;
+const TEMPERATURE_PLIES: u64 = 20;
 
 /// Run multiple games against self.
 #[allow(dead_code)]
@@ -170,7 +171,7 @@ where
             policy: node.improved_policy(),
         });
         // pick a turn and play it
-        let turn = node.pick_move(false);
+        let turn = node.pick_move(game.ply > TEMPERATURE_PLIES);
         node = node.play(&turn);
         game.play(turn).unwrap();
     }
