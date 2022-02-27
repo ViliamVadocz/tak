@@ -1,9 +1,9 @@
 use std::sync::mpsc::{Receiver, Sender};
 
-use tak::game::Game;
+use tak::*;
 use tch::Device;
 
-use crate::{network::Network, repr::game_repr};
+use crate::{model::network::Network, repr::game_repr};
 
 pub trait Agent<const N: usize> {
     fn policy_and_eval(&self, game: &Game<N>) -> (Vec<f32>, f32);

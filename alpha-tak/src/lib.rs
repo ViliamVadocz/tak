@@ -11,46 +11,35 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use config::MAX_EXAMPLES;
 use example::{save_examples, Example};
-use network::Network;
-use rand::random;
-use tak::{
-    colour::Colour,
-    game::{Game, GameResult},
-    pos::Pos,
-    ptn::{FromPTN, ToPTN},
-    tile::{Shape, Tile},
-    turn::Turn,
-};
+use search::turn_map::Lut;
+use tak::*;
 use tch::{Cuda, Device};
-use turn_map::Lut;
 
-use crate::example::load_examples;
-#[allow(unused_imports)]
 use crate::{
-    mcts::Node,
-    pit::{pit, pit_async},
-    self_play::{self_play, self_play_async},
+    config::{KOMI, WIN_RATE_THRESHOLD},
+    example::load_examples,
+    model::network::Network,
+    pit::pit_async,
+    search::node::Node,
+    self_play::self_play_async,
 };
 
 #[macro_use]
 extern crate lazy_static;
 
+pub mod model;
+pub mod search;
+
+pub mod config;
+
 pub mod agent;
 pub mod example;
-pub mod mcts;
-pub mod network;
 pub mod pit;
 pub mod player;
 pub mod repr;
 pub mod self_play;
-pub mod train;
-pub mod turn_map;
-
-const MAX_EXAMPLES: usize = 250_000; // probably too high and I will run out of memory
-const WIN_RATE_THRESHOLD: f64 = 0.55;
-
-pub const KOMI: i32 = 2;
 
 lazy_static! {
     static ref DEVICE: Device = Device::cuda_if_available();
@@ -154,7 +143,9 @@ pub fn play(model_path: String, colour: Colour, seconds_per_move: u64) {
 pub fn train(model_path: Option<String>, example_paths: Vec<String>) {
     // load or create network
     let network = match &model_path {
-        Some(m) if m != "random" => Network::<5>::load(m).unwrap_or_else(|_| panic!("couldn't load model at {m}")),
+        Some(m) if m != "random" => {
+            Network::<5>::load(m).unwrap_or_else(|_| panic!("couldn't load model at {m}"))
+        }
         _ => {
             println!("generating random model");
             Network::<5>::default()
@@ -240,18 +231,8 @@ where
     let mut game = Game::with_komi(KOMI);
     let mut turns = Vec::new();
     // opening
-    let turn0 = Turn::Place {
-        pos: Pos { x: 0, y: 0 },
-        shape: Shape::Flat,
-    };
-    let turn1 = Turn::Place {
-        // randomly pick between diagonal or adjacent corners
-        pos: Pos {
-            x: N - 1,
-            y: if random::<f64>() < 0.5 { 0 } else { N - 1 },
-        },
-        shape: Shape::Flat,
-    };
+    let turn0 = Turn::from_ptn("a1").unwrap();
+    let turn1 = Turn::from_ptn(if rand::random::<f64>() < 0.5 { "e1" } else { "e5" }).unwrap();
     turns.push(turn0.to_ptn());
     turns.push(turn1.to_ptn());
     game.play(turn0).unwrap();

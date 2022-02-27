@@ -5,22 +5,13 @@ use std::{
     io::{Read, Write},
 };
 
-use tak::{
-    board::Board,
-    colour::Colour,
-    game::Game,
-    ptn::{FromPTN, ToPTN},
-    symm::Symmetry,
-    tile::Tile,
-    tps::{FromTPS, ToTPS},
-    turn::Turn,
-};
+use tak::*;
 use tch::Tensor;
 
 use crate::{
     repr::{game_repr, moves_dims},
+    search::turn_map::Lut,
     sys_time,
-    turn_map::Lut,
 };
 
 #[derive(Debug)]
@@ -170,7 +161,7 @@ where
 mod test {
     use std::collections::HashMap;
 
-    use tak::{game::Game, ptn::FromPTN, turn::Turn};
+    use tak::*;
     use test::Bencher;
 
     use super::Example;

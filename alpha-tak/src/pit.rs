@@ -2,23 +2,14 @@ use std::{sync::mpsc::channel, thread};
 
 use arrayvec::ArrayVec;
 use rand::random;
-use tak::{
-    colour::Colour,
-    game::{Game, GameResult},
-    tile::Tile,
-    turn::Turn,
-};
+use tak::*;
 
 use crate::{
     agent::{Agent, Batcher},
-    mcts::Node,
-    network::Network,
-    turn_map::Lut,
-    KOMI,
+    config::{KOMI, PIT_MATCHES, ROLLOUTS_PER_MOVE},
+    model::network::Network,
+    search::{node::Node, turn_map::Lut},
 };
-
-const ROLLOUTS_PER_MOVE: u32 = 500;
-const PIT_MATCHES: usize = 64;
 
 #[derive(Debug, Default)]
 pub struct PitResult {
@@ -145,7 +136,6 @@ where
 
 /// Pits two networks against each other.
 /// Returns wins, draws, and losses of the match.
-#[allow(dead_code)]
 pub fn pit<const N: usize>(new: &Network<N>, old: &Network<N>) -> PitResult
 where
     [[Option<Tile>; N]; N]: Default,

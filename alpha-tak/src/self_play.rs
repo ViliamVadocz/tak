@@ -5,31 +5,25 @@ use std::{
 
 use arrayvec::ArrayVec;
 use rand::random;
-use tak::{
-    colour::Colour,
-    game::{Game, GameResult},
-    tile::Tile,
-    turn::Turn,
-};
+use tak::*;
 
 use crate::{
     agent::{Agent, Batcher},
+    config::{
+        DIRICHLET_NOISE,
+        KOMI,
+        NOISE_RATIO,
+        OPENING_PLIES,
+        ROLLOUTS_PER_MOVE,
+        SELF_PLAY_GAMES,
+        TEMPERATURE_PLIES,
+    },
     example::{Example, IncompleteExample},
-    mcts::Node,
-    network::Network,
-    turn_map::Lut,
-    KOMI,
+    model::network::Network,
+    search::{node::Node, turn_map::Lut},
 };
 
-const SELF_PLAY_GAMES: usize = 1000;
-const ROLLOUTS_PER_MOVE: u32 = 1000;
-const OPENING_PLIES: usize = 3;
-const DIRICHLET_NOISE: f32 = 0.15;
-const NOISE_RATIO: f32 = 0.6;
-const TEMPERATURE_PLIES: u64 = 20;
-
 /// Run multiple games against self.
-#[allow(dead_code)]
 pub fn self_play<const N: usize>(network: &Network<N>) -> Vec<Example<N>>
 where
     [[Option<Tile>; N]; N]: Default,

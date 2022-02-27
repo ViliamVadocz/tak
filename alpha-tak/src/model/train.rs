@@ -1,5 +1,5 @@
 use rand::{prelude::SliceRandom, thread_rng};
-use tak::{tile::Tile, turn::Turn};
+use tak::*;
 use tch::{
     data::Iter2,
     nn::{self, Optimizer, OptimizerConfig},
@@ -7,12 +7,14 @@ use tch::{
     Tensor,
 };
 
-use crate::{example::Example, network::Network, repr::moves_dims, turn_map::Lut, DEVICE};
-
-const MAX_TRAIN_SIZE: usize = 50_000;
-const BATCH_SIZE: i64 = 10_000;
-const LEARNING_RATE: f64 = 1e-4;
-const WEIGHT_DECAY: f64 = 1e-4;
+use super::network::Network;
+use crate::{
+    config::{BATCH_SIZE, LEARNING_RATE, MAX_TRAIN_SIZE, WEIGHT_DECAY},
+    example::Example,
+    repr::moves_dims,
+    search::turn_map::Lut,
+    DEVICE,
+};
 
 impl<const N: usize> Network<N> {
     // TODO validation data

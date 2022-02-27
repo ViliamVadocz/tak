@@ -1,10 +1,4 @@
-use tak::{
-    board::Board,
-    colour::Colour,
-    game::{default_starting_stones, Game},
-    pos::Pos,
-    tile::Shape,
-};
+use tak::*;
 use tch::{kind::FLOAT_CPU, Tensor};
 
 const STACK_DEPTH_BEYOND_CARRY: usize = 6;
@@ -144,7 +138,7 @@ pub fn game_repr<const N: usize>(game: &Game<N>) -> Tensor {
 
 #[cfg(test)]
 mod test {
-    use tak::{board::Board, colour::Colour, game::Game, ptn::FromPTN, tps::FromTPS};
+    use tak::*;
     use tch::{kind::FLOAT_CPU, Tensor};
     use test::Bencher;
 

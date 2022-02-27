@@ -1,13 +1,6 @@
 use std::{collections::HashMap, iter::repeat};
 
-use tak::{
-    board::Board,
-    colour::Colour,
-    game::Game,
-    pos::Pos,
-    tile::{Piece, Shape, Tile},
-    turn::Turn,
-};
+use tak::*;
 
 lazy_static! {
     static ref LUT_3: HashMap<Turn<3>, usize> = generate_turn_map::<3>();
