@@ -18,7 +18,7 @@ use tak::*;
 use tch::{Cuda, Device};
 
 use crate::{
-    config::{KOMI, WIN_RATE_THRESHOLD},
+    config::{KOMI, N, WIN_RATE_THRESHOLD},
     example::load_examples,
     model::network::Network,
     pit::pit_async,
@@ -55,9 +55,9 @@ pub fn use_cuda() -> bool {
 pub fn play(model_path: String, colour: Colour, seconds_per_move: u64) {
     // load or create network
     let network =
-        Network::<5>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"));
+        Network::<N>::load(&model_path).unwrap_or_else(|_| panic!("couldn't load model at {model_path}"));
 
-    let mut game = Game::<5>::with_komi(KOMI);
+    let mut game = Game::<N>::with_komi(KOMI);
     let net_colour = colour.next();
 
     let mut debug_info = String::new();
@@ -144,11 +144,11 @@ pub fn train(model_path: Option<String>, example_paths: Vec<String>) {
     // load or create network
     let network = match &model_path {
         Some(m) if m != "random" => {
-            Network::<5>::load(m).unwrap_or_else(|_| panic!("couldn't load model at {m}"))
+            Network::<N>::load(m).unwrap_or_else(|_| panic!("couldn't load model at {m}"))
         }
         _ => {
             println!("generating random model");
-            Network::<5>::default()
+            Network::<N>::default()
         }
     };
 
