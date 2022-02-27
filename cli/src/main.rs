@@ -1,6 +1,6 @@
 use alpha_tak::{play, train, use_cuda};
 use clap::{Parser, Subcommand};
-use tak::colour::Colour;
+use tak::*;
 
 /// AlphaTak Command Line Interface
 #[derive(Parser)]

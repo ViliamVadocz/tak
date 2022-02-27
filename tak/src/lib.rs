@@ -19,10 +19,10 @@ pub type StrResult<T> = Result<T, String>;
 // re-export so you can star import everything important
 pub use board::Board;
 pub use colour::Colour;
-pub use game::{Game, GameResult};
+pub use game::{default_starting_stones, Game, GameResult};
 pub use pos::Pos;
 pub use ptn::{FromPTN, ToPTN};
 pub use symm::Symmetry;
-pub use tile::Tile;
+pub use tile::{Piece, Shape, Tile};
 pub use tps::{FromTPS, ToTPS};
 pub use turn::Turn;
