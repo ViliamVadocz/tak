@@ -30,8 +30,8 @@ const TURN_LIMIT: u64 = 400;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GameResult {
-    Winner(Colour),
-    Draw,
+    Winner { colour: Colour, road: bool },
+    Draw { turn_limit: bool },
     Ongoing,
 }
 
@@ -224,21 +224,33 @@ impl<const N: usize> Game<N> {
 
     pub fn winner(&self) -> GameResult {
         if self.board.find_paths(self.to_move.next()) {
-            GameResult::Winner(self.to_move.next())
+            GameResult::Winner {
+                colour: self.to_move.next(),
+                road: true,
+            }
         } else if self.board.find_paths(self.to_move) {
-            GameResult::Winner(self.to_move)
+            GameResult::Winner {
+                colour: self.to_move,
+                road: true,
+            }
         } else if self.white_caps == 0 && self.white_stones == 0
             || self.black_caps == 0 && self.black_stones == 0
             || self.board.full()
         {
             let flat_diff = self.board.flat_diff();
             match flat_diff.cmp(&self.komi) {
-                Ordering::Greater => GameResult::Winner(Colour::White),
-                Ordering::Less => GameResult::Winner(Colour::Black),
-                Ordering::Equal => GameResult::Draw,
+                Ordering::Greater => GameResult::Winner {
+                    colour: Colour::White,
+                    road: false,
+                },
+                Ordering::Less => GameResult::Winner {
+                    colour: Colour::Black,
+                    road: false,
+                },
+                Ordering::Equal => GameResult::Draw { turn_limit: false },
             }
         } else if self.ply >= TURN_LIMIT {
-            GameResult::Draw
+            GameResult::Draw { turn_limit: true }
         } else {
             GameResult::Ongoing
         }

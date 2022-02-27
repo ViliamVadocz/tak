@@ -28,14 +28,14 @@ impl PitResult {
 
     fn update(&mut self, result: GameResult, colour: Colour) {
         match result {
-            GameResult::Winner(winner) => {
+            GameResult::Winner { colour: winner, .. } => {
                 if winner == colour {
                     self.wins += 1
                 } else {
                     self.losses += 1
                 }
             }
-            GameResult::Draw => self.draws += 1,
+            GameResult::Draw { .. } => self.draws += 1,
             GameResult::Ongoing => {}
         }
     }

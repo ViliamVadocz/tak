@@ -12,7 +12,10 @@ fn double_road_correct_win() -> StrResult<()> {
         7. f3 Cb5
         8. d4-",
     )?;
-    assert_eq!(game.winner(), GameResult::Winner(Colour::White));
+    assert_eq!(game.winner(), GameResult::Winner {
+        colour: Colour::White,
+        road: true
+    });
     Ok(())
 }
 
@@ -25,7 +28,10 @@ fn flat_win() -> StrResult<()> {
         4. b1 a1
         5. a2 F-0",
     )?;
-    assert_eq!(game.winner(), GameResult::Winner(Colour::White));
+    assert_eq!(game.winner(), GameResult::Winner {
+        colour: Colour::White,
+        road: false
+    });
     Ok(())
 }
 
@@ -40,7 +46,10 @@ fn road_win() -> StrResult<()> {
         6. c4 c1
         7. e2 e3",
     )?;
-    assert_eq!(game.winner(), GameResult::Winner(Colour::Black));
+    assert_eq!(game.winner(), GameResult::Winner {
+        colour: Colour::Black,
+        road: true
+    });
     Ok(())
 }
 
@@ -51,6 +60,9 @@ fn road_beats_flats() -> StrResult<()> {
         [Komi \"2\"]",
     )?;
     game.play(Turn::from_ptn("a4")?)?;
-    assert_eq!(game.winner(), GameResult::Winner(Colour::White));
+    assert_eq!(game.winner(), GameResult::Winner {
+        colour: Colour::White,
+        road: true
+    });
     Ok(())
 }

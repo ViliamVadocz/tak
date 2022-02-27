@@ -19,7 +19,10 @@ fn mate_in_one() {
     }
     let turn = node.pick_move(true);
     game.play(turn).unwrap();
-    assert_eq!(game.winner(), GameResult::Winner(Colour::White))
+    assert_eq!(game.winner(), GameResult::Winner {
+        colour: Colour::White,
+        road: true
+    })
 }
 
 #[test]
@@ -62,5 +65,8 @@ fn white_win_3s() {
         game.play(turn).unwrap();
     }
 
-    assert_eq!(game.winner(), GameResult::Winner(Colour::White));
+    assert_eq!(game.winner(), GameResult::Winner {
+        colour: Colour::White,
+        road: true
+    });
 }

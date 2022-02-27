@@ -172,10 +172,17 @@ where
     let winner = game.winner();
     println!("{winner:?} in {} plies\n{}", game.ply, game.board);
     // complete examples by filling in game result
+    // TODO maybe remove examples where we draw by turn limit
     let result = match winner {
-        GameResult::Winner(Colour::White) => 1.,
-        GameResult::Winner(Colour::Black) => -1.,
-        GameResult::Draw => 0.,
+        GameResult::Winner {
+            colour: Colour::White,
+            ..
+        } => 1.,
+        GameResult::Winner {
+            colour: Colour::Black,
+            ..
+        } => -1.,
+        GameResult::Draw { .. } => 0.,
         GameResult::Ongoing => unreachable!(),
     };
     game_examples

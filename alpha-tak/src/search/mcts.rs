@@ -16,7 +16,7 @@ where
         if self.result.is_none() {
             self.result = Some(game.winner());
             self.expected_reward = match self.result {
-                Some(GameResult::Winner(winner)) => {
+                Some(GameResult::Winner { colour: winner, .. }) => {
                     if winner == game.to_move {
                         // means that the previous player played a losing move
                         -1.
@@ -24,11 +24,11 @@ where
                         1.
                     }
                 }
-                Some(GameResult::Draw) => -CONTEMPT,
+                Some(GameResult::Draw { .. }) => -CONTEMPT,
                 _ => 0.,
             };
         }
-        if let Some(GameResult::Winner(_) | GameResult::Draw) = self.result {
+        if let Some(GameResult::Winner { .. } | GameResult::Draw { .. }) = self.result {
             return -self.expected_reward;
         }
 

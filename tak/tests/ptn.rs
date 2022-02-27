@@ -71,6 +71,9 @@ fn game_options() -> StrResult<()> {
         6. Cd2 Cf2 0-R"#,
     )?;
     assert_eq!(game.ply, 12);
-    assert_eq!(game.winner(), GameResult::Winner(Colour::Black));
+    assert_eq!(game.winner(), GameResult::Winner {
+        colour: Colour::Black,
+        road: true
+    });
     Ok(())
 }
