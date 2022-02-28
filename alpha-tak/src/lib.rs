@@ -32,6 +32,7 @@ extern crate lazy_static;
 pub mod model;
 pub mod search;
 
+pub mod analysis;
 pub mod config;
 
 pub mod agent;
