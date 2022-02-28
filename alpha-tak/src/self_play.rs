@@ -146,9 +146,11 @@ where
     let mut game_examples = Vec::new();
     let mut game = Game::with_komi(KOMI);
 
+    let opening_plies = OPENING_PLIES + if random::<bool>() { 1 } else { 0 };
+
     // make random moves for the first few turns to diversify training data
-    for _ in 0..OPENING_PLIES {
-        game.nth_place(random()).unwrap();
+    for _ in 0..opening_plies {
+        game.nth_place_flat(random()).unwrap();
     }
 
     // initialize MCTS
@@ -189,7 +191,7 @@ where
         .into_iter()
         .enumerate()
         .map(|(ply, ex)| {
-            let perspective = if (ply + OPENING_PLIES) % 2 == 0 {
+            let perspective = if (ply + opening_plies) % 2 == 0 {
                 result
             } else {
                 -result
