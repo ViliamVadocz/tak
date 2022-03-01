@@ -185,7 +185,7 @@ where
         }
         let winner = game.winner();
         println!(
-            "{winner:?} as {my_colour:?} in {} plies\n{}",
+            "{winner:?} as {my_colour:?} in {} plies with opening {opening}\n{}",
             game.ply, game.board
         );
         results.push(winner);
