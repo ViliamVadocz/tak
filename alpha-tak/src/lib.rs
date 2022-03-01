@@ -230,50 +230,34 @@ where
     println!("running example game with {SECONDS_PER_TURN} seconds per turn");
 
     let mut game = Game::with_komi(KOMI);
-    let mut turns = Vec::new();
     // opening
     let turn0 = Turn::from_ptn("a1").unwrap();
     let turn1 = Turn::from_ptn(if rand::random::<f64>() < 0.5 { "e1" } else { "e5" }).unwrap();
-    turns.push(turn0.to_ptn());
-    turns.push(turn1.to_ptn());
-    game.play(turn0).unwrap();
-    game.play(turn1).unwrap();
+    game.play(turn0.clone()).unwrap();
+    game.play(turn1.clone()).unwrap();
+    let mut player = Player::new(network, vec![turn0, turn1]);
 
-    let mut node = Node::default();
     while matches!(game.winner(), GameResult::Ongoing) {
         // do rollouts
         let start_turn = SystemTime::now();
         while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < SECONDS_PER_TURN {
-            node.rollout(game.clone(), network);
+            player.rollout(&game, 100);
         }
         println!(
             "move: {}, to move: {:?},  ply: {}\n{}",
             game.ply / 2 + 1,
             game.to_move,
             game.ply,
-            node.debug(None)
+            player.node.debug(None)
         );
-        let turn = node.pick_move(true);
-        turns.push(turn.to_ptn());
-        node = node.play(&turn);
+        
+        let turn = player.pick_move(&game, true);
         game.play(turn).unwrap();
     }
 
-    println!("result: {:?}\n{}", game.winner(), game.board);
-
-    // save example for review
+    // save analysis for review
     if let Ok(mut file) = File::create(format!("examples/{}.ptn", sys_time())) {
-        let mut turns = turns.into_iter();
-        let mut turn_num = 1;
-        let mut out = format!("[Size \"{N}\"]\n[Komi \"{KOMI}\"]\n");
-        while let Some(white) = turns.next() {
-            out.push_str(&format!(
-                "{turn_num}. {white} {}\n",
-                turns.next().unwrap_or_default()
-            ));
-            turn_num += 1;
-        }
-        file.write_all(out.as_bytes()).unwrap();
+        file.write_all(player.get_analysis().as_bytes()).unwrap();
     };
 }
 
