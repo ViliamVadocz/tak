@@ -3,8 +3,9 @@ use tak::*;
 
 use crate::{config::KOMI, search::node::Node};
 
-const MAX_BRANCH_LENGTH: usize = 8;
+const MAX_BRANCH_LENGTH: usize = 10;
 const BRANCH_MIN_VISITS: u32 = 100;
+const CANDIDATE_MOVE_RATIO: f32 = 0.7;
 
 #[derive(Default)]
 pub struct Analysis<const N: usize> {
@@ -23,8 +24,6 @@ impl<const N: usize> Analysis<N> {
     }
 
     pub fn update(&mut self, node: &Node<N>, played_turn: Turn<N>) {
-        const CANDIDATE_MOVE_RATIO: f32 = 0.9;
-
         // find other candidate moves for branches
         let children = node.children.as_ref().unwrap();
         let top_visits = children
@@ -39,6 +38,7 @@ impl<const N: usize> Analysis<N> {
             .collect();
 
         let ply = self.played_turns.len();
+        let eval_perspective = if ply % 2 == 0 {1.} else {-1.};
         for (candidate, node) in candidates {
             if candidate == &played_turn {
                 // following engine line
@@ -50,13 +50,13 @@ impl<const N: usize> Analysis<N> {
             continuation.push_front(candidate.clone());
             self.branches.push(Branch {
                 ply,
-                line: continuation.into_iter().map(|t| t.to_ptn()).collect(),
-                eval: node.expected_reward,
+                line: continuation.into_iter().collect(),
+                eval: eval_perspective * node.expected_reward,
             });
         }
 
         let child = children.get(&played_turn).unwrap();
-        self.eval.push(Some(child.expected_reward));
+        self.eval.push(Some(eval_perspective * child.expected_reward));
         self.played_turns.push(played_turn)
     }
 }
@@ -100,15 +100,15 @@ impl<const N: usize> ToPTN for Analysis<N> {
 
 struct Branch<const N: usize> {
     ply: usize,
-    line: ArrayVec<String, MAX_BRANCH_LENGTH>,
+    line: ArrayVec<Turn<N>, MAX_BRANCH_LENGTH>,
     eval: f32,
 }
 
 impl<const N: usize> ToPTN for Branch<N> {
     fn to_ptn(&self) -> String {
-        let mut out = format!("{{{}_{}}}\n", self.ply, self.line.first().unwrap());
+        let mut out = format!("{{{}_{}}}\n", self.ply, self.line.first().unwrap().to_ptn());
 
-        let mut turn_iter = self.line.iter();
+        let mut turn_iter = self.line.iter().map(|t| t.to_ptn());
         let mut move_num = 1 + self.ply / 2;
 
         // first move includes eval comment so it is handled differently
@@ -117,7 +117,7 @@ impl<const N: usize> ToPTN for Branch<N> {
                 "{move_num}. {} {{{}}} {}\n",
                 turn_iter.next().unwrap(),
                 self.eval,
-                turn_iter.next().unwrap_or(&"".to_string())
+                turn_iter.next().unwrap_or_default()
             ));
         } else {
             out.push_str(&format!(
@@ -132,7 +132,7 @@ impl<const N: usize> ToPTN for Branch<N> {
         while let Some(white) = turn_iter.next() {
             out.push_str(&format!(
                 "{move_num}. {white} {}\n",
-                turn_iter.next().unwrap_or(&"".to_string())
+                turn_iter.next().unwrap_or_default()
             ));
             move_num += 1;
         }
