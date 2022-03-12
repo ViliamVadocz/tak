@@ -10,14 +10,14 @@ const CANDIDATE_MOVE_RATIO: f32 = 0.7;
 #[derive(Default)]
 pub struct Analysis<const N: usize> {
     played_turns: Vec<Turn<N>>,
-    eval: Vec<Option<f32>>,
+    move_info: Vec<Option<MoveInfo>>,
     branches: Vec<Branch<N>>,
 }
 
 impl<const N: usize> Analysis<N> {
     pub fn from_opening(opening: Vec<Turn<N>>) -> Self {
         Analysis {
-            eval: vec![None; opening.len()],
+            move_info: vec![None; opening.len()],
             played_turns: opening,
             ..Default::default()
         }
@@ -38,25 +38,33 @@ impl<const N: usize> Analysis<N> {
             .collect();
 
         let ply = self.played_turns.len();
-        let eval_perspective = if ply % 2 == 0 {1.} else {-1.};
-        for (candidate, node) in candidates {
+        let eval_perspective = if ply % 2 == 0 { 1. } else { -1. };
+        for (candidate, candidate_node) in candidates {
             if candidate == &played_turn {
                 // following engine line
                 continue;
             }
 
             // create branch from continuation
-            let mut continuation = node.continuation(BRANCH_MIN_VISITS, MAX_BRANCH_LENGTH - 1);
+            let mut continuation = candidate_node.continuation(BRANCH_MIN_VISITS, MAX_BRANCH_LENGTH - 1);
             continuation.push_front(candidate.clone());
             self.branches.push(Branch {
                 ply,
                 line: continuation.into_iter().collect(),
-                eval: eval_perspective * node.expected_reward,
+                info: MoveInfo {
+                    eval: eval_perspective * candidate_node.expected_reward,
+                    policy: candidate_node.policy,
+                    visits: candidate_node.visited_count,
+                },
             });
         }
 
         let child = children.get(&played_turn).unwrap();
-        self.eval.push(Some(eval_perspective * child.expected_reward));
+        self.move_info.push(Some(MoveInfo {
+            eval: eval_perspective * child.expected_reward,
+            policy: child.policy,
+            visits: child.visited_count,
+        }));
         self.played_turns.push(played_turn)
     }
 }
@@ -65,7 +73,7 @@ impl<const N: usize> ToPTN for Analysis<N> {
     fn to_ptn(&self) -> String {
         let mut out = format!("[Size \"{N}\"]\n[Komi \"{KOMI}\"]\n");
         let mut turn_iter = self.played_turns.iter();
-        let mut eval_iter = self.eval.iter();
+        let mut info_iter = self.move_info.iter();
         let mut move_num = 1;
         while let Some(white) = turn_iter.next() {
             // add white turn
@@ -73,8 +81,8 @@ impl<const N: usize> ToPTN for Analysis<N> {
             out.push_str(&white.to_ptn());
 
             // maybe add eval
-            if let Some(Some(eval)) = eval_iter.next() {
-                out.push_str(&format!(" {{{eval}}}"));
+            if let Some(Some(info)) = info_iter.next() {
+                out.push_str(&info.to_ptn());
             }
             out.push(' ');
 
@@ -82,8 +90,8 @@ impl<const N: usize> ToPTN for Analysis<N> {
             if let Some(black) = turn_iter.next() {
                 out.push_str(&black.to_ptn());
                 // maybe add eval
-                if let Some(Some(eval)) = eval_iter.next() {
-                    out.push_str(&format!(" {{{eval}}}"));
+                if let Some(Some(info)) = info_iter.next() {
+                    out.push_str(&info.to_ptn());
                 }
             }
             out.push('\n');
@@ -101,7 +109,7 @@ impl<const N: usize> ToPTN for Analysis<N> {
 struct Branch<const N: usize> {
     ply: usize,
     line: ArrayVec<Turn<N>, MAX_BRANCH_LENGTH>,
-    eval: f32,
+    info: MoveInfo,
 }
 
 impl<const N: usize> ToPTN for Branch<N> {
@@ -116,14 +124,14 @@ impl<const N: usize> ToPTN for Branch<N> {
             out.push_str(&format!(
                 "{move_num}. {} {{{}}} {}\n",
                 turn_iter.next().unwrap(),
-                self.eval,
+                self.info.to_ptn(),
                 turn_iter.next().unwrap_or_default()
             ));
         } else {
             out.push_str(&format!(
                 "{move_num}. -- {} {{{}}}\n",
                 turn_iter.next().unwrap(),
-                self.eval
+                self.info.to_ptn()
             ));
         }
         move_num += 1;
@@ -138,5 +146,18 @@ impl<const N: usize> ToPTN for Branch<N> {
         }
 
         out
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+struct MoveInfo {
+    eval: f32,
+    policy: f32,
+    visits: u32,
+}
+
+impl ToPTN for MoveInfo {
+    fn to_ptn(&self) -> String {
+        format!("e: {:.4}, p: {:.4}, v: {}", self.eval, self.policy, self.visits)
     }
 }
