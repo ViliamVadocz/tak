@@ -91,13 +91,16 @@ impl<const N: usize> Game<N> {
         }
     }
 
-    pub fn opening(&mut self, opening_index: usize) -> StrResult<()> {
+    pub fn opening(&mut self, opening_index: usize) -> StrResult<Vec<Turn<N>>> {
         if !self.board.empty() || self.ply != 0 {
             return Err("openings should be played on an empty board with no previous plies".to_string());
         }
         let i = opening_index % (N * N * (N * N - 1));
-        self.play(self.possible_turns().into_iter().nth(i / (N * N - 1)).unwrap())?;
-        self.play(self.possible_turns().into_iter().nth(i % (N * N - 1)).unwrap())
+        let first = self.possible_turns().into_iter().nth(i / (N * N - 1)).unwrap();
+        self.play(first.clone())?;
+        let second = self.possible_turns().into_iter().nth(i % (N * N - 1)).unwrap();
+        self.play(second.clone())?;
+        Ok(vec![first, second])
     }
 
     /// Play the nth possible turn. Useful for random openings.
@@ -112,7 +115,12 @@ impl<const N: usize> Game<N> {
         let turns: Vec<_> = self
             .possible_turns()
             .into_iter()
-            .filter(|t| matches!(t, Turn::Place { shape: Shape::Flat, .. }))
+            .filter(|t| {
+                matches!(t, Turn::Place {
+                    shape: Shape::Flat,
+                    ..
+                })
+            })
             .collect();
         n %= turns.len();
         self.play(turns.into_iter().nth(n).unwrap())
