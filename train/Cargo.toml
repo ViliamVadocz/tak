@@ -1,0 +1,16 @@
+[package]
+name = "train"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tak = { path = "../tak" }
+alpha-tak = { path = "../alpha-tak" }
+clap = { version = "3.1", features = ["derive"] }
+arrayvec = "0.7"
+rand = "0.8"
+
+[profile.release]
+lto = true
