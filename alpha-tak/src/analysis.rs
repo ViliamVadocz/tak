@@ -82,7 +82,7 @@ impl<const N: usize> ToPTN for Analysis<N> {
 
             // maybe add eval
             if let Some(Some(info)) = info_iter.next() {
-                out.push_str(&info.to_ptn());
+                out.push_str(&format!(" {{{}}}", info.to_ptn()));
             }
             out.push(' ');
 
@@ -91,7 +91,7 @@ impl<const N: usize> ToPTN for Analysis<N> {
                 out.push_str(&black.to_ptn());
                 // maybe add eval
                 if let Some(Some(info)) = info_iter.next() {
-                    out.push_str(&info.to_ptn());
+                    out.push_str(&format!(" {{{}}}", info.to_ptn()));
                 }
             }
             out.push('\n');
