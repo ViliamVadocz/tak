@@ -1,5 +1,5 @@
-#![feature(thread_is_running)]
 #![feature(test)]
+#![feature(thread_is_running)]
 
 extern crate test;
 
@@ -11,19 +11,15 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use config::MAX_EXAMPLES;
-use example::{save_examples, Example};
 use search::turn_map::Lut;
 use tak::*;
 use tch::{Cuda, Device};
 
 use crate::{
-    config::{KOMI, N, WIN_RATE_THRESHOLD},
-    example::load_examples,
+    config::{KOMI, N},
     model::network::Network,
-    pit::pit_async,
+    player::Player,
     search::node::Node,
-    self_play::self_play_async,
 };
 
 #[macro_use]
@@ -34,13 +30,12 @@ pub mod search;
 
 pub mod analysis;
 pub mod config;
+pub mod threadpool;
 
 pub mod agent;
 pub mod example;
-pub mod pit;
 pub mod player;
 pub mod repr;
-pub mod self_play;
 
 lazy_static! {
     static ref DEVICE: Device = Device::cuda_if_available();
@@ -141,85 +136,6 @@ pub fn play(model_path: String, colour: Colour, seconds_per_move: u64) {
     println!("{debug_info}");
 }
 
-pub fn train(model_path: Option<String>, example_paths: Vec<String>) {
-    // load or create network
-    let network = match &model_path {
-        Some(m) if m != "random" => {
-            Network::<N>::load(m).unwrap_or_else(|_| panic!("couldn't load model at {m}"))
-        }
-        _ => {
-            println!("generating random model");
-            Network::<N>::default()
-        }
-    };
-
-    // optionally load examples
-    let mut examples = Vec::new();
-    for examples_path in example_paths {
-        println!("loading {examples_path}");
-        examples.extend(
-            load_examples(&examples_path)
-                .unwrap_or_else(|_| panic!("could not load example at {examples_path}"))
-                .into_iter(),
-        );
-    }
-
-    // begin training loop
-    training_loop(network, examples)
-}
-
-pub fn training_loop<const N: usize>(mut network: Network<N>, mut examples: Vec<Example<N>>) -> !
-where
-    [[Option<Tile>; N]; N]: Default,
-    Turn<N>: Lut,
-{
-    loop {
-        if !examples.is_empty() {
-            let new_network = {
-                let mut nn = copy(&network);
-                nn.train(&examples);
-                nn
-            };
-
-            println!("pitting two networks against each other");
-            let results = pit_async(&new_network, &network);
-            println!("{:?}", results);
-
-            if results.win_rate() > WIN_RATE_THRESHOLD {
-                network = new_network;
-                println!("saving model");
-                network.save(format!("models/{}.model", sys_time())).unwrap();
-
-                // it seems it improves more often if only training on fresh examples
-                // examples.clear();
-
-                // run an example game to qualitative analysis
-                example_game(&network);
-            }
-        }
-
-        // do self-play to get new examples
-        let new_examples = self_play_async(&network);
-        save_examples(&new_examples);
-
-        // keep only the latest MAX_EXAMPLES examples
-        examples.extend(new_examples.into_iter());
-        if examples.len() > MAX_EXAMPLES {
-            examples.reverse();
-            examples.truncate(MAX_EXAMPLES);
-            examples.reverse();
-        }
-    }
-}
-
-fn copy<const N: usize>(network: &Network<N>) -> Network<N> {
-    // copy network values by file (UGLY)
-    let mut dir = std::env::temp_dir();
-    dir.push("model");
-    network.save(&dir).unwrap();
-    Network::<N>::load(&dir).unwrap()
-}
-
 // TODO use example game as training data
 fn example_game<const N: usize>(network: &Network<N>)
 where
@@ -243,21 +159,13 @@ where
         while SystemTime::now().duration_since(start_turn).unwrap().as_secs() < SECONDS_PER_TURN {
             player.rollout(&game, 100);
         }
-        println!(
-            "move: {}, to move: {:?},  ply: {}\n{}",
-            game.ply / 2 + 1,
-            game.to_move,
-            game.ply,
-            player.node.debug(None)
-        );
-        
         let turn = player.pick_move(&game, true);
         game.play(turn).unwrap();
     }
 
     // save analysis for review
     if let Ok(mut file) = File::create(format!("examples/{}.ptn", sys_time())) {
-        file.write_all(player.get_analysis().as_bytes()).unwrap();
+        file.write_all(player.get_analysis().to_ptn().as_bytes()).unwrap();
     };
 }
 
@@ -267,3 +175,11 @@ pub fn sys_time() -> u64 {
         .unwrap()
         .as_secs()
 }
+
+// Make threadpool_2
+// Use threadpool
+// Use player
+// Save strings in analysis instead of Turn, remove clones
+// Use examples from different parts of process (even pit)
+// Analysis command
+// Interactive analysis?
