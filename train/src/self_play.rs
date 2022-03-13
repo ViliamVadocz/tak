@@ -1,5 +1,5 @@
 use std::{
-    fs::{create_dir, File},
+    fs::{create_dir_all, File},
     io::Write,
 };
 
@@ -30,7 +30,7 @@ pub fn self_play(network: &Network<N>) -> Vec<Example<N>> {
 
     // TODO Do some opening analysis on the analyses
     let time = sys_time();
-    if create_dir(format!("{GAME_DIR}/{time}")).is_ok() {
+    if create_dir_all(format!("{GAME_DIR}/{time}")).is_ok() {
         for (i, analysis) in analyses.into_iter().enumerate() {
             if let Ok(mut file) = File::create(format!("{GAME_DIR}/{time}/{i}.ptn")) {
                 file.write_all(analysis.to_ptn().as_bytes()).unwrap();
@@ -51,7 +51,6 @@ fn self_play_game<A: Agent<N>>(agent: &A, _index: usize) -> (Vec<Example<N>>, An
     while matches!(game.winner(), GameResult::Ongoing) {
         player.rollout(&game, ROLLOUTS_PER_MOVE);
         let turn = player.pick_move(&game, game.ply > TEMPERATURE_PLIES);
-        player.play_move(&game, &turn);
         game.play(turn).unwrap();
     }
 

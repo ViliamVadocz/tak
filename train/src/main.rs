@@ -3,7 +3,7 @@ mod pit;
 mod self_play;
 mod training_loop;
 
-use std::fs::create_dir;
+use std::fs::create_dir_all;
 
 use alpha_tak::{
     config::N,
@@ -29,9 +29,9 @@ fn main() {
     }
 
     // Make folders if they do not exist yet
-    create_dir(format!("./{MODEL_DIR}/")).unwrap();
-    create_dir(format!("./{EXAMPLE_DIR}/")).unwrap();
-    create_dir(format!("./{GAME_DIR}/")).unwrap();
+    create_dir_all(format!("./{MODEL_DIR}/")).unwrap();
+    create_dir_all(format!("./{EXAMPLE_DIR}/")).unwrap();
+    create_dir_all(format!("./{GAME_DIR}/")).unwrap();
 
     if args.only_self_play {
         only_self_play(args.model_path)

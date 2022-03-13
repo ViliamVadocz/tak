@@ -17,9 +17,11 @@ pub fn training_loop(mut network: Network<N>, mut examples: Vec<Example<N>>) -> 
             };
 
             println!("pitting two networks against each other");
-            let results = pit(&new_network, &network);
-            println!("{:?}", results);
+            let (results, more_examples) = pit(&new_network, &network);
+            save_examples(&more_examples, format!("{EXAMPLE_DIR}/pit_{}.data", sys_time()));
+            examples.extend(more_examples.into_iter());
 
+            println!("{:?}", results);
             if results.win_rate() > WIN_RATE_THRESHOLD {
                 network = new_network;
                 println!("saving model");
@@ -28,6 +30,7 @@ pub fn training_loop(mut network: Network<N>, mut examples: Vec<Example<N>>) -> 
         }
 
         // do self-play to get new examples
+        println!("starting self-play");
         let new_examples = self_play(&network);
         save_examples(&new_examples, format!("{EXAMPLE_DIR}/{}.data", sys_time()));
 

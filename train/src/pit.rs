@@ -1,5 +1,5 @@
 use std::{
-    fs::{create_dir, File},
+    fs::{create_dir_all, File},
     io::Write,
 };
 
@@ -49,7 +49,7 @@ impl PitResult {
     }
 }
 
-pub fn pit(new: &Network<N>, old: &Network<N>) -> PitResult {
+pub fn pit(new: &Network<N>, old: &Network<N>) -> (PitResult, Vec<Example<N>>) {
     const WORKERS: usize = 64;
 
     let outputs = thread_pool_2::<N, WORKERS, _, _>(new, old, PIT_MATCHES, pit_game);
@@ -66,7 +66,7 @@ pub fn pit(new: &Network<N>, old: &Network<N>) -> PitResult {
 
     // TODO Do analysis on analyses?
     let time = sys_time();
-    if create_dir(format!("{GAME_DIR}/pit_{time}")).is_ok() {
+    if create_dir_all(format!("{GAME_DIR}/pit_{time}")).is_ok() {
         for (i, analysis) in analyses.into_iter().enumerate() {
             if let Ok(mut file) = File::create(format!("{GAME_DIR}/{time}/{i}.ptn")) {
                 file.write_all(analysis.to_ptn().as_bytes()).unwrap();
@@ -74,7 +74,7 @@ pub fn pit(new: &Network<N>, old: &Network<N>) -> PitResult {
         }
     }
 
-    result
+    (result, examples)
 }
 
 /// Play an opening from both sides with two different agents.
@@ -102,15 +102,16 @@ where
         let mut old_player = Player::new(old, opening);
 
         while matches!(game.winner(), GameResult::Ongoing) {
-            let turn = if game.to_move == my_colour {
+            let turn;
+            if game.to_move == my_colour {
                 new_player.rollout(&game, ROLLOUTS_PER_MOVE);
-                new_player.pick_move(&game, true)
+                turn = new_player.pick_move(&game, true);
+                old_player.play_move(&game, &turn);
             } else {
                 old_player.rollout(&game, ROLLOUTS_PER_MOVE);
-                old_player.pick_move(&game, true)
+                turn = old_player.pick_move(&game, true);
+                new_player.play_move(&game, &turn);
             };
-            new_player.play_move(&game, &turn);
-            old_player.play_move(&game, &turn);
             game.play(turn).unwrap();
         }
 
