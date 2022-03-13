@@ -28,8 +28,10 @@ where
                 _ => 0.,
             };
         }
-        if let Some(GameResult::Winner { .. } | GameResult::Draw { .. }) = self.result {
+        if let Some(GameResult::Winner { .. }) = self.result {
             return -self.expected_reward;
+        } else if let Some(GameResult::Draw { .. }) = self.result {
+            return 0.;
         }
 
         // if it is the first time we are vising this node
