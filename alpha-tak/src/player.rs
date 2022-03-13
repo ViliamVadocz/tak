@@ -7,11 +7,12 @@ use crate::{
     search::{node::Node, turn_map::Lut},
 };
 
+// TODO Add ability to disable analysis
 pub struct Player<'a, const N: usize, A: Agent<N>> {
     node: Node<N>,
     agent: &'a A,
     examples: Vec<IncompleteExample<N>>,
-    pub analysis: Analysis<N>,
+    analysis: Analysis<N>,
 }
 
 impl<'a, const N: usize, A: Agent<N>> Player<'a, N, A>
@@ -59,7 +60,8 @@ where
     }
 
     /// Complete collected examples with the game result and return them.
-    pub fn get_examples(self, result: GameResult) -> Vec<Example<N>> {
+    /// The examples in the Player will be empty after this method is used.
+    pub fn get_examples(&mut self, result: GameResult) -> Vec<Example<N>> {
         let white_result = match result {
             GameResult::Winner {
                 colour: Colour::White,
@@ -72,7 +74,7 @@ where
             GameResult::Draw { .. } => 0.,
             GameResult::Ongoing { .. } => unreachable!("cannot complete examples with ongoing game"),
         };
-        self.examples
+        std::mem::take(&mut self.examples)
             .into_iter()
             .map(|ex| {
                 let perspective = if ex.game.to_move == Colour::White {
@@ -83,5 +85,10 @@ where
                 ex.complete(perspective)
             })
             .collect()
+    }
+
+    /// Get the analysis of the game
+    pub fn get_analysis(&mut self) -> Analysis<N> {
+        std::mem::take(&mut self.analysis)
     }
 }
