@@ -50,21 +50,21 @@ where
                 batch.push(game);
             }
         }
-        if batch.is_empty() {
-            continue;
-        }
-        // run prediction
-        let (policies, evals) = network.policy_eval_batch(&batch);
 
-        // send out outputs
-        for (i, r) in communicators
-            .into_iter()
-            .enumerate()
-            .filter(|(_, communicated)| *communicated)
-            .map(|(i, _)| i)
-            .zip(policies.into_iter().zip(evals.into_iter()))
-        {
-            policy_senders[i].send(r).unwrap();
+        if !batch.is_empty() {
+            // run prediction
+            let (policies, evals) = network.policy_eval_batch(&batch);
+
+            // send out outputs
+            for (i, r) in communicators
+                .into_iter()
+                .enumerate()
+                .filter(|(_, communicated)| *communicated)
+                .map(|(i, _)| i)
+                .zip(policies.into_iter().zip(evals.into_iter()))
+            {
+                policy_senders[i].send(r).unwrap();
+            }
         }
 
         for (i, maybe_handle) in workers.iter_mut().enumerate() {
