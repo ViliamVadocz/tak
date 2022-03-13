@@ -1,5 +1,6 @@
 target/
 Cargo.lock
 .vscode/
-alpha-tak/models/
-alpha-tak/examples/
+
+**/models/
+**/examples/
