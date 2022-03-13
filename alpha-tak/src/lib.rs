@@ -3,24 +3,9 @@
 
 extern crate test;
 
-use std::{
-    fs::File,
-    io::Write,
-    sync::mpsc::channel,
-    thread,
-    time::{Duration, SystemTime},
-};
+use std::time::SystemTime;
 
-use search::turn_map::Lut;
-use tak::*;
 use tch::{Cuda, Device};
-
-use crate::{
-    config::{KOMI, N},
-    model::network::Network,
-    player::Player,
-    search::node::Node,
-};
 
 #[macro_use]
 extern crate lazy_static;
