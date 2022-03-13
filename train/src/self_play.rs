@@ -1,3 +1,8 @@
+use std::{
+    fs::{create_dir, File},
+    io::Write,
+};
+
 use alpha_tak::{
     agent::Agent,
     analysis::Analysis,
@@ -5,9 +10,12 @@ use alpha_tak::{
     example::Example,
     model::network::Network,
     player::Player,
+    sys_time,
     threadpool::thread_pool,
 };
 use tak::*;
+
+use crate::GAME_DIR;
 
 pub fn self_play(network: &Network<N>) -> Vec<Example<N>> {
     const WORKERS: usize = 128;
@@ -20,7 +28,15 @@ pub fn self_play(network: &Network<N>) -> Vec<Example<N>> {
         analyses.push(output.1);
     }
 
-    // TODO save analyses
+    // TODO Do some opening analysis on the analyses
+    let time = sys_time();
+    if create_dir(format!("{GAME_DIR}/{time}")).is_ok() {
+        for (i, analysis) in analyses.into_iter().enumerate() {
+            if let Ok(mut file) = File::create(format!("{GAME_DIR}/{time}/{i}.ptn")) {
+                file.write_all(analysis.to_ptn().as_bytes()).unwrap();
+            }
+        }
+    }
 
     examples
 }

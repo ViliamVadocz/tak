@@ -5,7 +5,7 @@ use alpha_tak::{
     sys_time,
 };
 
-use crate::{pit::pit, self_play::self_play};
+use crate::{pit::pit, self_play::self_play, EXAMPLE_DIR, MODEL_DIR};
 
 pub fn training_loop(mut network: Network<N>, mut examples: Vec<Example<N>>) -> ! {
     loop {
@@ -23,13 +23,13 @@ pub fn training_loop(mut network: Network<N>, mut examples: Vec<Example<N>>) -> 
             if results.win_rate() > WIN_RATE_THRESHOLD {
                 network = new_network;
                 println!("saving model");
-                network.save(format!("models/{}.model", sys_time())).unwrap();
+                network.save(format!("{MODEL_DIR}/{}.model", sys_time())).unwrap();
             }
         }
 
         // do self-play to get new examples
         let new_examples = self_play(&network);
-        save_examples(&new_examples);
+        save_examples(&new_examples, format!("{EXAMPLE_DIR}/{}.data", sys_time()));
 
         // keep only the latest MAX_EXAMPLES examples
         examples.extend(new_examples.into_iter());

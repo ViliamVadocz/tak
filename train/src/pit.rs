@@ -1,3 +1,8 @@
+use std::{
+    fs::{create_dir, File},
+    io::Write,
+};
+
 use alpha_tak::{
     agent::Agent,
     analysis::Analysis,
@@ -6,10 +11,13 @@ use alpha_tak::{
     model::network::Network,
     player::Player,
     search::turn_map::Lut,
+    sys_time,
     threadpool::thread_pool_2,
 };
 use arrayvec::ArrayVec;
 use tak::*;
+
+use crate::GAME_DIR;
 
 #[derive(Debug, Default)]
 pub struct PitResult {
@@ -48,15 +56,23 @@ pub fn pit(new: &Network<N>, old: &Network<N>) -> PitResult {
 
     let mut result = PitResult::default();
     let mut examples = Vec::new();
-    let mut analyzes = Vec::new();
+    let mut analyses = Vec::new();
     for output in outputs {
         result.update(output.0, Colour::White);
         result.update(output.1, Colour::Black);
         examples.extend(output.2.into_iter());
-        analyzes.extend(output.3.into_iter());
+        analyses.extend(output.3.into_iter());
     }
 
-    // TODO use examples and also somehow save analyses?
+    // TODO Do analysis on analyses?
+    let time = sys_time();
+    if create_dir(format!("{GAME_DIR}/pit_{time}")).is_ok() {
+        for (i, analysis) in analyses.into_iter().enumerate() {
+            if let Ok(mut file) = File::create(format!("{GAME_DIR}/{time}/{i}.ptn")) {
+                file.write_all(analysis.to_ptn().as_bytes()).unwrap();
+            }
+        }
+    }
 
     result
 }
