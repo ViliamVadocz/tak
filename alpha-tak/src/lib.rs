@@ -175,11 +175,3 @@ pub fn sys_time() -> u64 {
         .unwrap()
         .as_secs()
 }
-
-// Make threadpool_2
-// Use threadpool
-// Use player
-// Save strings in analysis instead of Turn, remove clones
-// Use examples from different parts of process (even pit)
-// Analysis command
-// Interactive analysis?
