@@ -3,6 +3,7 @@ use std::{
     error::Error,
     fs::File,
     io::{Read, Write},
+    path::Path,
 };
 
 use tak::*;
@@ -11,7 +12,6 @@ use tch::Tensor;
 use crate::{
     repr::{game_repr, moves_dims},
     search::turn_map::Lut,
-    sys_time,
 };
 
 #[derive(Debug)]
@@ -71,8 +71,8 @@ where
     }
 }
 
-pub fn save_examples<const N: usize>(examples: &[Example<N>]) {
-    if let Ok(mut file) = File::create(format!("examples/{}.data", sys_time())) {
+pub fn save_examples<const N: usize, P: AsRef<Path>>(examples: &[Example<N>], path: P) {
+    if let Ok(mut file) = File::create(path) {
         let out = examples
             .iter()
             .map(|example| {
