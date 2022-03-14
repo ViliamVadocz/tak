@@ -68,7 +68,7 @@ pub fn pit(new: &Network<N>, old: &Network<N>) -> (PitResult, Vec<Example<N>>) {
     let time = sys_time();
     if create_dir_all(format!("{GAME_DIR}/pit_{time}")).is_ok() {
         for (i, analysis) in analyses.into_iter().enumerate() {
-            if let Ok(mut file) = File::create(format!("{GAME_DIR}/{time}/{i}.ptn")) {
+            if let Ok(mut file) = File::create(format!("{GAME_DIR}/pit_{time}/{i}.ptn")) {
                 file.write_all(analysis.to_ptn().as_bytes()).unwrap();
             }
         }
@@ -118,9 +118,18 @@ where
         let winner = game.winner();
         results.push(winner);
 
-        // TODO decide whether to use examples from new player as well
-        // examples.extend(new_player.get_examples(winner).into_iter());
-        examples.extend(old_player.get_examples(winner).into_iter());
+        examples.extend(
+            new_player
+                .get_examples(winner)
+                .into_iter()
+                .filter(|ex| ex.game.to_move == my_colour),
+        );
+        examples.extend(
+            old_player
+                .get_examples(winner)
+                .into_iter()
+                .filter(|ex| ex.game.to_move != my_colour),
+        );
 
         analyses.push(new_player.get_analysis());
         analyses.push(old_player.get_analysis());
