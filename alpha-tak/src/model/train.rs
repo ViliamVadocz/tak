@@ -17,7 +17,6 @@ use crate::{
 };
 
 impl<const N: usize> Network<N> {
-    // TODO validation data
     pub fn train(&mut self, examples: &[Example<N>])
     where
         Turn<N>: Lut,
