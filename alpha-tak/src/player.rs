@@ -35,7 +35,7 @@ where
         }
     }
 
-    /// Pick a move to play.
+    /// Pick a move to play and also play it.
     pub fn pick_move(&mut self, game: &Game<N>, exploitation: bool) -> Turn<N> {
         let turn = self.node.pick_move(exploitation);
         self.play_move(game, &turn);
