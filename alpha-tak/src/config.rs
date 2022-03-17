@@ -1,6 +1,6 @@
 // game settings
 pub const N: usize = 5;
-pub const KOMI: i32 = 2;
+pub const KOMI: i32 = 4;
 
 // model
 pub const RES_BLOCKS: usize = 8;
@@ -12,7 +12,7 @@ pub const EXPLORATION_BASE: f32 = 500.0;
 pub const EXPLORATION_INIT: f32 = 4.0;
 
 // self-play
-pub const SELF_PLAY_GAMES: usize = 1000;
+pub const SELF_PLAY_GAMES: usize = 500;
 pub const ROLLOUTS_PER_MOVE: usize = 1000;
 pub const TEMPERATURE_PLIES: u64 = 10;
 
