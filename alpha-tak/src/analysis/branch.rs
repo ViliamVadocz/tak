@@ -1,7 +1,7 @@
 use arrayvec::ArrayVec;
 use tak::*;
 
-use super::{MAX_BRANCH_LENGTH, move_info::MoveInfo};
+use super::{move_info::MoveInfo, MAX_BRANCH_LENGTH};
 
 pub struct Branch<const N: usize> {
     pub ply: usize,

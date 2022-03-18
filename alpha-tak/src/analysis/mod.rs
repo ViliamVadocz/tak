@@ -1,11 +1,10 @@
-mod move_info;
 mod branch;
+mod move_info;
 
 use tak::*;
 
-use crate::{config::KOMI, search::node::Node};
-
-use self::{move_info::MoveInfo, branch::Branch};
+use self::{branch::Branch, move_info::MoveInfo};
+use crate::search::node::Node;
 
 const MAX_BRANCH_LENGTH: usize = 10;
 const BRANCH_MIN_VISITS: u32 = 100;
