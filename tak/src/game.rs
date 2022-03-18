@@ -151,7 +151,7 @@ impl<const N: usize> Game<N> {
         let (stones, caps) = self.get_counts();
         if self.board[pos].is_some() {
             Err(format!(
-                "cannot place a piece in that position because it is already occupied, pos={pos:?}, {}",
+                "cannot place a piece in that position because it is already occupied, pos={pos:?},\n{}",
                 self.board
             ))
         } else if matches!(shape, Shape::Capstone) && (caps == 0) {
@@ -188,7 +188,7 @@ impl<const N: usize> Game<N> {
         let on_square = self.board[pos].take().ok_or("cannot move from an empty square")?;
         if on_square.top.colour != self.to_move {
             return Err(format!(
-                "cannot move a stack that you do not own, pos={pos:?}, {}",
+                "cannot move a stack that you do not own, pos={pos:?},\n{}",
                 self.board
             ));
         }
