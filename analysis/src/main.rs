@@ -1,4 +1,5 @@
 use std::{
+    fs::File,
     io::{stdout, Write},
     sync::mpsc::channel,
     thread,
@@ -45,6 +46,11 @@ fn main() {
                 break;
             }
         }
+    }
+
+    if let Ok(mut file) = File::create("analysis.ptn") {
+        file.write_all(player.get_analysis().to_ptn().as_bytes()).unwrap();
+        println!("created a file `analysis.ptn` with the analysis of this game");
     }
 }
 
