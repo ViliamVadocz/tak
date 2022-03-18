@@ -22,8 +22,8 @@ fn main() {
     let network = Network::<5>::load(&args.model_path)
         .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
-    let mut player = Player::new(&network, vec![]);
     let mut game = Game::<5>::with_komi(2);
+    let mut player = Player::new(&network, vec![], game.komi);
 
     while matches!(game.winner(), GameResult::Ongoing) {
         // Get input from user.

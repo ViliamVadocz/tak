@@ -19,12 +19,12 @@ impl<'a, const N: usize, A: Agent<N>> Player<'a, N, A>
 where
     Turn<N>: Lut,
 {
-    pub fn new(agent: &'a A, opening: Vec<Turn<N>>) -> Self {
+    pub fn new(agent: &'a A, opening: Vec<Turn<N>>, komi: i32) -> Self {
         Player {
             node: Node::default(),
             agent,
             examples: Vec::new(),
-            analysis: Analysis::from_opening(opening),
+            analysis: Analysis::from_opening(opening, komi),
         }
     }
 

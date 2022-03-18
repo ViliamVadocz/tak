@@ -98,8 +98,8 @@ where
         // TODO proper opening book using index
         let opening = game.opening(rand::random()).unwrap();
 
-        let mut new_player = Player::new(new, opening.clone());
-        let mut old_player = Player::new(old, opening);
+        let mut new_player = Player::new(new, opening.clone(), game.komi);
+        let mut old_player = Player::new(old, opening, game.komi);
 
         while matches!(game.winner(), GameResult::Ongoing) {
             let turn;

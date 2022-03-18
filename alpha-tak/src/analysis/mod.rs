@@ -13,16 +13,18 @@ const CANDIDATE_MOVE_RATIO: f32 = 0.7;
 
 #[derive(Default)]
 pub struct Analysis<const N: usize> {
+    komi: i32,
     played_turns: Vec<Turn<N>>,
     move_info: Vec<Option<MoveInfo>>,
     branches: Vec<Branch<N>>,
 }
 
 impl<const N: usize> Analysis<N> {
-    pub fn from_opening(opening: Vec<Turn<N>>) -> Self {
+    pub fn from_opening(opening: Vec<Turn<N>>, komi: i32) -> Self {
         Analysis {
             move_info: vec![None; opening.len()],
             played_turns: opening,
+            komi,
             ..Default::default()
         }
     }
@@ -75,7 +77,7 @@ impl<const N: usize> Analysis<N> {
 
 impl<const N: usize> ToPTN for Analysis<N> {
     fn to_ptn(&self) -> String {
-        let mut out = format!("[Size \"{N}\"]\n[Komi \"{KOMI}\"]\n");
+        let mut out = format!("[Size \"{N}\"]\n[Komi \"{}\"]\n", self.komi);
         let mut turn_iter = self.played_turns.iter();
         let mut info_iter = self.move_info.iter();
         let mut move_num = 1;

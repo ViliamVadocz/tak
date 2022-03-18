@@ -46,7 +46,7 @@ fn self_play_game<A: Agent<N>>(agent: &A, _index: usize) -> (Vec<Example<N>>, An
     // TODO proper opening book using index
     let opening = game.opening(rand::random()).unwrap();
 
-    let mut player = Player::new(agent, opening);
+    let mut player = Player::new(agent, opening, game.komi);
 
     while matches!(game.winner(), GameResult::Ongoing) {
         player.rollout(&game, ROLLOUTS_PER_MOVE);
