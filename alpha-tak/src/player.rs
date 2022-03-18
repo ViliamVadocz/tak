@@ -28,6 +28,10 @@ where
         }
     }
 
+    pub fn debug(&self, limit: Option<usize>) -> String {
+        self.node.debug(limit)
+    }
+
     /// Do some amount of rollouts.
     pub fn rollout(&mut self, game: &Game<N>, amount: usize) {
         for _ in 0..amount {
