@@ -1,6 +1,6 @@
 // game settings
 pub const N: usize = 5;
-pub const KOMI: i32 = 4;
+pub const KOMI: i32 = 2;
 
 // model
 pub const RES_BLOCKS: usize = 8;
