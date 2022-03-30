@@ -5,3 +5,6 @@ Cargo.lock
 **/models/
 **/examples/
 **/games/
+*.model
+*.ptn
+*.data
