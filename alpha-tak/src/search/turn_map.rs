@@ -68,7 +68,7 @@ macro_rules! impl_lut {
             fn turn_map(&self) -> usize {
                 *$lut
                     .get(self)
-                    .expect(&format!("could not map turn to index. {:?}", self))
+                    .unwrap_or_else(|| panic!("could not map turn to index. {:?}", self))
             }
         }
     };
