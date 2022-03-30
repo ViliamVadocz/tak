@@ -11,6 +11,7 @@ alpha-tak = { path = "../alpha-tak" }
 clap = { version = "3.1", features = ["derive"] }
 tokio-takconnect = "0.1.0"
 tokio = { version = "1", features = ["full"] }
+takparse = "0.5.2"
 
 [profile.release]
 lto = true
