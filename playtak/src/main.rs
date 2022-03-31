@@ -57,10 +57,10 @@ async fn main() {
             let network = Network::<5>::load(&args.model_path)
                 .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
-            let mut game = Game::<5>::with_komi(KOMI);
-            let mut player = Player::<5, _>::new(&network, vec![], KOMI);
-
             while let Ok(rx) = channel_rx.recv() {
+                let mut game = Game::<5>::with_komi(KOMI);
+                let mut player = Player::<5, _>::new(&network, vec![], KOMI);
+
                 loop {
                     match rx.try_recv() {
                         Ok(m) => {
@@ -85,11 +85,11 @@ async fn main() {
                         Err(TryRecvError::Disconnected) => break,
                     }
                 }
-            }
 
-            // create analysis file
-            if let Ok(mut file) = File::create(format!("analysis_{}.ptn", sys_time())) {
-                file.write_all(player.get_analysis().to_ptn().as_bytes()).unwrap();
+                // create analysis file
+                if let Ok(mut file) = File::create(format!("analysis_{}.ptn", sys_time())) {
+                    file.write_all(player.get_analysis().to_ptn().as_bytes()).unwrap();
+                }
             }
         });
 
