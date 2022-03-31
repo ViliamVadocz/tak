@@ -13,27 +13,9 @@ use cli::Args;
 use tak::*;
 use takparse::Move;
 use tokio::{select, signal::ctrl_c, sync::mpsc::unbounded_channel, time::Instant};
-use tokio_takconnect::{
-    connect_as,
-    connect_guest,
-    Client,
-    Color,
-    GameParameters,
-    GameUpdate,
-    SeekParameters,
-};
+use tokio_takconnect::{connect_as, Client, Color, GameParameters, GameUpdate, SeekParameters};
 
 mod cli;
-
-fn setup() -> Network<5> {
-    let args = Args::parse();
-    if !(args.no_gpu || use_cuda()) {
-        panic!("Could not enable CUDA.");
-    }
-
-    Network::<5>::load(&args.model_path)
-        .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path))
-}
 
 async fn create_seek(client: &mut Client) {
     // Hardcoded for now
@@ -62,12 +44,18 @@ async fn create_seek(client: &mut Client) {
 
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+    if !(args.no_gpu || use_cuda()) {
+        panic!("Could not enable CUDA.");
+    }
+
     let (tx, mut rx) = {
         let (main_tx, channel_rx) = channel::<Receiver<Move>>();
         let (tx, main_rx) = unbounded_channel::<Move>();
 
         spawn(move || {
-            let network = setup();
+            let network = Network::<5>::load(&args.model_path)
+                .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
             let mut game = Game::<5>::with_komi(KOMI);
             let mut player = Player::<5, _>::new(&network, vec![], KOMI);
@@ -108,7 +96,8 @@ async fn main() {
         (main_tx, main_rx)
     };
 
-    let mut client = connect_guest().await.unwrap();
+    // Connect to PlayTak
+    let mut client = connect_as(args.username, args.password).await.unwrap();
 
     select! {
         _ = ctrl_c() => (),
