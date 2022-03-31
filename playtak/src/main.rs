@@ -1,10 +1,16 @@
-use std::time::Duration;
+use std::{
+    str::FromStr,
+    sync::mpsc::{channel, Receiver, TryRecvError},
+    thread::spawn,
+    time::Duration,
+};
 
 use alpha_tak::{config::KOMI, model::network::Network, player::Player, use_cuda};
 use clap::Parser;
 use cli::Args;
 use tak::*;
-use tokio::{select, time::Instant};
+use takparse::Move;
+use tokio::{select, signal::ctrl_c, sync::mpsc::unbounded_channel, time::Instant};
 use tokio_takconnect::{connect_guest, Client, Color, GameParameters, GameUpdate, SeekParameters};
 
 mod cli;
@@ -46,57 +52,93 @@ async fn create_seek(client: &mut Client) {
 
 #[tokio::main]
 async fn main() {
-    let network = setup();
+    let (tx, mut rx) = {
+        let (main_tx, rx) = channel::<Receiver<Move>>();
+        let (tx, main_rx) = unbounded_channel::<Move>();
 
-    let mut client = connect_guest().await.unwrap();
+        spawn(move || {
+            let network = setup();
 
-    loop {
-        create_seek(&mut client).await;
-        println!("Created seek");
+            let mut game = Game::<5>::with_komi(KOMI);
+            let mut player = Player::<5, _>::new(&network, vec![], KOMI);
 
-        let mut playtak_game = client.game().await.unwrap();
-        println!("Game started");
+            loop {
+                match rx.recv() {
+                    Ok(rx) => loop {
+                        match rx.try_recv() {
+                            Ok(m) => {
+                                println!("My turn");
 
-        let mut game = Game::<5>::with_komi(KOMI);
-        let mut player = Player::<5, _>::new(&network, vec![], KOMI);
-
-        'game_loop: loop {
-            println!("Opponent's turn");
-            'opponent_turn: loop {
-                select! {
-                    update = playtak_game.update() => {
-                        println!("Game update received");
-                        match update.unwrap() {
-                            GameUpdate::Played(m) => {
-                                println!("Opponent played {m}");
                                 let turn = Turn::from_ptn(&m.to_string()).unwrap();
                                 player.play_move(&game, &turn);
                                 game.play(turn).unwrap();
-                                break 'opponent_turn;
-                            },
-                            GameUpdate::Ended(result) => {
-                                println!("Game over! {result:?}");
-                                break 'game_loop;
+
+                                let start = Instant::now();
+                                while Instant::now().duration_since(start) < Duration::from_secs(20) {
+                                    player.rollout(&game, 200);
+                                }
+
+                                let turn = player.pick_move(&game, true);
+                                tx.send(Move::from_str(&turn.to_ptn()).unwrap()).unwrap();
+                                game.play(turn).unwrap();
                             }
-                            _ => (),
+                            // Ponder
+                            Err(TryRecvError::Empty) => player.rollout(&game, 100),
+                            // Game ended
+                            Err(TryRecvError::Disconnected) => break,
                         }
                     },
-
-                    // pondering
-                    _ = async {player.rollout(&game, 100)} => {}
+                    _ => break,
                 }
             }
+        });
 
-            // my turn
-            println!("My turn");
-            let start = Instant::now();
-            while Instant::now().duration_since(start) < Duration::from_secs(20) {
-                player.rollout(&game, 200);
+        (main_tx, main_rx)
+    };
+
+    let mut client = connect_guest().await.unwrap();
+
+    select! {
+        _ = ctrl_c() => (),
+        _ = async move {
+            loop {
+                create_seek(&mut client).await;
+                println!("Created seek");
+
+                let mut playtak_game = client.game().await.unwrap();
+                println!("Game started");
+
+                let tx = {
+                    let (game_tx, game_rx) = channel::<Move>();
+                    tx.send(game_rx).unwrap();
+                    game_tx
+                };
+
+                loop {
+                    println!("Opponent's turn");
+                    match playtak_game.update().await.unwrap() {
+                        GameUpdate::Played(m) => {
+                            println!("Opponent played {m}");
+
+                            tx.send(m).unwrap();
+
+                            let m = rx.recv().await.unwrap();
+
+                            println!("Playing {m}");
+                            if playtak_game.play(m).await.is_err() {
+                                println!("Failed to play move!");
+                            }
+                        }
+                        GameUpdate::Ended(result) => {
+                            println!("Game over! {result:?}");
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
             }
-            let turn = player.pick_move(&game, true);
-            println!("Playing {}", turn.to_ptn());
-            playtak_game.play(turn.to_ptn().parse().unwrap()).await.unwrap();
-            game.play(turn).unwrap();
-        }
+        } => (),
     }
+
+    println!("Shutting down...");
 }
