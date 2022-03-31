@@ -64,11 +64,16 @@ async fn main() {
                 loop {
                     match rx.try_recv() {
                         Ok(m) => {
-                            println!("My turn");
-
                             let turn = Turn::from_ptn(&m.to_string()).unwrap();
                             player.play_move(&game, &turn);
                             game.play(turn).unwrap();
+
+                            if game.winner() != GameResult::Ongoing {
+                                println!("Opponent ended the game");
+                                continue;
+                            }
+
+                            println!("My turn");
 
                             let start = Instant::now();
                             while Instant::now().duration_since(start) < Duration::from_secs(20) {
@@ -123,11 +128,11 @@ async fn main() {
 
                             tx.send(m).unwrap();
 
-                            let m = rx.recv().await.unwrap();
-
-                            println!("Playing {m}");
-                            if playtak_game.play(m).await.is_err() {
-                                println!("Failed to play move!");
+                            if let Some(m) = rx.recv().await {
+                                println!("Playing {m}");
+                                if playtak_game.play(m).await.is_err() {
+                                    println!("Failed to play move!");
+                                }
                             }
                         }
                         GameUpdate::Ended(result) => {
