@@ -12,7 +12,12 @@ use clap::Parser;
 use cli::Args;
 use tak::*;
 use takparse::Move;
-use tokio::{select, signal::ctrl_c, sync::mpsc::unbounded_channel, time::Instant};
+use tokio::{
+    select,
+    signal::ctrl_c,
+    sync::mpsc::{unbounded_channel, UnboundedSender},
+    time::Instant,
+};
 use tokio_takconnect::{connect_as, Client, Color, GameParameters, GameUpdate, SeekParameters};
 
 mod cli;
@@ -49,52 +54,52 @@ async fn main() {
         panic!("Could not enable CUDA.");
     }
 
-    let (tx, mut rx) = {
-        let (main_tx, channel_rx) = channel::<Receiver<Move>>();
-        let (tx, main_rx) = unbounded_channel::<Move>();
+    let (channel_tx, channel_rx) = channel::<(UnboundedSender<Move>, Receiver<Move>)>();
 
-        spawn(move || {
-            let network = Network::<5>::load(&args.model_path)
-                .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
+    spawn(move || {
+        let network = Network::<5>::load(&args.model_path)
+            .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
-            while let Ok(rx) = channel_rx.recv() {
-                let mut game = Game::<5>::with_komi(KOMI);
-                let mut player = Player::<5, _>::new(&network, vec![], KOMI);
+        while let Ok((tx, rx)) = channel_rx.recv() {
+            let mut game = Game::<5>::with_komi(KOMI);
+            let mut player = Player::<5, _>::new(&network, vec![], KOMI);
 
-                loop {
-                    match rx.try_recv() {
-                        Ok(m) => {
-                            println!("My turn");
+            loop {
+                match rx.try_recv() {
+                    Ok(m) => {
+                        let turn = Turn::from_ptn(&m.to_string()).unwrap();
+                        player.play_move(&game, &turn);
+                        game.play(turn).unwrap();
 
-                            let turn = Turn::from_ptn(&m.to_string()).unwrap();
-                            player.play_move(&game, &turn);
-                            game.play(turn).unwrap();
-
-                            let start = Instant::now();
-                            while Instant::now().duration_since(start) < Duration::from_secs(20) {
-                                player.rollout(&game, 200);
-                            }
-
-                            let turn = player.pick_move(&game, true);
-                            tx.send(Move::from_str(&turn.to_ptn()).unwrap()).unwrap();
-                            game.play(turn).unwrap();
+                        if game.winner() != GameResult::Ongoing {
+                            println!("Opponent ended the game");
+                            break;
                         }
-                        // Ponder
-                        Err(TryRecvError::Empty) => player.rollout(&game, 100),
-                        // Game ended
-                        Err(TryRecvError::Disconnected) => break,
-                    }
-                }
 
-                // create analysis file
-                if let Ok(mut file) = File::create(format!("analysis_{}.ptn", sys_time())) {
-                    file.write_all(player.get_analysis().to_ptn().as_bytes()).unwrap();
+                        println!("My turn");
+
+                        let start = Instant::now();
+                        while Instant::now().duration_since(start) < Duration::from_secs(20) {
+                            player.rollout(&game, 200);
+                        }
+
+                        let turn = player.pick_move(&game, true);
+                        tx.send(Move::from_str(&turn.to_ptn()).unwrap()).unwrap();
+                        game.play(turn).unwrap();
+                    }
+                    // Ponder
+                    Err(TryRecvError::Empty) => player.rollout(&game, 100),
+                    // Game ended
+                    Err(TryRecvError::Disconnected) => break,
                 }
             }
-        });
 
-        (main_tx, main_rx)
-    };
+            // create analysis file
+            if let Ok(mut file) = File::create(format!("analysis_{}.ptn", sys_time())) {
+                file.write_all(player.get_analysis().to_ptn().as_bytes()).unwrap();
+            }
+        }
+    });
 
     // Connect to PlayTak
     let mut client = connect_as(args.username, args.password).await.unwrap();
@@ -109,10 +114,11 @@ async fn main() {
                 let mut playtak_game = client.game().await.unwrap();
                 println!("Game started");
 
-                let tx = {
-                    let (game_tx, game_rx) = channel::<Move>();
-                    tx.send(game_rx).unwrap();
-                    game_tx
+                let (tx, mut rx) = {
+                    let (outbound_tx, outbound_rx) = channel::<Move>();
+                    let (inbound_tx, inbound_rx) = unbounded_channel::<Move>();
+                    channel_tx.send((inbound_tx, outbound_rx)).unwrap();
+                    (outbound_tx, inbound_rx)
                 };
 
                 loop {
@@ -123,11 +129,11 @@ async fn main() {
 
                             tx.send(m).unwrap();
 
-                            let m = rx.recv().await.unwrap();
-
-                            println!("Playing {m}");
-                            if playtak_game.play(m).await.is_err() {
-                                println!("Failed to play move!");
+                            if let Some(m) = rx.recv().await {
+                                println!("Playing {m}");
+                                if playtak_game.play(m).await.is_err() {
+                                    println!("Failed to play move!");
+                                }
                             }
                         }
                         GameUpdate::Ended(result) => {
