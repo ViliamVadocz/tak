@@ -1,17 +1,27 @@
 use std::{
+    fs::File,
+    io::Write,
     str::FromStr,
     sync::mpsc::{channel, Receiver, TryRecvError},
     thread::spawn,
     time::Duration,
 };
 
-use alpha_tak::{config::KOMI, model::network::Network, player::Player, use_cuda};
+use alpha_tak::{config::KOMI, model::network::Network, player::Player, sys_time, use_cuda};
 use clap::Parser;
 use cli::Args;
 use tak::*;
 use takparse::Move;
 use tokio::{select, signal::ctrl_c, sync::mpsc::unbounded_channel, time::Instant};
-use tokio_takconnect::{connect_guest, Client, Color, GameParameters, GameUpdate, SeekParameters};
+use tokio_takconnect::{
+    connect_as,
+    connect_guest,
+    Client,
+    Color,
+    GameParameters,
+    GameUpdate,
+    SeekParameters,
+};
 
 mod cli;
 
@@ -39,7 +49,7 @@ async fn create_seek(client: &mut Client) {
                     2 * KOMI,
                     21,
                     1,
-                    true,
+                    false,
                     false,
                 )
                 .unwrap(),
@@ -53,7 +63,7 @@ async fn create_seek(client: &mut Client) {
 #[tokio::main]
 async fn main() {
     let (tx, mut rx) = {
-        let (main_tx, rx) = channel::<Receiver<Move>>();
+        let (main_tx, channel_rx) = channel::<Receiver<Move>>();
         let (tx, main_rx) = unbounded_channel::<Move>();
 
         spawn(move || {
@@ -62,34 +72,36 @@ async fn main() {
             let mut game = Game::<5>::with_komi(KOMI);
             let mut player = Player::<5, _>::new(&network, vec![], KOMI);
 
-            loop {
-                match rx.recv() {
-                    Ok(rx) => loop {
-                        match rx.try_recv() {
-                            Ok(m) => {
-                                println!("My turn");
+            while let Ok(rx) = channel_rx.recv() {
+                loop {
+                    match rx.try_recv() {
+                        Ok(m) => {
+                            println!("My turn");
 
-                                let turn = Turn::from_ptn(&m.to_string()).unwrap();
-                                player.play_move(&game, &turn);
-                                game.play(turn).unwrap();
+                            let turn = Turn::from_ptn(&m.to_string()).unwrap();
+                            player.play_move(&game, &turn);
+                            game.play(turn).unwrap();
 
-                                let start = Instant::now();
-                                while Instant::now().duration_since(start) < Duration::from_secs(20) {
-                                    player.rollout(&game, 200);
-                                }
-
-                                let turn = player.pick_move(&game, true);
-                                tx.send(Move::from_str(&turn.to_ptn()).unwrap()).unwrap();
-                                game.play(turn).unwrap();
+                            let start = Instant::now();
+                            while Instant::now().duration_since(start) < Duration::from_secs(20) {
+                                player.rollout(&game, 200);
                             }
-                            // Ponder
-                            Err(TryRecvError::Empty) => player.rollout(&game, 100),
-                            // Game ended
-                            Err(TryRecvError::Disconnected) => break,
+
+                            let turn = player.pick_move(&game, true);
+                            tx.send(Move::from_str(&turn.to_ptn()).unwrap()).unwrap();
+                            game.play(turn).unwrap();
                         }
-                    },
-                    _ => break,
+                        // Ponder
+                        Err(TryRecvError::Empty) => player.rollout(&game, 100),
+                        // Game ended
+                        Err(TryRecvError::Disconnected) => break,
+                    }
                 }
+            }
+
+            // create analysis file
+            if let Ok(mut file) = File::create(format!("analysis_{}.ptn", sys_time())) {
+                file.write_all(player.get_analysis().to_ptn().as_bytes()).unwrap();
             }
         });
 
