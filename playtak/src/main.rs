@@ -70,7 +70,7 @@ async fn main() {
 
                             if game.winner() != GameResult::Ongoing {
                                 println!("Opponent ended the game");
-                                continue;
+                                break;
                             }
 
                             println!("My turn");
