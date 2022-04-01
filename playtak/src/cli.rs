@@ -1,6 +1,6 @@
 use clap::Parser;
 
-/// Train AlphaTak
+/// Run the bot on PlayTak
 #[derive(Parser)]
 pub struct Args {
     /// Path to model
@@ -8,7 +8,9 @@ pub struct Args {
     /// PlayTak Username
     pub username: String,
     /// PlayTak Password
-    pub password: String,
+    /// Whether to seek as white
+    #[clap(short, long)]
+    pub seek_as_white: bool,
     /// Disable GPU usage
     #[clap(short, long)]
     pub no_gpu: bool,

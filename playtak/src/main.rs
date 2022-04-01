@@ -22,13 +22,15 @@ use tokio_takconnect::{connect_as, Client, Color, GameParameters, GameUpdate, Se
 
 mod cli;
 
-async fn create_seek(client: &mut Client) {
+const WHITE_FIRST_MOVE: &str = "a1";
+
+async fn create_seek(client: &mut Client, color: Color) {
     // Hardcoded for now
     client
         .seek(
             SeekParameters::new(
                 None,
-                Color::Black,
+                color,
                 GameParameters::new(
                     5,
                     Duration::from_secs(10 * 60),
@@ -62,7 +64,14 @@ async fn main() {
 
         while let Ok((tx, rx)) = channel_rx.recv() {
             let mut game = Game::<5>::with_komi(KOMI);
-            let mut player = Player::<5, _>::new(&network, vec![], KOMI);
+
+            let mut opening = Vec::new();
+            if args.seek_as_white {
+                let first = Turn::from_ptn(WHITE_FIRST_MOVE).unwrap();
+                opening.push(first.clone());
+                game.play(first.clone()).unwrap();
+            }
+            let mut player = Player::<5, _>::new(&network, opening, KOMI);
 
             loop {
                 match rx.try_recv() {
@@ -108,7 +117,7 @@ async fn main() {
         _ = ctrl_c() => (),
         _ = async move {
             loop {
-                create_seek(&mut client).await;
+                create_seek(&mut client, if args.seek_as_white {Color::White} else {Color::Black}).await;
                 println!("Created seek");
 
                 let mut playtak_game = client.game().await.unwrap();
@@ -120,6 +129,10 @@ async fn main() {
                     channel_tx.send((inbound_tx, outbound_rx)).unwrap();
                     (outbound_tx, inbound_rx)
                 };
+
+                if args.seek_as_white {
+                    playtak_game.play(WHITE_FIRST_MOVE.parse().unwrap()).await.unwrap();
+                }
 
                 loop {
                     println!("Opponent's turn");
