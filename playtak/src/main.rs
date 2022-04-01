@@ -18,7 +18,15 @@ use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedSender},
     time::Instant,
 };
-use tokio_takconnect::{connect_as, Client, Color, GameParameters, GameUpdate, SeekParameters};
+use tokio_takconnect::{
+    connect_as,
+    connect_guest,
+    Client,
+    Color,
+    GameParameters,
+    GameUpdate,
+    SeekParameters,
+};
 
 mod cli;
 
@@ -111,7 +119,13 @@ async fn main() {
     });
 
     // Connect to PlayTak
-    let mut client = connect_as(args.username, args.password).await.unwrap();
+    let mut client = if let (Some(username), Some(password)) = (args.username, args.password) {
+        connect_as(username, password).await
+    } else {
+        println!("Connecting as guest");
+        connect_guest().await
+    }
+    .unwrap();
 
     select! {
         _ = ctrl_c() => (),
