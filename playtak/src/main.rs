@@ -30,7 +30,7 @@ use tokio_takconnect::{
 
 mod cli;
 
-const WHITE_FIRST_MOVE: &str = "a1";
+const WHITE_FIRST_MOVE: &str = "e5";
 
 async fn create_seek(client: &mut Client, color: Color) {
     // Hardcoded for now
@@ -42,7 +42,7 @@ async fn create_seek(client: &mut Client, color: Color) {
                 GameParameters::new(
                     5,
                     Duration::from_secs(10 * 60),
-                    Duration::from_secs(15),
+                    Duration::from_secs(20),
                     2 * KOMI,
                     21,
                     1,
@@ -84,6 +84,8 @@ async fn main() {
             loop {
                 match rx.try_recv() {
                     Ok(m) => {
+                        print!("{}", player.debug(Some(5)));
+
                         let turn = Turn::from_ptn(&m.to_string()).unwrap();
                         player.play_move(&game, &turn);
                         game.play(turn).unwrap();
@@ -96,9 +98,10 @@ async fn main() {
                         println!("My turn");
 
                         let start = Instant::now();
-                        while Instant::now().duration_since(start) < Duration::from_secs(20) {
-                            player.rollout(&game, 200);
+                        while Instant::now().duration_since(start) < Duration::from_secs(25) {
+                            player.rollout(&game, 500);
                         }
+                        print!("{}", player.debug(Some(5)));
 
                         let turn = player.pick_move(&game, true);
                         tx.send(Move::from_str(&turn.to_ptn()).unwrap()).unwrap();
