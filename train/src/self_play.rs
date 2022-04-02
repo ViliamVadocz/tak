@@ -6,7 +6,16 @@ use std::{
 use alpha_tak::{
     agent::Agent,
     analysis::Analysis,
-    config::{KOMI, N, ROLLOUTS_PER_MOVE, SELF_PLAY_GAMES, TEMPERATURE_PLIES},
+    config::{
+        DIRICHLET_NOISE,
+        KOMI,
+        N,
+        NOISE_PLIES,
+        NOISE_RATIO,
+        ROLLOUTS_PER_MOVE,
+        SELF_PLAY_GAMES,
+        TEMPERATURE_PLIES,
+    },
     example::Example,
     model::network::Network,
     player::Player,
@@ -49,6 +58,9 @@ fn self_play_game<A: Agent<N>>(agent: &A, _index: usize) -> (Vec<Example<N>>, An
     let mut player = Player::new(agent, opening, game.komi);
 
     while matches!(game.winner(), GameResult::Ongoing) {
+        if game.ply < NOISE_PLIES {
+            player.apply_dirichlet(&game, DIRICHLET_NOISE, NOISE_RATIO);
+        }
         player.rollout(&game, ROLLOUTS_PER_MOVE);
         let turn = player.pick_move(&game, game.ply > TEMPERATURE_PLIES);
         game.play(turn).unwrap();

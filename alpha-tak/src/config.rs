@@ -16,8 +16,9 @@ pub const SELF_PLAY_GAMES: usize = 500;
 pub const ROLLOUTS_PER_MOVE: usize = 1000;
 pub const TEMPERATURE_PLIES: u64 = 10;
 
-pub const DIRICHLET_NOISE: f32 = 0.15;
+pub const DIRICHLET_NOISE: f32 = 0.2;
 pub const NOISE_RATIO: f32 = 0.5;
+pub const NOISE_PLIES: u64 = 30;
 
 // train
 pub const MAX_EXAMPLES: usize = 250_000;

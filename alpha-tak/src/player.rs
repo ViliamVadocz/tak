@@ -95,4 +95,10 @@ where
     pub fn get_analysis(&mut self) -> Analysis<N> {
         std::mem::take(&mut self.analysis)
     }
+
+    /// Apply dirichlet noise to the top node
+    pub fn apply_dirichlet(&mut self, game: &Game<N>, alpha: f32, ratio: f32) {
+        self.rollout(game, 1);
+        self.node.apply_dirichlet(alpha, ratio);
+    }
 }
