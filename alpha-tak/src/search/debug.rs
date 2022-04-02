@@ -9,28 +9,32 @@ impl<const N: usize> Node<N> {
         const MAX_CONTINUATION_LEN: usize = 8;
         const MIN_VISIT_COUNT: u32 = 10;
         format!("turn      visited   reward   policy | continuation\n{}", {
-            let mut p: Vec<_> = self.children.as_ref().unwrap().iter().collect();
-            p.sort_by_key(|(_turn, node)| node.visited_count);
-            p.reverse();
-            p.iter()
-                .take(limit.unwrap_or(usize::MAX))
-                .map(|(turn, node)| {
-                    let continuation = node
-                        .continuation(MIN_VISIT_COUNT, MAX_CONTINUATION_LEN)
-                        .into_iter()
-                        .map(|t| t.to_ptn())
-                        .collect::<Vec<_>>()
-                        .join(" ");
-                    format!(
-                        "{: <8} {: >8} {: >8.4} {: >8.4} | {}\n",
-                        turn.to_ptn(),
-                        node.visited_count,
-                        node.expected_reward,
-                        node.policy,
-                        continuation,
-                    )
-                })
-                .collect::<String>()
+            if let Some(children) = self.children.as_ref() {
+                let mut p: Vec<_> = children.iter().collect();
+                p.sort_by_key(|(_turn, node)| node.visited_count);
+                p.reverse();
+                p.iter()
+                    .take(limit.unwrap_or(usize::MAX))
+                    .map(|(turn, node)| {
+                        let continuation = node
+                            .continuation(MIN_VISIT_COUNT, MAX_CONTINUATION_LEN)
+                            .into_iter()
+                            .map(|t| t.to_ptn())
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        format!(
+                            "{: <8} {: >8} {: >8.4} {: >8.4} | {}\n",
+                            turn.to_ptn(),
+                            node.visited_count,
+                            node.expected_reward,
+                            node.policy,
+                            continuation,
+                        )
+                    })
+                    .collect::<String>()
+            } else {
+                String::new()
+            }
         })
     }
 
