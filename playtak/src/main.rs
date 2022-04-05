@@ -31,6 +31,8 @@ use tokio_takconnect::{
 mod cli;
 
 const WHITE_FIRST_MOVE: &str = "e5";
+const OPENING_BOOK: [(&str, &str); 4] = [("a1", "e5"), ("a5", "e1"), ("e1", "a5"), ("e5", "a1")];
+const THINK_SECONDS: u64 = 15;
 
 async fn create_seek(client: &mut Client, color: Color) {
     // Hardcoded for now
@@ -42,7 +44,7 @@ async fn create_seek(client: &mut Client, color: Color) {
                 GameParameters::new(
                     5,
                     Duration::from_secs(10 * 60),
-                    Duration::from_secs(20),
+                    Duration::from_secs(10),
                     2 * KOMI,
                     21,
                     1,
@@ -81,7 +83,7 @@ async fn main() {
             }
             let mut player = Player::<5, _>::new(&network, opening, KOMI);
 
-            loop {
+            'turn_loop: loop {
                 match rx.try_recv() {
                     Ok(m) => {
                         print!("{}", player.debug(Some(5)));
@@ -95,10 +97,24 @@ async fn main() {
                             break;
                         }
 
-                        println!("My turn");
+                        println!("=== My turn ===");
+
+                        // Handle turn 1.
+                        if game.ply == 1 {
+                            for opening in OPENING_BOOK {
+                                if opening.0 == m.to_string() {
+                                    println!("Using opening book");
+                                    let turn = Turn::from_ptn(opening.1).unwrap();
+                                    player.play_move(&game, &turn);
+                                    tx.send(Move::from_str(opening.1).unwrap()).unwrap();
+                                    game.play(turn).unwrap();
+                                    continue 'turn_loop;
+                                }
+                            }
+                        }
 
                         let start = Instant::now();
-                        while Instant::now().duration_since(start) < Duration::from_secs(25) {
+                        while Instant::now().duration_since(start) < Duration::from_secs(THINK_SECONDS) {
                             player.rollout(&game, 500);
                         }
                         print!("{}", player.debug(Some(5)));
@@ -152,7 +168,7 @@ async fn main() {
                 }
 
                 loop {
-                    println!("Opponent's turn");
+                    println!("=== Opponent's turn ===");
                     match playtak_game.update().await.unwrap() {
                         GameUpdate::Played(m) => {
                             println!("Opponent played {m}");
