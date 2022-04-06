@@ -9,7 +9,7 @@ impl<const N: usize> Node<N> {
         const MAX_CONTINUATION_LEN: usize = 8;
         const MIN_VISIT_COUNT: u32 = 10;
         format!("turn      visited   reward   policy | continuation\n{}", {
-            if !self.children.is_empty() {
+            if self.is_policy_initialized() {
                 let mut p: Vec<_> = self.children.iter().collect();
                 p.sort_by_key(|(_turn, node)| node.visits);
                 p.reverse();

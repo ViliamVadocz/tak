@@ -1,13 +1,25 @@
 use tak::*;
 
 use super::{node::Node, turn_map::Lut};
-use crate::config::{EXPLORATION_BASE, EXPLORATION_INIT};
+use crate::{
+    agent::Agent,
+    config::{EXPLORATION_BASE, EXPLORATION_INIT},
+};
 
 impl<const N: usize> Node<N>
 where
     Turn<N>: Lut,
 {
-    pub fn rollout(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
+    pub fn rollout<A: Agent<N>>(&mut self, game: Game<N>, agent: &A) {
+        let path = vec![];
+        // perform a virtual rollout
+        if !matches!(self.virtual_rollout(&mut game, &mut path), GameResult::Ongoing) {
+            // the game result isn't concrete - devirtualize the path
+            self.devirtualize_path(&mut path.into_iter(), &agent.policy_and_eval(&game));
+        }
+    }
+
+    pub fn virtual_rollout(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
         let result = if self.is_initialized() {
             // we've been here before - recurse if we can
             match self.result {
@@ -83,7 +95,7 @@ where
         // add the move to our path
         path.push(turn.clone());
         // continue the rollout
-        node.rollout(game, path)
+        node.virtual_rollout(game, path)
     }
 
     fn upper_confidence_bound(&self, child: &Node<N>) -> f32 {

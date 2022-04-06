@@ -30,6 +30,10 @@ impl<const N: usize> Node<N> {
         self.visits != 0 || self.virtual_visits != 0
     }
 
+    pub fn is_policy_initialized(&self) -> bool {
+        self.visits != 0
+    }
+
     pub fn visit_count(&self) -> f32 {
         (self.visits + self.virtual_visits) as f32
     }
