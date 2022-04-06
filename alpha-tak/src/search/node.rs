@@ -2,20 +2,12 @@ use std::collections::HashMap;
 
 use tak::*;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Node<const N: usize> {
-    pub result: Option<GameResult>,
+    pub result: GameResult,
     pub policy: f32,
     pub expected_reward: f32,
     pub visited_count: u32,
-    pub children: Option<HashMap<Turn<N>, Node<N>>>,
-}
-
-impl<const N: usize> Node<N> {
-    pub fn init(policy: f32) -> Self {
-        Node {
-            policy,
-            ..Default::default()
-        }
-    }
+    pub virtual_count: u32,
+    pub children: HashMap<Turn<N>, Option<Node<N>>>,
 }

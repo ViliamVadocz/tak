@@ -3,65 +3,45 @@ use std::collections::HashMap;
 use tak::*;
 
 use super::{node::Node, turn_map::Lut};
-use crate::{agent::Agent, config::CONTEMPT};
+use crate::agent::Agent;
 
 impl<const N: usize> Node<N>
 where
     Turn<N>: Lut,
 {
-    pub fn rollout<A: Agent<N>>(&mut self, game: Game<N>, agent: &A) -> f32 {
+    fn update_stats(&mut self, reward: f32) {
+        let scaled_reward = self.expected_reward * self.visited_count as f32;
         self.visited_count += 1;
-
-        // cache game result
-        if self.result.is_none() {
-            self.result = Some(game.winner());
-            self.expected_reward = match self.result {
-                Some(GameResult::Winner { colour: winner, .. }) => {
-                    if winner == game.to_move {
-                        // means that the previous player played a losing move
-                        -1.
-                    } else {
-                        1.
-                    }
-                }
-                Some(GameResult::Draw { .. }) => -CONTEMPT,
-                _ => 0.,
-            };
-        }
-        if let Some(GameResult::Winner { .. }) = self.result {
-            return -self.expected_reward;
-        } else if let Some(GameResult::Draw { .. }) = self.result {
-            return 0.;
-        }
-
-        // if it is the first time we are vising this node
-        // initialize all children
-        if self.children.is_none() {
-            return self.expand_node(game, agent);
-        }
-        // otherwise we have been at this node before
-        self.rollout_next(game, agent)
+        self.expected_reward = (scaled_reward + reward) / self.visited_count as f32;
     }
 
-    fn expand_node<A: Agent<N>>(&mut self, game: Game<N>, agent: &A) -> f32 {
-        // use the neural network to get initial policy for children
-        // and eval for this board
-        let (policy, eval) = agent.policy_and_eval(&game);
+    pub fn virtual_rollout<A: Agent<N>>(&mut self, game: Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
+        let rollout_result = match self.result {
+            GameResult::Ongoing => todo!(), // self.virtual_rollout_next(game),
+            r => r,
+        };
 
-        let mut children = HashMap::new();
+        match rollout_result {
+            GameResult::Winner { colour, .. } => {
+                self.update_stats(if colour == game.to_move { -1.0 } else { 1.0 })
+            }
+            GameResult::Draw { .. } => self.update_stats(0.0),
+            _ => {}
+        };
 
-        let turns = game.possible_turns();
-        for turn in turns {
-            let move_index = turn.turn_map();
-            children.insert(turn, Node::init(policy[move_index]));
-        }
-
-        self.expected_reward = -eval;
-        self.children = Some(children);
-        eval
+        rollout_result
     }
 
-    fn rollout_next<A: Agent<N>>(&mut self, mut game: Game<N>, agent: &A) -> f32 {
+    fn expand_node<A: Agent<N>>(&mut self, game: Game<N>) {
+        self.children = Some(
+            game.possible_turns()
+                .into_iter()
+                .map(|turn| (turn, Node::new()))
+                .collect(),
+        );
+    }
+
+    fn virtual_rollout_next<A: Agent<N>>(&mut self, mut game: Game<N>) -> GameResult {
         // pick which node to rollout
         let mut children = self.children.take().unwrap();
         let (turn, next_node) = children
