@@ -11,8 +11,8 @@ impl<const N: usize> Node<N> {
             result: game.winner(),
             policy: 1.0,
             expected_reward: 0.0,
-            visited_count: 0,
-            virtual_count: 0,
+            visits: 0,
+            virtual_visits: 0,
             children: Default::default(),
         };
         self.0 = Some(node);
@@ -25,7 +25,7 @@ pub struct InnerNode<const N: usize> {
     pub result: GameResult,
     pub policy: f32,
     pub expected_reward: f32,
-    pub visited_count: u32,
-    pub virtual_count: u32,
+    pub visits: u32,
+    pub virtual_visits: u32,
     pub children: HashMap<Turn<N>, Node<N>>,
 }

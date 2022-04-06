@@ -35,7 +35,7 @@ where
             GameResult::Draw { .. } => node.apply_eval(0.0),
 
             // we've cut the recursion short of a terminal node - count a virtual visit
-            GameResult::Ongoing => node.virtual_count += 1,
+            GameResult::Ongoing => node.virtual_visits += 1,
         }
 
         result
@@ -47,9 +47,9 @@ where
     Turn<N>: Lut,
 {
     fn apply_eval(&mut self, reward: f32) {
-        let scaled_reward = self.expected_reward * self.visited_count as f32;
-        self.visited_count += 1;
-        self.expected_reward = (scaled_reward + reward) / self.visited_count as f32;
+        let scaled_reward = self.expected_reward * self.visits as f32;
+        self.visits += 1;
+        self.expected_reward = (scaled_reward + reward) / self.visits as f32;
     }
 
     fn select(&mut self, game: Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
