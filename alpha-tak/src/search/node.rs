@@ -6,7 +6,7 @@ use tak::*;
 pub struct Node<const N: usize>(pub Option<InnerNode<N>>);
 
 impl<const N: usize> Node<N> {
-    pub fn initialize(&mut self, game: Game<N>) -> InnerNode<N> {
+    pub fn initialize(&mut self, game: &mut Game<N>) -> InnerNode<N> {
         let node = InnerNode {
             result: game.winner(),
             policy: 1.0,

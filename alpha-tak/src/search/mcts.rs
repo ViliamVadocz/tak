@@ -1,18 +1,15 @@
-use std::collections::HashMap;
-
 use tak::*;
 
 use super::{
     node::{InnerNode, Node},
     turn_map::Lut,
 };
-use crate::agent::Agent;
 
 impl<const N: usize> Node<N>
 where
     Turn<N>: Lut,
 {
-    pub fn rollout(&mut self, game: Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
+    pub fn rollout(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
         let node;
         let result = if let Some(n) = self.0 {
             // we've been here before - recurse if we can
@@ -40,6 +37,24 @@ where
 
         result
     }
+
+    pub fn devirtualize_path<I: Iterator<Item = Turn<N>>>(
+        &mut self,
+        path: &mut I,
+        result: (Vec<f32>, f32),
+    ) -> f32 {
+        let node = self.0.expect("virtual path leads to unexplored nodes");
+
+        node.virtual_visits -= 1;
+        let eval = -if let Some(turn) = path.next() {
+            node.children[&turn].devirtualize_path(path, result)
+        } else {
+            result.1
+        };
+        node.apply_eval(eval);
+
+        eval
+    }
 }
 
 impl<const N: usize> InnerNode<N>
@@ -52,7 +67,7 @@ where
         self.expected_reward = (scaled_reward + reward) / self.visits as f32;
     }
 
-    fn select(&mut self, game: Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
+    fn select(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
         if self.children.is_empty() {
             // lazily initialize the children
             self.children = game
