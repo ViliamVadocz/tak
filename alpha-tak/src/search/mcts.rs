@@ -13,7 +13,7 @@ where
     pub fn rollout<A: Agent<N>>(&mut self, mut game: Game<N>, agent: &A) {
         let mut path = vec![];
         // perform a virtual rollout
-        if !matches!(self.virtual_rollout(&mut game, &mut path), GameResult::Ongoing) {
+        if matches!(self.virtual_rollout(&mut game, &mut path), GameResult::Ongoing) {
             // the game result isn't concrete - devirtualize the path
             self.devirtualize_path(&mut path.into_iter(), &agent.policy_and_eval(&game));
         }
