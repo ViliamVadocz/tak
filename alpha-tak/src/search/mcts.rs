@@ -1,38 +1,38 @@
 use tak::*;
 
-use super::{
-    node::{InnerNode, Node},
-    turn_map::Lut,
-};
+use super::{node::Node, turn_map::Lut};
+use crate::config::{EXPLORATION_BASE, EXPLORATION_INIT};
+
+fn exploration_rate(n: f32) -> f32 {
+    ((1.0 + n + EXPLORATION_BASE) / EXPLORATION_BASE).ln() + EXPLORATION_INIT
+}
 
 impl<const N: usize> Node<N>
 where
     Turn<N>: Lut,
 {
     pub fn rollout(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
-        let node;
-        let result = if let Some(n) = self.0 {
+        let result = if self.is_initialized() {
             // we've been here before - recurse if we can
-            node = n;
-            match node.result {
-                GameResult::Ongoing => node.select(game, path),
+            match self.result {
+                GameResult::Ongoing => self.select(game, path),
                 r => r,
             }
         } else {
-            // uninitialized node - stop the recursion
-            node = self.initialize(game);
-            node.result
+            // uninitialized node - cache the winner and stop the recursion
+            self.result = game.winner();
+            self.result
         };
 
         match result {
-            // our virtual visit ended on a terminal node - propagate a concrete score
+            // our rollout ended on a terminal node - propagate a concrete score
             GameResult::Winner { colour, .. } => {
-                node.apply_eval(if colour == game.to_move { -1.0 } else { 1.0 })
+                self.apply_eval(if colour == game.to_move { -1.0 } else { 1.0 })
             }
-            GameResult::Draw { .. } => node.apply_eval(0.0),
+            GameResult::Draw { .. } => self.apply_eval(0.0),
 
             // we've cut the recursion short of a terminal node - count a virtual visit
-            GameResult::Ongoing => node.virtual_visits += 1,
+            GameResult::Ongoing => self.virtual_visits += 1,
         }
 
         result
@@ -41,30 +41,27 @@ where
     pub fn devirtualize_path<I: Iterator<Item = Turn<N>>>(
         &mut self,
         path: &mut I,
-        result: (Vec<f32>, f32),
+        result: &(Vec<f32>, f32),
     ) -> f32 {
-        let node = self.0.expect("virtual path leads to unexplored nodes");
+        self.virtual_visits -= 1;
 
-        node.virtual_visits -= 1;
         let eval = -if let Some(turn) = path.next() {
-            node.children[&turn].devirtualize_path(path, result)
+            self.children[&turn].devirtualize_path(path, result)
         } else {
-            result.1
+            let (policy, eval) = result;
+
+            // replace the policies with the correct values
+            self.children.iter_mut().for_each(|(turn, child)| {
+                let move_index = turn.turn_map();
+                child.policy = policy[move_index];
+            });
+
+            *eval
         };
-        node.apply_eval(eval);
+
+        self.apply_eval(eval);
 
         eval
-    }
-}
-
-impl<const N: usize> InnerNode<N>
-where
-    Turn<N>: Lut,
-{
-    fn apply_eval(&mut self, reward: f32) {
-        let scaled_reward = self.expected_reward * self.visits as f32;
-        self.visits += 1;
-        self.expected_reward = (scaled_reward + reward) / self.visits as f32;
     }
 
     fn select(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
@@ -81,14 +78,7 @@ where
         let ((turn, node), _) = self
             .children
             .iter_mut()
-            .map(|pair| {
-                (
-                    pair,
-                    pair.1
-                         .0
-                        .map_or(f32::INFINITY, |child| self.upper_confidence_bound(&child)),
-                )
-            })
+            .map(|pair| (pair, self.upper_confidence_bound(&pair.1)))
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).expect("tried comparing nan"))
             .expect("tried to select on a node without children");
 
@@ -98,5 +88,19 @@ where
         path.push(turn.clone());
         // continue the rollout
         node.rollout(game, path)
+    }
+
+    fn upper_confidence_bound(&self, child: &Node<N>) -> f32 {
+        // U(s, a) = Q(s, a) + C(s) * P(s, a) * sqrt(N(s)) / (1 + N(s, a))
+        child.expected_reward
+            + exploration_rate(self.visit_count())
+                * child.policy
+                * (self.visit_count().sqrt() / (1.0 + child.visit_count()))
+    }
+
+    fn apply_eval(&mut self, reward: f32) {
+        let scaled_reward = self.expected_reward * self.visits as f32;
+        self.visits += 1;
+        self.expected_reward = (scaled_reward + reward) / self.visits as f32;
     }
 }
