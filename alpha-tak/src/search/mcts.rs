@@ -2,66 +2,86 @@ use std::collections::HashMap;
 
 use tak::*;
 
-use super::{node::Node, turn_map::Lut};
+use super::{
+    node::{InnerNode, Node},
+    turn_map::Lut,
+};
 use crate::agent::Agent;
 
 impl<const N: usize> Node<N>
 where
     Turn<N>: Lut,
 {
-    fn update_stats(&mut self, reward: f32) {
+    pub fn rollout(&mut self, game: Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
+        let node;
+        let result = if let Some(n) = self.0 {
+            // we've been here before - recurse if we can
+            node = n;
+            match node.result {
+                GameResult::Ongoing => node.select(game, path),
+                r => r,
+            }
+        } else {
+            // uninitialized node - stop the recursion
+            node = self.initialize(game);
+            node.result
+        };
+
+        match result {
+            // our virtual visit ended on a terminal node - propagate a concrete score
+            GameResult::Winner { colour, .. } => {
+                node.apply_eval(if colour == game.to_move { -1.0 } else { 1.0 })
+            }
+            GameResult::Draw { .. } => node.apply_eval(0.0),
+
+            // we've cut the recursion short of a terminal node - count a virtual visit
+            GameResult::Ongoing => node.virtual_count += 1,
+        }
+
+        result
+    }
+}
+
+impl<const N: usize> InnerNode<N>
+where
+    Turn<N>: Lut,
+{
+    fn apply_eval(&mut self, reward: f32) {
         let scaled_reward = self.expected_reward * self.visited_count as f32;
         self.visited_count += 1;
         self.expected_reward = (scaled_reward + reward) / self.visited_count as f32;
     }
 
-    pub fn virtual_rollout<A: Agent<N>>(&mut self, game: Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
-        let rollout_result = match self.result {
-            GameResult::Ongoing => todo!(), // self.virtual_rollout_next(game),
-            r => r,
-        };
-
-        match rollout_result {
-            GameResult::Winner { colour, .. } => {
-                self.update_stats(if colour == game.to_move { -1.0 } else { 1.0 })
-            }
-            GameResult::Draw { .. } => self.update_stats(0.0),
-            _ => {}
-        };
-
-        rollout_result
-    }
-
-    fn expand_node<A: Agent<N>>(&mut self, game: Game<N>) {
-        self.children = Some(
-            game.possible_turns()
+    fn select(&mut self, game: Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
+        if self.children.is_empty() {
+            // lazily initialize the children
+            self.children = game
+                .possible_turns()
                 .into_iter()
-                .map(|turn| (turn, Node::new()))
-                .collect(),
-        );
-    }
+                .map(|turn| (turn, Node::default()))
+                .collect();
+        }
 
-    fn virtual_rollout_next<A: Agent<N>>(&mut self, mut game: Game<N>) -> GameResult {
-        // pick which node to rollout
-        let mut children = self.children.take().unwrap();
-        let (turn, next_node) = children
+        // select the node to recurse into
+        let ((turn, node), _) = self
+            .children
             .iter_mut()
-            .max_by(|(_, a), (_, b)| {
-                self.upper_confidence_bound(a)
-                    .partial_cmp(&self.upper_confidence_bound(b))
-                    .expect("tried comparing nan")
+            .map(|pair| {
+                (
+                    pair,
+                    pair.1
+                         .0
+                        .map_or(f32::INFINITY, |child| self.upper_confidence_bound(&child)),
+                )
             })
-            .unwrap();
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).expect("tried comparing nan"))
+            .expect("tried to select on a node without children");
 
-        // rollout next node
-        game.play(turn.clone()).unwrap();
-        let eval = next_node.rollout(game, agent);
-        self.children = Some(children);
-
-        // take the mean of the expected reward and eval
-        self.expected_reward =
-            ((self.visited_count - 1) as f32 * self.expected_reward + eval) / (self.visited_count as f32);
-
-        -eval
+        // update the game state
+        game.play(turn.clone());
+        // add the move to our path
+        path.push(turn.clone());
+        // continue the rollout
+        node.rollout(game, path)
     }
 }
