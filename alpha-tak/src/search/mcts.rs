@@ -3,10 +3,6 @@ use tak::*;
 use super::{node::Node, turn_map::Lut};
 use crate::config::{EXPLORATION_BASE, EXPLORATION_INIT};
 
-fn exploration_rate(n: f32) -> f32 {
-    ((1.0 + n + EXPLORATION_BASE) / EXPLORATION_BASE).ln() + EXPLORATION_INIT
-}
-
 impl<const N: usize> Node<N>
 where
     Turn<N>: Lut,
@@ -27,9 +23,9 @@ where
         match result {
             // our rollout ended on a terminal node - propagate a concrete score
             GameResult::Winner { colour, .. } => {
-                self.apply_eval(if colour == game.to_move { -1.0 } else { 1.0 })
+                self.update_concrete(if colour == game.to_move { -1.0 } else { 1.0 })
             }
-            GameResult::Draw { .. } => self.apply_eval(0.0),
+            GameResult::Draw { .. } => self.update_concrete(0.0),
 
             // we've cut the recursion short of a terminal node - count a virtual visit
             GameResult::Ongoing => self.virtual_visits += 1,
@@ -59,7 +55,7 @@ where
             *eval
         };
 
-        self.apply_eval(eval);
+        self.update_concrete(eval);
 
         eval
     }
@@ -91,6 +87,10 @@ where
     }
 
     fn upper_confidence_bound(&self, child: &Node<N>) -> f32 {
+        fn exploration_rate(n: f32) -> f32 {
+            ((1.0 + n + EXPLORATION_BASE) / EXPLORATION_BASE).ln() + EXPLORATION_INIT
+        }
+
         // U(s, a) = Q(s, a) + C(s) * P(s, a) * sqrt(N(s)) / (1 + N(s, a))
         child.expected_reward
             + exploration_rate(self.visit_count())
@@ -98,7 +98,7 @@ where
                 * (self.visit_count().sqrt() / (1.0 + child.visit_count()))
     }
 
-    fn apply_eval(&mut self, reward: f32) {
+    fn update_concrete(&mut self, reward: f32) {
         let scaled_reward = self.expected_reward * self.visits as f32;
         self.visits += 1;
         self.expected_reward = (scaled_reward + reward) / self.visits as f32;
