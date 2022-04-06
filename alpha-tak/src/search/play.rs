@@ -22,7 +22,7 @@ impl<const N: usize> Node<N> {
     }
 
     #[must_use]
-    pub fn play(self, turn: &Turn<N>) -> Node<N> {
+    pub fn play(mut self, turn: &Turn<N>) -> Node<N> {
         self.check_initialized();
         self.children
             .remove(turn)

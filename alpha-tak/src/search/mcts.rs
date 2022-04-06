@@ -10,8 +10,8 @@ impl<const N: usize> Node<N>
 where
     Turn<N>: Lut,
 {
-    pub fn rollout<A: Agent<N>>(&mut self, game: Game<N>, agent: &A) {
-        let path = vec![];
+    pub fn rollout<A: Agent<N>>(&mut self, mut game: Game<N>, agent: &A) {
+        let mut path = vec![];
         // perform a virtual rollout
         if !matches!(self.virtual_rollout(&mut game, &mut path), GameResult::Ongoing) {
             // the game result isn't concrete - devirtualize the path
@@ -54,7 +54,10 @@ where
         self.virtual_visits -= 1;
 
         let eval = -if let Some(turn) = path.next() {
-            self.children[&turn].devirtualize_path(path, result)
+            self.children
+                .get_mut(&turn)
+                .unwrap()
+                .devirtualize_path(path, result)
         } else {
             let (policy, eval) = result;
 
@@ -82,32 +85,33 @@ where
                 .collect();
         }
 
+        let visit_count = self.visit_count();
+        let upper_confidence_bound = |child: &Node<N>| {
+            fn exploration_rate(n: f32) -> f32 {
+                ((1.0 + n + EXPLORATION_BASE) / EXPLORATION_BASE).ln() + EXPLORATION_INIT
+            }
+
+            // U(s, a) = Q(s, a) + C(s) * P(s, a) * sqrt(N(s)) / (1 + N(s, a))
+            child.expected_reward
+                + exploration_rate(visit_count)
+                    * child.policy
+                    * (visit_count.sqrt() / (1.0 + child.visit_count()))
+        };
+
         // select the node to recurse into
-        let ((turn, node), _) = self
+        let (_, (turn, node)) = self
             .children
             .iter_mut()
-            .map(|pair| (pair, self.upper_confidence_bound(&pair.1)))
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).expect("tried comparing nan"))
+            .map(|pair| (upper_confidence_bound(&pair.1), pair))
+            .max_by(|(a, _), (b, _)| a.partial_cmp(b).expect("tried to compare nan"))
             .expect("tried to select on a node without children");
 
         // update the game state
-        game.play(turn.clone());
+        game.play(turn.clone()).unwrap();
         // add the move to our path
         path.push(turn.clone());
         // continue the rollout
         node.virtual_rollout(game, path)
-    }
-
-    fn upper_confidence_bound(&self, child: &Node<N>) -> f32 {
-        fn exploration_rate(n: f32) -> f32 {
-            ((1.0 + n + EXPLORATION_BASE) / EXPLORATION_BASE).ln() + EXPLORATION_INIT
-        }
-
-        // U(s, a) = Q(s, a) + C(s) * P(s, a) * sqrt(N(s)) / (1 + N(s, a))
-        child.expected_reward
-            + exploration_rate(self.visit_count())
-                * child.policy
-                * (self.visit_count().sqrt() / (1.0 + child.visit_count()))
     }
 
     fn update_concrete(&mut self, reward: f32) {
