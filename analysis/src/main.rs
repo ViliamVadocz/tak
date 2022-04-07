@@ -23,7 +23,7 @@ fn main() {
         .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
     let mut game = Game::<5>::with_komi(2);
-    let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, 64);
+    let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, args.batch_size.unwrap_or(64));
 
     while matches!(game.winner(), GameResult::Ongoing) {
         // Get input from user.
