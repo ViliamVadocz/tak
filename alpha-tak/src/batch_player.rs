@@ -122,12 +122,20 @@ where
         // save example
         self.examples.push(IncompleteExample {
             game: game.clone(),
-            policy: self.node.lock().unwrap().improved_policy(),
+            policy: node.improved_policy(),
         });
 
         self.analysis.update(&node, turn.clone());
 
         *node = std::mem::take(node.deref_mut()).play(turn);
+
+        // remove stale paths
+        self.response_rx.recv().unwrap();
+
+        // refill queue
+        let mut game = game.clone();
+        game.play(turn.clone()).unwrap();
+        self.request_batch(&game);
     }
 
     /// Complete collected examples with the game result and return them.
