@@ -1,3 +1,13 @@
+use std::{
+    ops::DerefMut,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+        Mutex,
+    },
+    thread::spawn,
+};
+
 use tak::*;
 
 use crate::{
@@ -8,42 +18,77 @@ use crate::{
 };
 
 pub struct BatchPlayer<'a, const N: usize> {
-    node: Node<N>,
+    node: Arc<Mutex<Node<N>>>,
     network: &'a Network<N>,
     examples: Vec<IncompleteExample<N>>,
     analysis: Analysis<N>,
+    request_tx: Sender<(Game<N>, u32)>,
+    response_rx: Receiver<(Vec<Vec<Turn<N>>>, Vec<Game<N>>)>,
+    batch: u32,
 }
 
 impl<'a, const N: usize> BatchPlayer<'a, N>
 where
     Turn<N>: Lut,
 {
-    pub fn new(network: &'a Network<N>, opening: Vec<Turn<N>>, komi: i32) -> Self {
-        Self {
-            node: Node::default(),
+    fn request_batch(&self, game: &Game<N>) {
+        self.request_tx.send((game.clone(), self.batch)).unwrap();
+    }
+
+    pub fn new(
+        game: &Game<N>,
+        network: &'a Network<N>,
+        opening: Vec<Turn<N>>,
+        komi: i32,
+        batch: u32,
+    ) -> Self {
+        let (request_tx, request_rx) = channel();
+        let (response_tx, response_rx) = channel();
+
+        let instance = Self {
+            node: Default::default(),
             network,
             examples: Vec::new(),
             analysis: Analysis::from_opening(opening, komi),
-        }
+            request_tx,
+            response_rx,
+            batch,
+        };
+
+        let node = instance.node.clone();
+        spawn(move || {
+            while let Ok((game, batch)) = request_rx.recv() {
+                let mut node = node.lock().unwrap();
+                let paths: (Vec<_>, Vec<_>) = (0..batch)
+                    .filter_map(|_| {
+                        let mut path = vec![];
+                        let mut game = game.clone();
+                        if node.virtual_rollout(&mut game, &mut path) == GameResult::Ongoing {
+                            Some((path, game))
+                        } else {
+                            None
+                        }
+                    })
+                    .unzip();
+
+                response_tx.send(paths).unwrap();
+            }
+        });
+
+        instance.request_batch(game);
+
+        instance
     }
 
     pub fn debug(&self, limit: Option<usize>) -> String {
-        self.node.debug(limit)
+        self.node.lock().unwrap().debug(limit)
     }
 
-    /// Do some amount of rollouts.
-    pub fn rollout(&mut self, game: &Game<N>, amount: usize) {
-        let (paths, games): (Vec<_>, Vec<_>) = (0..amount)
-            .filter_map(|_| {
-                let mut path = vec![];
-                let mut game = game.clone();
-                if self.node.virtual_rollout(&mut game, &mut path) == GameResult::Ongoing {
-                    Some((path, game))
-                } else {
-                    None
-                }
-            })
-            .unzip();
+    /// Do a batch of rollouts.
+    pub fn rollout(&mut self, game: &Game<N>) {
+        self.request_batch(game);
+
+        let (paths, games) = self.response_rx.recv().unwrap();
 
         let (policy_vecs, evals) = if games.is_empty() {
             Default::default()
@@ -51,37 +96,38 @@ where
             self.network.policy_eval_batch(games.as_slice())
         };
 
+        let mut node = self.node.lock().unwrap();
         policy_vecs
             .into_iter()
             .zip(evals)
             .zip(paths)
             .for_each(|(result, path)| {
-                self.node.devirtualize_path(&mut path.into_iter(), &result);
+                node.devirtualize_path(&mut path.into_iter(), &result);
             });
     }
 
     /// Pick a move to play and also play it.
     pub fn pick_move(&mut self, game: &Game<N>, exploitation: bool) -> Turn<N> {
-        let turn = self.node.pick_move(exploitation);
+        let turn = self.node.lock().unwrap().pick_move(exploitation);
         self.play_move(game, &turn);
         turn
     }
 
     /// Update the search tree, analysis, and create an example.
     pub fn play_move(&mut self, game: &Game<N>, turn: &Turn<N>) {
-        self.node.rollout(game.clone(), self.network); // at least one rollout
-        self.save_example(game.clone());
-        self.analysis.update(&self.node, turn.clone());
+        let mut node = self.node.lock().unwrap();
 
-        let node = std::mem::take(&mut self.node);
-        self.node = node.play(turn);
-    }
+        node.rollout(game.clone(), self.network); // at least one rollout
 
-    fn save_example(&mut self, game: Game<N>) {
+        // save example
         self.examples.push(IncompleteExample {
-            game,
-            policy: self.node.improved_policy(),
-        })
+            game: game.clone(),
+            policy: self.node.lock().unwrap().improved_policy(),
+        });
+
+        self.analysis.update(&node, turn.clone());
+
+        *node = std::mem::take(node.deref_mut()).play(turn);
     }
 
     /// Complete collected examples with the game result and return them.
@@ -119,7 +165,8 @@ where
 
     /// Apply dirichlet noise to the top node
     pub fn apply_dirichlet(&mut self, game: &Game<N>, alpha: f32, ratio: f32) {
-        self.rollout(game, 1);
-        self.node.apply_dirichlet(alpha, ratio);
+        let mut node = self.node.lock().unwrap();
+        node.rollout(game.clone(), self.network);
+        node.apply_dirichlet(alpha, ratio);
     }
 }

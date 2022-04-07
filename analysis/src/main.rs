@@ -23,7 +23,7 @@ fn main() {
         .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
     let mut game = Game::<5>::with_komi(2);
-    let mut player = BatchPlayer::new(&network, vec![], game.komi);
+    let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, 64);
 
     while matches!(game.winner(), GameResult::Ongoing) {
         // Get input from user.
@@ -34,7 +34,7 @@ fn main() {
 
         loop {
             // Do rollouts while we wait for input.
-            player.rollout(&game, 64);
+            player.rollout(&game);
 
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
