@@ -18,6 +18,7 @@ pub mod config;
 pub mod threadpool;
 
 pub mod agent;
+pub mod batch_player;
 pub mod example;
 pub mod player;
 pub mod repr;

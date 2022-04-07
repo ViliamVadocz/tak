@@ -5,7 +5,7 @@ use std::{
     thread,
 };
 
-use alpha_tak::{model::network::Network, player::Player, use_cuda};
+use alpha_tak::{batch_player::BatchPlayer, model::network::Network, use_cuda};
 use clap::Parser;
 use cli::Args;
 use tak::*;
@@ -23,7 +23,7 @@ fn main() {
         .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
     let mut game = Game::<5>::with_komi(2);
-    let mut player = Player::new(&network, vec![], game.komi);
+    let mut player = BatchPlayer::new(&network, vec![], game.komi);
 
     while matches!(game.winner(), GameResult::Ongoing) {
         // Get input from user.
@@ -34,7 +34,7 @@ fn main() {
 
         loop {
             // Do rollouts while we wait for input.
-            player.rollout(&game, 100);
+            player.rollout(&game, 64);
 
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
@@ -67,7 +67,7 @@ fn get_input() -> String {
     line
 }
 
-fn try_play_move(player: &mut Player<'_, 5, Network<5>>, game: &mut Game<5>, input: String) -> StrResult<()> {
+fn try_play_move(player: &mut BatchPlayer<'_, 5>, game: &mut Game<5>, input: String) -> StrResult<()> {
     let turn = Turn::from_ptn(&input)?;
     let mut copy = game.clone();
     copy.play(turn.clone())?;
