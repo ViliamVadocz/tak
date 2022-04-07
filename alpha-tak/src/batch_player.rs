@@ -45,7 +45,11 @@ where
             })
             .unzip();
 
-        let (policy_vecs, evals) = self.network.policy_eval_batch(games.as_slice());
+        let (policy_vecs, evals) = if games.is_empty() {
+            Default::default()
+        } else {
+            self.network.policy_eval_batch(games.as_slice())
+        };
 
         policy_vecs
             .into_iter()
