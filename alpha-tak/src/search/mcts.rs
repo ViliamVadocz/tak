@@ -27,8 +27,15 @@ where
                 r => r,
             }
         } else {
-            // uninitialized node - cache the winner and stop the recursion
+            // uninitialized node - initialize it and stop the recursion
             self.result = game.winner();
+            if self.result == GameResult::Ongoing {
+                self.children = game
+                    .possible_turns()
+                    .into_iter()
+                    .map(|turn| (turn, Node::default()))
+                    .collect();
+            }
             self.result
         };
 
@@ -76,15 +83,6 @@ where
     }
 
     fn select(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
-        if self.children.is_empty() {
-            // lazily initialize the children
-            self.children = game
-                .possible_turns()
-                .into_iter()
-                .map(|turn| (turn, Node::default()))
-                .collect();
-        }
-
         let visit_count = self.visit_count();
         let upper_confidence_bound = |child: &Node<N>| {
             fn exploration_rate(n: f32) -> f32 {
