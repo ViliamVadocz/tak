@@ -20,6 +20,8 @@ where
     }
 
     pub fn virtual_rollout(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
+        let curr_colour = game.to_move;
+
         let result = if self.is_initialized() {
             // we've been here before - recurse if we can
             match self.result {
@@ -42,7 +44,7 @@ where
         match result {
             // our rollout ended on a terminal node - propagate a concrete score
             GameResult::Winner { colour, .. } => {
-                self.update_concrete(if colour == game.to_move { -1.0 } else { 1.0 })
+                self.update_concrete(if colour == curr_colour { -1.0 } else { 1.0 })
             }
             GameResult::Draw { .. } => self.update_concrete(0.0),
 
