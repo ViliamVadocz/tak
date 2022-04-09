@@ -113,6 +113,11 @@ async fn main() {
                             }
                         }
 
+                        // Some noise to hopefully prevent farming.
+                        if game.ply < 16 {
+                            println!("Applying noise...");
+                            player.apply_dirichlet(&game, 1.0, 0.3);
+                        }
                         let start = Instant::now();
                         while Instant::now().duration_since(start) < Duration::from_secs(THINK_SECONDS) {
                             player.rollout(&game, 500);
