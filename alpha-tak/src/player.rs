@@ -41,9 +41,21 @@ where
 
     /// Pick a move to play and also play it.
     pub fn pick_move(&mut self, game: &Game<N>, exploitation: bool) -> Turn<N> {
-        let turn = self.node.pick_move(exploitation);
-        self.play_move(game, &turn);
-        turn
+        let mut picked = None;
+        // Play the winning move if there is one.
+        for turn in game.possible_turns() {
+            let mut clone = game.clone();
+            clone.play(turn.clone()).unwrap();
+            if matches!(clone.winner(), GameResult::Winner { colour, .. } if colour == game.to_move) {
+                picked = Some(turn);
+                break;
+            }
+        }
+        // Otherwise pick from search tree.
+        let picked = picked.unwrap_or_else(|| self.node.pick_move(exploitation));
+
+        self.play_move(game, &picked);
+        picked
     }
 
     /// Update the search tree, analysis, and create an example.
