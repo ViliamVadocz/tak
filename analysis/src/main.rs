@@ -1,11 +1,17 @@
 use std::{
-    fs::File,
+    fs::{read_to_string, File},
     io::{stdout, Write},
     sync::mpsc::channel,
     thread,
 };
 
-use alpha_tak::{model::network::Network, player::Player, use_cuda};
+use alpha_tak::{
+    analysis::Analysis,
+    config::{KOMI, N},
+    model::network::Network,
+    player::Player,
+    use_cuda,
+};
 use clap::Parser;
 use cli::Args;
 use tak::*;
@@ -19,10 +25,25 @@ fn main() {
         return;
     }
 
-    let network = Network::<5>::load(&args.model_path)
+    // TODO make nice
+
+    let network = Network::<N>::load(&args.model_path)
         .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
-    let mut game = Game::<5>::with_komi(2);
+    if let Some(file_path) = args.ptn_file {
+        let content = read_to_string(file_path).expect("get good scrub");
+        let turns = Vec::<Turn<N>>::from_ptn(&content).expect("idk bozo");
+        let analysis = analysis_for_file(&network, turns, 1000);
+
+        if let Ok(mut file) = File::create("analysis.ptn") {
+            file.write_all(analysis.to_ptn().as_bytes()).unwrap();
+            println!("created a file `analysis.ptn` with the analysis of this game");
+        }
+
+        return;
+    }
+
+    let mut game = Game::<N>::with_komi(KOMI);
     let mut player = Player::new(&network, vec![], game.komi);
 
     while matches!(game.winner(), GameResult::Ongoing) {
@@ -73,4 +94,18 @@ fn try_play_move(player: &mut Player<'_, 5, Network<5>>, game: &mut Game<5>, inp
     copy.play(turn.clone())?;
     player.play_move(game, &turn);
     game.play(turn)
+}
+
+fn analysis_for_file(network: &Network<N>, turns: Vec<Turn<N>>, rollouts_per_move: usize) -> Analysis<N> {
+    let mut player = Player::new(network, vec![], KOMI);
+    let mut game = Game::with_komi(KOMI);
+
+    for turn in turns {
+        println!("Analysing {}", turn.to_ptn());
+        player.rollout(&game, rollouts_per_move);
+        player.play_move(&game, &turn);
+        game.play(turn).unwrap();
+    }
+
+    player.get_analysis()
 }
