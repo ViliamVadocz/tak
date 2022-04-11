@@ -1,11 +1,16 @@
-use std::{sync::mpsc::{Receiver, Sender, TryRecvError}, time::{Instant, Duration}, fs::write};
+use std::{
+    fs::write,
+    thread,
+    time::{Duration, Instant},
+};
 
-use alpha_tak::{config::KOMI, model::network::Network, sys_time, batch_player::BatchPlayer};
+use alpha_tak::{batch_player::BatchPlayer, config::KOMI, model::network::Network, sys_time};
 use tak::*;
+use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver, UnboundedSender};
 
-use crate::{message::Message, WHITE_FIRST_MOVE, THINK_SECONDS, OPENING_BOOK};
+use crate::{message::Message, OPENING_BOOK, PONDER_ROLLOUT_LIMIT, THINK_SECONDS, WHITE_FIRST_MOVE};
 
-pub fn run_bot(model_path: &str, tx: Sender<Message>, rx: Receiver<Message>) {
+pub fn run_bot(model_path: &str, tx: UnboundedSender<Message>, mut rx: UnboundedReceiver<Message>) {
     let network =
         Network::<5>::load(model_path).unwrap_or_else(|_| panic!("could not load model at {model_path}"));
 
@@ -13,11 +18,15 @@ pub fn run_bot(model_path: &str, tx: Sender<Message>, rx: Receiver<Message>) {
         let mut game = Game::<5>::with_komi(KOMI);
         let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, 64);
         let mut last_move: String = String::new();
+        let mut ponder_rollouts = 0;
 
         'turn_loop: loop {
             match rx.try_recv() {
                 // Play a move.
                 Ok(Message::MoveRequest) => {
+                    println!("Did {ponder_rollouts} ponder rollouts.");
+                    ponder_rollouts = 0;
+
                     println!("A move has been requested.");
                     if game.winner() != GameResult::Ongoing {
                         tx.send(Message::GameEnded).unwrap();
@@ -92,7 +101,14 @@ pub fn run_bot(model_path: &str, tx: Sender<Message>, rx: Receiver<Message>) {
                 }
 
                 // Ponder.
-                Err(TryRecvError::Empty) => player.rollout(&game),
+                Err(TryRecvError::Empty) => {
+                    if ponder_rollouts < PONDER_ROLLOUT_LIMIT {
+                        ponder_rollouts += 1;
+                        player.rollout(&game);
+                    } else {
+                        thread::sleep(Duration::from_millis(100));
+                    }
+                }
 
                 // Other thread ended.
                 Err(TryRecvError::Disconnected) => break 'game_loop,
@@ -102,8 +118,9 @@ pub fn run_bot(model_path: &str, tx: Sender<Message>, rx: Receiver<Message>) {
         println!("Game ended, creating analysis file");
         // Create analysis file.
         write(
-            format!("analysis_{}.ptn", sys_time()), 
-            player.get_analysis().to_ptn()).unwrap_or_else(|err| println!("{err}")
-        );
+            format!("analysis_{}.ptn", sys_time()),
+            player.get_analysis().to_ptn(),
+        )
+        .unwrap_or_else(|err| println!("{err}"));
     }
 }
