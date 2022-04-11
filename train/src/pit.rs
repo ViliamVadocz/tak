@@ -6,7 +6,7 @@ use std::{
 use alpha_tak::{
     agent::Agent,
     analysis::Analysis,
-    config::{KOMI, N, PIT_MATCHES, ROLLOUTS_PER_MOVE},
+    config::{DIRICHLET_NOISE, KOMI, N, NOISE_RATIO, PIT_MATCHES, ROLLOUTS_PER_MOVE},
     example::Example,
     model::network::Network,
     player::Player,
@@ -96,18 +96,41 @@ where
         let mut game = Game::with_komi(KOMI);
 
         // TODO proper opening book using index
-        let opening = game.opening(rand::random()).unwrap();
+        let opening = vec![
+            Turn::Place {
+                pos: Pos { x: 0, y: 0 },
+                shape: Shape::Flat,
+            },
+            Turn::Place {
+                pos: Pos {
+                    x: 4,
+                    y: if rand::random() { 0 } else { 4 },
+                },
+                shape: Shape::Flat,
+            },
+        ];
+        for turn in opening.clone() {
+            game.play(turn).unwrap()
+        }
 
         let mut new_player = Player::new(new, opening.clone(), game.komi);
         let mut old_player = Player::new(old, opening, game.komi);
 
+        const PIT_NOISE_PLIES: u64 = 20;
+
         while matches!(game.winner(), GameResult::Ongoing) {
             let turn;
             if game.to_move == my_colour {
+                if game.ply < PIT_NOISE_PLIES {
+                    new_player.apply_dirichlet(&game, DIRICHLET_NOISE, NOISE_RATIO)
+                }
                 new_player.rollout(&game, ROLLOUTS_PER_MOVE);
                 turn = new_player.pick_move(&game, true);
                 old_player.play_move(&game, &turn);
             } else {
+                if game.ply < PIT_NOISE_PLIES {
+                    old_player.apply_dirichlet(&game, DIRICHLET_NOISE, NOISE_RATIO)
+                }
                 old_player.rollout(&game, ROLLOUTS_PER_MOVE);
                 turn = old_player.pick_move(&game, true);
                 new_player.play_move(&game, &turn);

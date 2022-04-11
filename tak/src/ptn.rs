@@ -276,3 +276,18 @@ impl<const N: usize> Game<N> {
         Ok(())
     }
 }
+
+impl<const N: usize> FromPTN for Vec<Turn<N>> {
+    fn from_ptn(str: &str) -> StrResult<Self> {
+        // remove comments
+        let s = OPTIONS_RE.replace_all(str, "");
+        let s = COMMENTS_RE.replace_all(&s, "");
+
+        // get individual plies (split at move numbers, space, and game result)
+        PLY_SPLIT_RE
+            .split(&s)
+            .filter(|ss| !ss.is_empty())
+            .map(Turn::from_ptn)
+            .collect()
+    }
+}

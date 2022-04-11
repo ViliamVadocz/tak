@@ -52,8 +52,24 @@ pub fn self_play(network: &Network<N>) -> Vec<Example<N>> {
 
 fn self_play_game<A: Agent<N>>(agent: &A, _index: usize) -> (Vec<Example<N>>, Analysis<N>) {
     let mut game = Game::with_komi(KOMI);
+
     // TODO proper opening book using index
-    let opening = game.opening(rand::random()).unwrap();
+    let opening = vec![
+        Turn::Place {
+            pos: Pos { x: 0, y: 0 },
+            shape: Shape::Flat,
+        },
+        Turn::Place {
+            pos: Pos {
+                x: 4,
+                y: if rand::random() { 0 } else { 4 },
+            },
+            shape: Shape::Flat,
+        },
+    ];
+    for turn in opening.clone() {
+        game.play(turn).unwrap()
+    }
 
     let mut player = Player::new(agent, opening, game.komi);
 
