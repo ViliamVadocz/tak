@@ -115,9 +115,8 @@ where
 
     /// Update the search tree, analysis, and create an example.
     pub fn play_move(&mut self, game: &Game<N>, turn: &Turn<N>) {
+        self.rollout(game); // at least one rollout
         let mut node = self.node.lock().unwrap();
-
-        node.rollout(game.clone(), self.network); // at least one rollout
 
         // save example
         self.examples.push(IncompleteExample {
