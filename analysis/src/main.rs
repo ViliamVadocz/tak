@@ -44,7 +44,7 @@ fn main() {
     }
 
     let mut game = Game::<N>::with_komi(KOMI);
-    let mut player = Player::new(&network, vec![], game.komi);
+    let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, args.batch_size.unwrap_or(64));
 
     while matches!(game.winner(), GameResult::Ongoing) {
         // Get input from user.
@@ -55,7 +55,7 @@ fn main() {
 
         loop {
             // Do rollouts while we wait for input.
-            player.rollout(&game, 100);
+            player.rollout(&game);
 
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
@@ -88,7 +88,7 @@ fn get_input() -> String {
     line
 }
 
-fn try_play_move(player: &mut Player<'_, 5, Network<5>>, game: &mut Game<5>, input: String) -> StrResult<()> {
+fn try_play_move(player: &mut BatchPlayer<'_, 5>, game: &mut Game<5>, input: String) -> StrResult<()> {
     let turn = Turn::from_ptn(&input)?;
     let mut copy = game.clone();
     copy.play(turn.clone())?;
