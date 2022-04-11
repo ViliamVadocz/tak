@@ -6,7 +6,8 @@ pub struct Args {
     /// Path to model
     pub model_path: String,
     /// How many virtual rollouts to perform per batch
-    pub batch_size: Option<u32>,
+    #[clap(short, long, default_value_t = 64)]
+    pub batch_size: u32,
     /// Path to PTN game file
     #[clap(short, long)]
     pub ptn_file: Option<String>,

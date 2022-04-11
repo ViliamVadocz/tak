@@ -7,9 +7,9 @@ use std::{
 
 use alpha_tak::{
     analysis::Analysis,
+    batch_player::BatchPlayer,
     config::{KOMI, N},
     model::network::Network,
-    player::Player,
     use_cuda,
 };
 use clap::Parser;
@@ -33,7 +33,7 @@ fn main() {
     if let Some(file_path) = args.ptn_file {
         let content = read_to_string(file_path).expect("get good scrub");
         let turns = Vec::<Turn<N>>::from_ptn(&content).expect("idk bozo");
-        let analysis = analysis_for_file(&network, turns, 1000);
+        let analysis = analysis_for_file(&network, turns, args.batch_size);
 
         if let Ok(mut file) = File::create("analysis.ptn") {
             file.write_all(analysis.to_ptn().as_bytes()).unwrap();
@@ -44,7 +44,7 @@ fn main() {
     }
 
     let mut game = Game::<N>::with_komi(KOMI);
-    let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, args.batch_size.unwrap_or(64));
+    let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, args.batch_size);
 
     while matches!(game.winner(), GameResult::Ongoing) {
         // Get input from user.
@@ -96,13 +96,13 @@ fn try_play_move(player: &mut BatchPlayer<'_, 5>, game: &mut Game<5>, input: Str
     game.play(turn)
 }
 
-fn analysis_for_file(network: &Network<N>, turns: Vec<Turn<N>>, rollouts_per_move: usize) -> Analysis<N> {
-    let mut player = Player::new(network, vec![], KOMI);
+fn analysis_for_file(network: &Network<N>, turns: Vec<Turn<N>>, batch_size: u32) -> Analysis<N> {
     let mut game = Game::with_komi(KOMI);
+    let mut player = BatchPlayer::new(&game, network, vec![], game.komi, batch_size);
 
     for turn in turns {
         println!("Analysing {}", turn.to_ptn());
-        player.rollout(&game, rollouts_per_move);
+        player.rollout(&game);
         player.play_move(&game, &turn);
         game.play(turn).unwrap();
     }
