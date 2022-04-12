@@ -21,7 +21,11 @@ pub fn run_bot(model_path: &str, tx: UnboundedSender<Message>, mut rx: Unbounded
         let mut ponder_rollouts = 0;
 
         'turn_loop: loop {
-            match rx.try_recv() {
+            match if ponder_rollouts < PONDER_ROLLOUT_LIMIT {
+                rx.try_recv()
+            } else {
+                rx.blocking_recv().ok_or(TryRecvError::Disconnected)
+            } {
                 // Play a move.
                 Ok(Message::MoveRequest) => {
                     println!("Did {ponder_rollouts} ponder rollouts.");
@@ -102,12 +106,9 @@ pub fn run_bot(model_path: &str, tx: UnboundedSender<Message>, mut rx: Unbounded
 
                 // Ponder.
                 Err(TryRecvError::Empty) => {
-                    if ponder_rollouts < PONDER_ROLLOUT_LIMIT {
-                        ponder_rollouts += 1;
-                        player.rollout(&game);
-                    } else {
-                        thread::sleep(Duration::from_millis(100));
-                    }
+                    ponder_rollouts += 1;
+                    player.rollout(&game);
+                    thread::yield_now()
                 }
 
                 // Other thread ended.
