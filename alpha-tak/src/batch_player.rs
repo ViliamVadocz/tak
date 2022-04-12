@@ -35,6 +35,25 @@ where
         self.request_tx.send((game.clone(), self.batch)).unwrap();
     }
 
+    fn consume_batch(&self) {
+        let (paths, games) = self.response_rx.recv().unwrap();
+
+        let (policy_vecs, evals) = if games.is_empty() {
+            Default::default()
+        } else {
+            self.network.policy_eval_batch(games.as_slice())
+        };
+
+        let mut node = self.node.lock().unwrap();
+        policy_vecs
+            .into_iter()
+            .zip(evals)
+            .zip(paths)
+            .for_each(|(result, path)| {
+                node.devirtualize_path(&mut path.into_iter(), &result);
+            });
+    }
+
     pub fn new(
         game: &Game<N>,
         network: &'a Network<N>,
@@ -87,23 +106,7 @@ where
     /// Do a batch of rollouts.
     pub fn rollout(&mut self, game: &Game<N>) {
         self.request_batch(game);
-
-        let (paths, games) = self.response_rx.recv().unwrap();
-
-        let (policy_vecs, evals) = if games.is_empty() {
-            Default::default()
-        } else {
-            self.network.policy_eval_batch(games.as_slice())
-        };
-
-        let mut node = self.node.lock().unwrap();
-        policy_vecs
-            .into_iter()
-            .zip(evals)
-            .zip(paths)
-            .for_each(|(result, path)| {
-                node.devirtualize_path(&mut path.into_iter(), &result);
-            });
+        self.consume_batch();
     }
 
     /// Pick a move to play and also play it.
@@ -115,7 +118,11 @@ where
 
     /// Update the search tree, analysis, and create an example.
     pub fn play_move(&mut self, game: &Game<N>, turn: &Turn<N>) {
-        self.rollout(game); // at least one rollout
+        // rollout stale paths
+        // necessary to update policies accordingly
+        // TODO: avoid rolling out nodes that are going to be discarded
+        self.consume_batch();
+
         let mut node = self.node.lock().unwrap();
 
         // save example
@@ -127,9 +134,6 @@ where
         self.analysis.update(&node, turn.clone());
 
         *node = std::mem::take(node.deref_mut()).play(turn);
-
-        // remove stale paths
-        self.response_rx.recv().unwrap();
 
         // refill queue
         let mut game = game.clone();
