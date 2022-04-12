@@ -5,6 +5,14 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
+name = "tei"
+path = "src/tei.rs"
+
 [dependencies]
 tak = { path = "../tak" }
 alpha-tak = { path = "../alpha-tak" }
