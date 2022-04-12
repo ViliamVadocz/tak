@@ -8,7 +8,7 @@ description = "AlphaZero for Tak"
 
 [dependencies]
 tak = {path = "../tak"}
-tch = { git = "https://github.com/LaurentMazare/tch-rs", rev = "4325d3ddc2aad74fe906f6164f9fe460cc0da9b2" }
+tch = "0.7"
 rand = "0.8"
 rand_distr = "0.4"
 lazy_static = "1.4"
