@@ -31,7 +31,8 @@ pub async fn seek_loop(
                 create_seek(&mut client, if seek_as_white {Color::White} else {Color::Black}).await;
                 println!("Created seek (white: {seek_as_white})");
 
-                if run_playtak_game(&mut client, &tx, &mut rx, seek_as_white).await.is_err() {
+                if let Err(err) = run_playtak_game(&mut client, &tx, &mut rx, seek_as_white).await {
+                    println!("Error in run_playtak_game {err}");
                     break;
                 }
 

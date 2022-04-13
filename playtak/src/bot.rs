@@ -112,7 +112,10 @@ pub fn run_bot(model_path: &str, tx: UnboundedSender<Message>, mut rx: Unbounded
                 }
 
                 // Other thread ended.
-                Err(TryRecvError::Disconnected) => break 'game_loop,
+                Err(TryRecvError::Disconnected) => {
+                    println!("Receiver disconnected.");
+                    break 'game_loop;
+                }
             }
         }
 
