@@ -13,8 +13,11 @@ mod playtak;
 mod seek;
 
 const WHITE_FIRST_MOVE: &str = "e5";
-const THINK_SECONDS: u64 = 10;
+const THINK_SECONDS: u64 = 5;
 const OPENING_BOOK: [(&str, &str); 4] = [("a1", "e5"), ("a5", "e1"), ("e1", "a5"), ("e5", "a1")];
+
+const TIME_CONTROL_SECONDS: u64 = 60;
+const INCREMENT: u64 = 5;
 
 const PONDER_ROLLOUT_LIMIT: u64 = 10_000;
 
