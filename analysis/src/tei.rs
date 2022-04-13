@@ -44,6 +44,12 @@ fn main() -> io::Result<()> {
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
         let input_words = input.split_whitespace().collect::<Vec<_>>();
+
+        if input.is_empty() {
+            eprintln!("Got EOF from GUI");
+            process::exit(1)
+        }
+
         if input_words.is_empty() {
             continue;
         }
