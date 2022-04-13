@@ -1,5 +1,4 @@
 #![feature(test)]
-#![feature(thread_is_running)]
 
 extern crate test;
 
