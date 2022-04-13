@@ -136,6 +136,7 @@ fn main() -> io::Result<()> {
             "isready" => {
                 println!("readyok")
             }
+            "quit" => process::exit(0),
             _ => {}
         }
     }
