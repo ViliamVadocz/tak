@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, thread::spawn};
 
 use rand_distr::{Distribution, WeightedIndex};
 use tak::*;
@@ -24,9 +24,14 @@ impl<const N: usize> Node<N> {
     #[must_use]
     pub fn play(mut self, turn: &Turn<N>) -> Node<N> {
         self.check_initialized();
-        self.children
+        let child = self
+            .children
             .remove(turn)
-            .expect("attempted to play invalid move")
+            .expect("attempted to play invalid move");
+
+        spawn(move || drop(self));
+
+        child
     }
 
     pub fn pick_move(&self, exploitation: bool) -> Turn<N> {
