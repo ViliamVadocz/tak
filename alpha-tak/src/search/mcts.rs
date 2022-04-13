@@ -102,7 +102,7 @@ where
         let (_, (turn, node)) = self
             .children
             .iter_mut()
-            .map(|pair| (upper_confidence_bound(&pair.1), pair))
+            .map(|pair| (upper_confidence_bound(pair.1), pair))
             .max_by(|(a, _), (b, _)| a.partial_cmp(b).expect("tried to compare nan"))
             .expect("tried to select on a node without children");
 
