@@ -173,11 +173,4 @@ where
     pub fn get_analysis(&mut self) -> Analysis<N> {
         std::mem::take(&mut self.analysis)
     }
-
-    /// Apply dirichlet noise to the top node
-    pub fn apply_dirichlet(&mut self, game: &Game<N>, alpha: f32, ratio: f32) {
-        let mut node = self.node.lock().unwrap();
-        node.rollout(game.clone(), self.network);
-        node.apply_dirichlet(alpha, ratio);
-    }
 }
