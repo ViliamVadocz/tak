@@ -13,11 +13,7 @@ mod playtak;
 mod seek;
 
 const WHITE_FIRST_MOVE: &str = "e5";
-const THINK_SECONDS: u64 = 5;
 const OPENING_BOOK: [(&str, &str); 4] = [("a1", "e5"), ("a5", "e1"), ("e1", "a5"), ("e5", "a1")];
-
-const TIME_CONTROL_SECONDS: u64 = 60;
-const INCREMENT: u64 = 5;
 
 const PONDER_ROLLOUT_LIMIT: u64 = 10_000;
 
@@ -31,7 +27,7 @@ async fn main() {
     let (net_tx, playtak_rx) = unbounded_channel();
     let (playtak_tx, net_rx) = unbounded_channel();
 
-    let model_path = args.model_path.clone();
-    spawn(move || run_bot(&model_path, net_tx, net_rx));
+    let args_clone = args.clone();
+    spawn(move || run_bot(args_clone, net_tx, net_rx));
     seek_loop(args, playtak_tx, playtak_rx).await.unwrap();
 }

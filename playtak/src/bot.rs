@@ -8,9 +8,10 @@ use alpha_tak::{batch_player::BatchPlayer, config::KOMI, model::network::Network
 use tak::*;
 use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver, UnboundedSender};
 
-use crate::{message::Message, OPENING_BOOK, PONDER_ROLLOUT_LIMIT, THINK_SECONDS, WHITE_FIRST_MOVE};
+use crate::{cli::Args, message::Message, OPENING_BOOK, PONDER_ROLLOUT_LIMIT, WHITE_FIRST_MOVE};
 
-pub fn run_bot(model_path: &str, tx: UnboundedSender<Message>, mut rx: UnboundedReceiver<Message>) {
+pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiver<Message>) {
+    let model_path = &args.model_path;
     let network =
         Network::<5>::load(model_path).unwrap_or_else(|_| panic!("could not load model at {model_path}"));
 
@@ -74,7 +75,7 @@ pub fn run_bot(model_path: &str, tx: UnboundedSender<Message>, mut rx: Unbounded
                         println!("Doing rollouts...");
                         // Do rollouts for a set amount of time.
                         let start = Instant::now();
-                        while Instant::now().duration_since(start) < Duration::from_secs(THINK_SECONDS) {
+                        while Instant::now().duration_since(start) < Duration::from_secs(args.time_to_think) {
                             player.rollout(&game);
                         }
                         print!("{}", player.debug(Some(5)));

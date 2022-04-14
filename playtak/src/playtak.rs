@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, time::Duration};
 
 use tokio::{
     select,
@@ -28,7 +28,11 @@ pub async fn seek_loop(
         _ = ctrl_c() => (),
         _ = async move {
             loop {
-                create_seek(&mut client, if seek_as_white {Color::White} else {Color::Black}).await;
+                create_seek(
+                    &mut client, if seek_as_white {Color::White} else {Color::Black},
+                    Duration::from_secs(args.initial_time),
+                    Duration::from_secs(args.increment),
+                ).await;
                 println!("Created seek (white: {seek_as_white})");
 
                 if let Err(err) = run_playtak_game(&mut client, &tx, &mut rx, seek_as_white).await {
