@@ -2,6 +2,8 @@ use std::thread::spawn;
 
 use alpha_tak::use_cuda;
 use clap::Parser;
+use log::LevelFilter;
+use simple_logging::log_to_file;
 use tokio::sync::mpsc::unbounded_channel;
 
 use crate::{bot::run_bot, cli::Args, playtak::seek_loop};
@@ -19,6 +21,8 @@ const PONDER_ROLLOUT_LIMIT: u64 = 10_000;
 
 #[tokio::main]
 async fn main() {
+    log_to_file("playtak.log", LevelFilter::Debug).unwrap();
+
     let args = Args::parse();
     if !(args.no_gpu || use_cuda()) {
         panic!("could not enable CUDA");
