@@ -1,16 +1,16 @@
 [package]
-name = "train"
+name = "alpha-tak"
 version = "0.1.0"
 edition = "2021"
+description = "AlphaZero for Tak"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 tak = { path = "../tak" }
-alpha-tak = { path = "../alpha-tak" }
-clap = { version = "3.1", features = ["derive"] }
-arrayvec = "0.7"
-rand = "0.8"
 
-[profile.release]
-lto = true
+arrayvec = "0.7.2"
+lazy_static = "1.4.0"
+rand = "0.8.5"
+rand_distr = "0.4.3"
+tch = "0.7.0"

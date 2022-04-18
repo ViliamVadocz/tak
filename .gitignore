@@ -1,10 +1,7 @@
 target/
-Cargo.lock
+
 .vscode/
 
-**/models/
-**/examples/
-**/games/
 *.model
 *.ptn
 *.data

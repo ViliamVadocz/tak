@@ -1,15 +1,12 @@
 [package]
-name = "alpha-tak"
+name = "tak"
 version = "0.1.0"
 edition = "2021"
-description = "AlphaZero for Tak"
+description = "Implementation of the abstract strategy board game Tak"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tak = {path = "../tak"}
-tch = "0.7"
-rand = "0.8"
-rand_distr = "0.4"
-lazy_static = "1.4"
-arrayvec = "0.7"
+arrayvec = "0.7.2"
+lazy_static = "1.4.0"
+regex = "1.5.5"

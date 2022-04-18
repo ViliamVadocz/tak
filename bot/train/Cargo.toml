@@ -1,5 +1,5 @@
 [package]
-name = "playtak"
+name = "train"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,12 +8,7 @@ edition = "2021"
 [dependencies]
 tak = { path = "../tak" }
 alpha-tak = { path = "../alpha-tak" }
-clap = { version = "3.1", features = ["derive"] }
-tokio-takconnect = "0.1.0"
-tokio = { version = "1", features = ["full"] }
-takparse = "0.5.2"
-simple-logging = "2.0"
-log = "0.4"
+clap = { version = "3.1.9", features = ["derive"] }
 
-[profile.release]
-lto = true
+arrayvec = "0.7.2"
+rand = "0.8.5"

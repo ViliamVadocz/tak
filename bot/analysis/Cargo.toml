@@ -1,12 +1,11 @@
 [package]
-name = "tak"
+name = "analysis"
 version = "0.1.0"
 edition = "2021"
-description = "Implementation of the abstract strategy board game Tak"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrayvec = "0.7"
-regex = "1"
-lazy_static = "1.4"
+tak = { path = "../tak" }
+alpha-tak = { path = "../alpha-tak" }
+clap = { version = "3.1.9", features = ["derive"] }
