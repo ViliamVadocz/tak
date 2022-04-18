@@ -21,9 +21,9 @@ mod pit;
 mod self_play;
 mod training_loop;
 
-const MODEL_DIR: &str = "models";
-const EXAMPLE_DIR: &str = "examples";
-const GAME_DIR: &str = "games";
+const MODEL_DIR: &str = "_models";
+const EXAMPLE_DIR: &str = "_examples";
+const GAME_DIR: &str = "_games";
 
 fn main() {
     let args = Args::parse();
