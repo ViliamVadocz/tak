@@ -8,7 +8,11 @@ use alpha_tak::{
 };
 use clap::Parser;
 use cli::Args;
+use mimalloc::MiMalloc;
 use tak::{FromPTN, Game, ToPTN, Turn};
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 mod cli;
 
@@ -18,8 +22,6 @@ fn main() -> io::Result<()> {
         println!("Could not enable CUDA.");
         return Ok(());
     }
-
-    // TODO make nice
 
     let network = Network::<N>::load(&args.model_path)
         .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
@@ -33,14 +35,17 @@ fn main() -> io::Result<()> {
         }
     }
 
+    // Register bot with TEI
+    // Read more here: https://github.com/MortenLohne/racetrack#tei
     println!("id name WilemBot");
     println!("id author Viliam Vadocz");
     println!("option name HalfKomi type spin default 4 min 4 max 4");
     println!("teiok");
 
-    let mut game: Game<N> = Game::default();
+    let mut game = Game::with_komi(KOMI);
 
     loop {
+        // Wait for input line.
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
         let input_words = input.split_whitespace().collect::<Vec<_>>();
@@ -54,44 +59,56 @@ fn main() -> io::Result<()> {
             continue;
         }
 
+        // TODO Put this whole thing in a function that returns a result
+        // so that you can then handle all the errors in one swoop
         match input_words[0] {
             "teinewgame" => {
+                // Start new game.
                 if input_words.get(1) != Some(&"5") {
                     eprintln!("Unsupported size");
                     process::exit(1)
                 } else {
-                    game = Game::default();
+                    game = Game::with_komi(KOMI);
                 }
             }
             "setoption" => {
+                // Set TEI options.
                 if input_words.get(1..=4) != Some(&["name", "HalfKomi", "value", "4"]) {
-                    eprintln!("Unsupported option string {}", input);
+                    eprintln!("Unsupported option string {input}");
                     process::exit(1)
                 }
             }
             "position" => {
+                // Set the game position.
                 if input_words.get(1..) == Some(&["startpos"]) {
-                    game = Game::default();
+                    game = Game::with_komi(KOMI);
                 } else if input_words.get(1..=2) == Some(&["startpos", "moves"]) {
-                    game = Game::default();
-                    for turn in input_words.iter().skip(3) {
-                        if let Ok(turn) = Turn::from_ptn(turn) {
-                            if game.possible_turns().contains(&turn) {
-                                game.play(turn).unwrap();
-                            } else {
-                                eprintln!("Illegal move {:?}", turn);
+                    game = Game::with_komi(KOMI);
+                    for ptn_turn in input_words.iter().skip(3) {
+                        if let Ok(turn) = Turn::from_ptn(ptn_turn) {
+                            if !game.play(turn).is_ok() {
+                                eprintln!("Illegal move {ptn_turn:?}");
                                 process::exit(1)
                             }
                         } else {
-                            eprintln!("Couldn't parse move {}", turn);
+                            eprintln!("Couldn't parse move {ptn_turn}");
                             process::exit(1)
                         }
                     }
                 } else if input_words.get(1) == Some(&"tps") {
-                    eprintln!("tps positions strings are not supported");
-                    process::exit(1)
+                    if let Some(tps) = input_words.get(2) {
+                        game = Game::from_ptn(&format!("[Komi \"2\"]\n[TPS \"{tps}\"]\n")).unwrap_or_else(
+                            |err| {
+                                eprintln!("{err}");
+                                process::exit(1)
+                            },
+                        );
+                    } else {
+                        eprintln!("Expected TPS string {input}");
+                        process::exit(1)
+                    }
                 } else {
-                    eprintln!("Unexpected position string {}", input);
+                    eprintln!("Unexpected position string {input}");
                     process::exit(1)
                 }
             }
@@ -142,6 +159,8 @@ fn main() -> io::Result<()> {
     }
 }
 
+// TODO Rewrite to use BatchPlayer, keep player around between moves, don't
+// search by amount of nodes, but use time...
 fn calculate_move_time(network: &Network<N>, game: Game<N>, time: time::Duration, increment: time::Duration) {
     let mut player: Player<N, _> = Player::new(network, vec![], KOMI);
 

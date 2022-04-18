@@ -1,5 +1,5 @@
 [workspace]
-members = ["tak", "alpha-tak", "analysis", "train", "playtak"]
+members = ["tak", "alpha-tak", "analysis", "train", "playtak", "tei"]
 
 [profile.release]
 lto = true
