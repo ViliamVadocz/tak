@@ -1,0 +1,5 @@
+[workspace]
+members = ["tak", "alpha-tak", "analysis", "train", "playtak"]
+
+[profile.release]
+lto = true
