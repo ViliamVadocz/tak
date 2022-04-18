@@ -3,10 +3,14 @@ use std::thread::spawn;
 use alpha_tak::use_cuda;
 use clap::Parser;
 use log::LevelFilter;
+use mimalloc::MiMalloc;
 use simple_logging::log_to_file;
 use tokio::sync::mpsc::unbounded_channel;
 
 use crate::{bot::run_bot, cli::Args, playtak::seek_loop};
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 mod bot;
 mod cli;

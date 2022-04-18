@@ -9,6 +9,7 @@ edition = "2021"
 tak = { path = "../tak" }
 alpha-tak = { path = "../alpha-tak" }
 clap = { version = "3.1.9", features = ["derive"] }
+mimalloc = { version = "0.1.28", default-features = false }
 
 arrayvec = "0.7.2"
 rand = "0.8.5"

@@ -14,7 +14,11 @@ use alpha_tak::{
 };
 use clap::Parser;
 use cli::Args;
+use mimalloc::MiMalloc;
 use tak::*;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 mod cli;
 

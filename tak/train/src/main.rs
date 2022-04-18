@@ -1,8 +1,3 @@
-mod cli;
-mod pit;
-mod self_play;
-mod training_loop;
-
 use std::fs::create_dir_all;
 
 use alpha_tak::{
@@ -14,8 +9,17 @@ use alpha_tak::{
 };
 use clap::Parser;
 use cli::Args;
+use mimalloc::MiMalloc;
 use self_play::self_play;
 use training_loop::training_loop;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
+mod cli;
+mod pit;
+mod self_play;
+mod training_loop;
 
 const MODEL_DIR: &str = "models";
 const EXAMPLE_DIR: &str = "examples";
