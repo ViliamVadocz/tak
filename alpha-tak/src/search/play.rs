@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, thread::spawn};
 
 use rand_distr::{Distribution, WeightedIndex};
 use tak::*;
@@ -6,20 +6,32 @@ use tak::*;
 use super::node::Node;
 
 impl<const N: usize> Node<N> {
+    fn check_initialized(&self) {
+        assert!(self.is_initialized(), "node must be initialized");
+    }
+
     pub fn improved_policy(&self) -> HashMap<Turn<N>, u32> {
-        let mut policy = HashMap::new();
-        // after many rollouts the visited counts become a better estimate for policy
-        // (not normalized)
-        for (turn, child) in self.children.as_ref().expect("you must rollout at least once") {
-            policy.insert(turn.clone(), child.visited_count);
-        }
-        policy
+        self.check_initialized();
+        // after many rollouts the visit counts become a better estimate
+        // for policy (not normalized)
+        HashMap::from_iter(
+            self.children
+                .iter()
+                .map(|(turn, child)| (turn.clone(), child.visits)),
+        )
     }
 
     #[must_use]
-    pub fn play(self, turn: &Turn<N>) -> Node<N> {
-        let mut children = self.children.expect("do at least one rollout");
-        children.remove(turn).expect("all turns should be in there")
+    pub fn play(mut self, turn: &Turn<N>) -> Node<N> {
+        self.check_initialized();
+        let child = self
+            .children
+            .remove(turn)
+            .expect("attempted to play invalid move");
+
+        spawn(move || drop(self));
+
+        child
     }
 
     pub fn pick_move(&self, exploitation: bool) -> Turn<N> {

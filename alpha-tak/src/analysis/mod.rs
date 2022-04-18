@@ -30,16 +30,17 @@ impl<const N: usize> Analysis<N> {
 
     pub fn update(&mut self, node: &Node<N>, played_turn: Turn<N>) {
         // find other candidate moves for branches
-        let children = node.children.as_ref().unwrap();
-        let top_visits = children
+        let top_visits = node
+            .children
             .iter()
-            .max_by_key(|(_, node)| node.visited_count)
+            .max_by_key(|(_, node)| node.visits)
             .unwrap()
             .1
-            .visited_count;
-        let candidates: Vec<_> = children
+            .visits;
+        let candidates: Vec<_> = node
+            .children
             .iter()
-            .filter(|(_, node)| CANDIDATE_MOVE_RATIO < node.visited_count as f32 / top_visits as f32)
+            .filter(|(_, node)| CANDIDATE_MOVE_RATIO < node.visits as f32 / top_visits as f32)
             .collect();
 
         let ply = self.played_turns.len();
@@ -59,16 +60,16 @@ impl<const N: usize> Analysis<N> {
                 info: MoveInfo {
                     eval: eval_perspective * candidate_node.expected_reward,
                     policy: candidate_node.policy,
-                    visits: candidate_node.visited_count,
+                    visits: candidate_node.visits,
                 },
             });
         }
 
-        let child = children.get(&played_turn).unwrap();
+        let child = node.children.get(&played_turn).unwrap();
         self.move_info.push(Some(MoveInfo {
             eval: eval_perspective * child.expected_reward,
             policy: child.policy,
-            visits: child.visited_count,
+            visits: child.visits,
         }));
         self.played_turns.push(played_turn)
     }
