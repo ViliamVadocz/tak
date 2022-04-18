@@ -5,7 +5,7 @@ use clap::Parser;
 use log::LevelFilter;
 use mimalloc::MiMalloc;
 use simple_logging::log_to_file;
-use tokio::sync::mpsc::unbounded_channel;
+use tokio::{fs::create_dir_all, sync::mpsc::unbounded_channel};
 
 use crate::{bot::run_bot, cli::Args, playtak::seek_loop};
 
@@ -23,9 +23,12 @@ const OPENING_BOOK: [(&str, &str); 4] = [("a1", "e5"), ("a5", "e1"), ("e1", "a5"
 
 const PONDER_ROLLOUT_LIMIT: u64 = 10_000;
 
+const ANALYSIS_DIR: &str = "playtak_games";
+
 #[tokio::main]
 async fn main() {
     log_to_file("playtak.log", LevelFilter::Debug).unwrap();
+    create_dir_all(format!("./{ANALYSIS_DIR}/")).await.unwrap();
 
     let args = Args::parse();
     if !(args.no_gpu || use_cuda()) {

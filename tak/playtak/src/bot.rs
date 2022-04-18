@@ -8,7 +8,14 @@ use alpha_tak::{batch_player::BatchPlayer, config::KOMI, model::network::Network
 use tak::*;
 use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver, UnboundedSender};
 
-use crate::{cli::Args, message::Message, OPENING_BOOK, PONDER_ROLLOUT_LIMIT, WHITE_FIRST_MOVE};
+use crate::{
+    cli::Args,
+    message::Message,
+    ANALYSIS_DIR,
+    OPENING_BOOK,
+    PONDER_ROLLOUT_LIMIT,
+    WHITE_FIRST_MOVE,
+};
 
 pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiver<Message>) {
     let model_path = &args.model_path;
@@ -123,7 +130,7 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
         println!("Game ended, creating analysis file");
         // Create analysis file.
         write(
-            format!("analysis_{}.ptn", sys_time()),
+            format!("./{ANALYSIS_DIR}/analysis_{}.ptn", sys_time()),
             player.get_analysis().to_ptn(),
         )
         .unwrap_or_else(|err| println!("{err}"));
