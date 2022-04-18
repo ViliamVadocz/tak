@@ -1,23 +1,45 @@
-use std::{sync::mpsc::{Receiver, Sender, TryRecvError}, time::{Instant, Duration}, fs::write};
+use std::{
+    fs::write,
+    thread,
+    time::{Duration, Instant},
+};
 
-use alpha_tak::{config::KOMI, model::network::Network, player::Player, sys_time};
+use alpha_tak::{batch_player::BatchPlayer, config::KOMI, model::network::Network, sys_time};
 use tak::*;
+use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver, UnboundedSender};
 
-use crate::{message::Message, WHITE_FIRST_MOVE, THINK_SECONDS, OPENING_BOOK};
+use crate::{
+    cli::Args,
+    message::Message,
+    ANALYSIS_DIR,
+    OPENING_BOOK,
+    PONDER_ROLLOUT_LIMIT,
+    WHITE_FIRST_MOVE,
+};
 
-pub fn run_bot(model_path: &str, tx: Sender<Message>, rx: Receiver<Message>) {
+pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiver<Message>) {
+    let model_path = &args.model_path;
     let network =
         Network::<5>::load(model_path).unwrap_or_else(|_| panic!("could not load model at {model_path}"));
 
     'game_loop: loop {
         let mut game = Game::<5>::with_komi(KOMI);
-        let mut player = Player::new(&network, vec![], KOMI);
+        let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, 64);
         let mut last_move: String = String::new();
+        let mut ponder_rollouts = 0;
 
         'turn_loop: loop {
-            match rx.try_recv() {
+            match if ponder_rollouts < PONDER_ROLLOUT_LIMIT {
+                rx.try_recv()
+            } else {
+                rx.blocking_recv().ok_or(TryRecvError::Disconnected)
+            } {
                 // Play a move.
                 Ok(Message::MoveRequest) => {
+                    println!("Did {ponder_rollouts} ponder rollouts.");
+                    ponder_rollouts = 0;
+
+                    println!("A move has been requested.");
                     if game.winner() != GameResult::Ongoing {
                         tx.send(Message::GameEnded).unwrap();
                         continue;
@@ -57,16 +79,11 @@ pub fn run_bot(model_path: &str, tx: Sender<Message>, rx: Receiver<Message>) {
                         player.play_move(&game, &book_turn);
                         book_turn
                     } else {
-                        // Apply noise to hopefully prevent farming.
-                        if game.ply < 16 {
-                            println!("Applying noise!");
-                            player.apply_dirichlet(&game, 1.0, 0.35);
-                        }
                         println!("Doing rollouts...");
                         // Do rollouts for a set amount of time.
                         let start = Instant::now();
-                        while Instant::now().duration_since(start) < Duration::from_secs(THINK_SECONDS) {
-                            player.rollout(&game, 500);
+                        while Instant::now().duration_since(start) < Duration::from_secs(args.time_to_think) {
+                            player.rollout(&game);
                         }
                         print!("{}", player.debug(Some(5)));
 
@@ -96,18 +113,26 @@ pub fn run_bot(model_path: &str, tx: Sender<Message>, rx: Receiver<Message>) {
                 }
 
                 // Ponder.
-                Err(TryRecvError::Empty) => player.rollout(&game, 100),
+                Err(TryRecvError::Empty) => {
+                    ponder_rollouts += 1;
+                    player.rollout(&game);
+                    thread::yield_now()
+                }
 
                 // Other thread ended.
-                Err(TryRecvError::Disconnected) => break 'game_loop,
+                Err(TryRecvError::Disconnected) => {
+                    println!("Receiver disconnected.");
+                    break 'game_loop;
+                }
             }
         }
 
         println!("Game ended, creating analysis file");
         // Create analysis file.
         write(
-            format!("analysis_{}.ptn", sys_time()), 
-            player.get_analysis().to_ptn()).unwrap_or_else(|err| println!("{err}")
-        );
+            format!("./{ANALYSIS_DIR}/analysis_{}.ptn", sys_time()),
+            player.get_analysis().to_ptn(),
+        )
+        .unwrap_or_else(|err| println!("{err}"));
     }
 }

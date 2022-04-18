@@ -7,6 +7,6 @@ description = "Implementation of the abstract strategy board game Tak"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrayvec = "0.7"
-regex = "1"
-lazy_static = "1.4"
+arrayvec = "0.7.2"
+lazy_static = "1.4.0"
+regex = "1.5.5"

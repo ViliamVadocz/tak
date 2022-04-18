@@ -7,7 +7,6 @@ pub const RES_BLOCKS: usize = 8;
 pub const FILTERS: i64 = 128;
 
 // search
-pub const CONTEMPT: f32 = 0.05;
 pub const EXPLORATION_BASE: f32 = 500.0;
 pub const EXPLORATION_INIT: f32 = 4.0;
 

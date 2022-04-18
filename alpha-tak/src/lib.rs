@@ -1,5 +1,4 @@
 #![feature(test)]
-#![feature(thread_is_running)]
 
 extern crate test;
 
@@ -18,6 +17,7 @@ pub mod config;
 pub mod threadpool;
 
 pub mod agent;
+pub mod batch_player;
 pub mod example;
 pub mod player;
 pub mod repr;
