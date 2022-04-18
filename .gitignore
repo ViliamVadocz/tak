@@ -5,3 +5,4 @@ target/
 *.model
 *.ptn
 *.data
+*.log
