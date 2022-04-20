@@ -1,16 +1,9 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, ops::Not};
 
 use arrayvec::ArrayVec;
+use takparse::{Color, Direction, Move, MoveKind, Pattern, Piece, Square};
 
-use crate::{
-    board::Board,
-    colour::Colour,
-    direction::Direction,
-    pos::Pos,
-    tile::{Piece, Shape, Tile},
-    turn::Turn,
-    StrResult,
-};
+use crate::{board::Board, game_result::GameResult, tile::Tile, StrResult};
 
 type Stones = u8;
 type Capstones = u8;
@@ -26,155 +19,141 @@ pub const fn default_starting_stones(width: usize) -> (Stones, Capstones) {
     }
 }
 
-const TURN_LIMIT: u64 = 400;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum GameResult {
-    Winner { colour: Colour, road: bool },
-    Draw { turn_limit: bool },
-    Ongoing,
-}
+const PLY_LIMIT: u16 = 240;
 
 #[derive(Clone, Debug)]
 pub struct Game<const N: usize> {
     pub board: Board<N>,
-    pub to_move: Colour,
-    pub ply: u64,
-    pub white_stones: Stones,
-    pub black_stones: Stones,
-    pub white_caps: Capstones,
-    pub black_caps: Capstones,
-    pub komi: i32,
+    pub to_move: Color,
+    pub ply: u16,
+    pub white_stones: u8,
+    pub white_caps: u8,
+    pub black_stones: u8,
+    pub black_caps: u8,
+    pub half_komi: i8,
+    pub result: GameResult,
 }
 
-impl<const N: usize> Game<N>
-where
-    [[Option<Tile>; N]; N]: Default,
-{
-    pub fn with_komi(komi: i32) -> Self {
-        Game {
-            komi,
-            ..Default::default()
-        }
-    }
-}
-
-impl<const N: usize> Default for Game<N>
-where
-    [[Option<Tile>; N]; N]: Default,
-{
+impl<const N: usize> Default for Game<N> {
+    /// Create a new game with the default amount of starting stones for the
+    /// board size and no komi.
     fn default() -> Self {
-        let (stones, capstones) = default_starting_stones(N);
-        Self {
+        let (stones, caps) = default_starting_stones(N);
+        Game {
             board: Board::default(),
-            to_move: Colour::White, // White picks the first move for Black
+            to_move: Color::White,
             ply: 0,
             white_stones: stones,
+            white_caps: caps,
             black_stones: stones,
-            white_caps: capstones,
-            black_caps: capstones,
-            komi: 0,
+            black_caps: caps,
+            half_komi: 0,
+            result: GameResult::default(),
         }
     }
 }
 
 impl<const N: usize> Game<N> {
-    pub fn swap(&self) -> bool {
+    /// Create a game with komi.
+    pub fn with_komi(komi: i8) -> Self {
+        Game {
+            half_komi: komi * 2,
+            ..Default::default()
+        }
+    }
+
+    /// Create a game with half komi.
+    /// This a 0 flat count difference a win instead of a draw.
+    pub fn with_half_komi(half_komi: i8) -> Self {
+        Game {
+            half_komi,
+            ..Default::default()
+        }
+    }
+
+    pub fn from_ptn_moves(moves: &[&str]) -> StrResult<Game<N>> {
+        let mut game = Game::default();
+        for m in moves {
+            game.play(m.parse().unwrap())?;
+        }
+        Ok(game)
+    }
+
+    pub(crate) fn is_swapped(&self) -> bool {
         self.ply < 2
     }
 
-    pub fn colour(&self) -> Colour {
-        if self.swap() {
-            self.to_move.next()
+    pub(crate) fn color(&self) -> Color {
+        if self.is_swapped() {
+            self.to_move.not()
         } else {
             self.to_move
         }
     }
 
-    pub fn opening(&mut self, opening_index: usize) -> StrResult<Vec<Turn<N>>> {
-        if !self.board.empty() || self.ply != 0 {
-            return Err("openings should be played on an empty board with no previous plies".to_string());
-        }
-        let i = opening_index % (N * N * (N * N - 1));
-        let first = self.possible_turns().into_iter().nth(i / (N * N - 1)).unwrap();
-        self.play(first.clone())?;
-        let second = self.possible_turns().into_iter().nth(i % (N * N - 1)).unwrap();
-        self.play(second.clone())?;
-        Ok(vec![first, second])
-    }
-
-    /// Play the nth possible turn. Useful for random openings.
-    pub fn nth_move(&mut self, mut n: usize) -> StrResult<()> {
-        let turns = self.possible_turns();
-        n %= turns.len();
-        self.play(turns.into_iter().nth(n).unwrap())
-    }
-
-    /// Like nth_move except limited to only placing flats.
-    pub fn nth_place_flat(&mut self, mut n: usize) -> StrResult<()> {
-        let turns: Vec<_> = self
-            .possible_turns()
-            .into_iter()
-            .filter(|t| {
-                matches!(t, Turn::Place {
-                    shape: Shape::Flat,
-                    ..
-                })
-            })
-            .collect();
-        n %= turns.len();
-        self.play(turns.into_iter().nth(n).unwrap())
-    }
-
-    pub fn get_counts(&self) -> (Stones, Capstones) {
+    pub(crate) fn get_counts(&self) -> (Stones, Capstones) {
         match self.to_move {
-            Colour::White => (self.white_stones, self.white_caps),
-            Colour::Black => (self.black_stones, self.black_caps),
+            Color::White => (self.white_stones, self.white_caps),
+            Color::Black => (self.black_stones, self.black_caps),
         }
     }
 
     fn dec_stones(&mut self) {
         match self.to_move {
-            Colour::White => self.white_stones -= 1,
-            Colour::Black => self.black_stones -= 1,
+            Color::White => self.white_stones -= 1,
+            Color::Black => self.black_stones -= 1,
         }
     }
 
     fn dec_caps(&mut self) {
         match self.to_move {
-            Colour::White => self.white_caps -= 1,
-            Colour::Black => self.black_caps -= 1,
+            Color::White => self.white_caps -= 1,
+            Color::Black => self.black_caps -= 1,
         }
     }
 
-    fn execute_place(&mut self, pos: Pos<N>, shape: Shape) -> StrResult<()> {
+    /// Play a move on the board. Returns the updated game result.
+    /// In case the move is invalid an error is returned and the game
+    /// might be in an invalid state.
+    // TODO try to do all checks before applying the move.
+    pub fn play(&mut self, my_move: Move) -> StrResult<GameResult> {
+        match my_move.kind() {
+            MoveKind::Place(piece) => self.execute_place(my_move.square(), piece),
+            MoveKind::Spread(direction, pattern) => self.execute_spread(my_move.square(), direction, pattern),
+        }?;
+        self.ply += 1;
+        self.result = self.game_result();
+        self.to_move = self.to_move.not();
+        Ok(self.result)
+    }
+
+    fn execute_place(&mut self, square: Square, piece: Piece) -> StrResult<()> {
         let (stones, caps) = self.get_counts();
-        if self.board[pos].is_some() {
+        if !self.board[square].is_empty() {
             Err(format!(
-                "cannot place a piece in that position because it is already occupied, pos={pos:?},\n{}",
-                self.board
+                "cannot place a piece in that position because it is already occupied, square={square}"
             ))
-        } else if matches!(shape, Shape::Capstone) && (caps == 0) {
+        } else if matches!(piece, Piece::Cap) && (caps == 0) {
             Err(format!(
                 "there is no capstone to play, white=({}, {}), black=({}, {})",
                 self.white_stones, self.white_caps, self.black_stones, self.black_caps
             ))
-        } else if matches!(shape, Shape::Flat | Shape::Wall) && stones == 0 {
+        } else if matches!(piece, Piece::Flat | Piece::Wall) && (stones == 0) {
             Err(format!(
                 "cannot play a stone without stones, white=({}, {}), black=({}, {})",
                 self.white_stones, self.white_caps, self.black_stones, self.black_caps
             ))
-        } else if self.ply < 2 && matches!(shape, Shape::Wall | Shape::Capstone) {
+        } else if self.is_swapped() && matches!(piece, Piece::Wall | Piece::Cap) {
             Err(format!(
                 "cannot play a wall or capstone on the first two plies, ply={}",
                 self.ply
             ))
         } else {
-            self.board[pos] = Some(Tile::new(Piece {
-                colour: self.colour(),
-                shape,
-            }));
-            if matches!(shape, Shape::Flat | Shape::Wall) {
+            self.board[square] = Tile {
+                piece,
+                stack: vec![self.color()],
+            };
+            if matches!(piece, Piece::Flat | Piece::Wall) {
                 self.dec_stones();
             } else {
                 self.dec_caps();
@@ -183,62 +162,47 @@ impl<const N: usize> Game<N> {
         }
     }
 
-    fn execute_move(&mut self, pos: Pos<N>, direction: Direction, moves: ArrayVec<bool, N>) -> StrResult<()> {
-        // take the pieces
-        let on_square = self.board[pos].take().ok_or("cannot move from an empty square")?;
-        if on_square.top.colour != self.to_move {
-            return Err(format!(
-                "cannot move a stack that you do not own, pos={pos:?},\n{}",
-                self.board
-            ));
-        }
-        let (left, carry) = on_square.take::<N>(moves.len())?;
-        self.board[pos] = left;
-
-        let mut next = pos.step(direction);
-        for (carry, &should_step) in carry.into_iter().rev().zip(&moves) {
-            // only unwrap the position when it is needed
-            let p = next.ok_or(format!(
-                "cannot move out of board, pos={pos:?}, direction={direction:?}, moves={moves:?}"
-            ))?;
-
-            // stack the dropped piece on top
-            if let Some(t) = self.board[p].take() {
-                self.board[p] = Some(t.stack(carry)?);
-            } else {
-                self.board[p] = Some(Tile::new(carry));
-            }
-            if should_step {
-                next = p.step(direction);
-            }
+    fn execute_spread(&mut self, square: Square, direction: Direction, pattern: Pattern) -> StrResult<()> {
+        if self.board[square]
+            .top()
+            .ok_or("cannot move from an empty square")?
+            .1
+            != self.color()
+        {
+            return Err("cannot move a stack that you do not own".to_string());
         }
 
+        let (piece, mut carry) = self.board[square].take::<N>(pattern.count_pieces() as usize)?;
+
+        let mut pieces: ArrayVec<Piece, N> = ArrayVec::new();
+        pieces.push(piece);
+        for _ in 0..(pattern.count_pieces() - 1) {
+            pieces.push(Piece::Flat);
+        }
+
+        let mut pos = square;
+        for drop_count in pattern.drop_counts() {
+            pos = pos
+                .checked_step(direction, N as u8)
+                .ok_or("spread would leave the board")?;
+            for _ in 0..drop_count {
+                self.board[pos].stack(pieces.pop().unwrap(), carry.pop().unwrap())?;
+            }
+        }
+        assert!(pieces.is_empty());
+        assert!(carry.is_empty());
         Ok(())
     }
 
-    pub fn play(&mut self, my_move: Turn<N>) -> StrResult<()> {
-        match my_move {
-            Turn::Place { pos, shape } => self.execute_place(pos, shape),
-            Turn::Move {
-                pos,
-                direction,
-                moves,
-            } => self.execute_move(pos, direction, moves),
-        }?;
-        self.ply += 1;
-        self.to_move = self.to_move.next();
-        Ok(())
-    }
-
-    pub fn winner(&self) -> GameResult {
-        if self.board.find_paths(self.to_move.next()) {
+    fn game_result(&mut self) -> GameResult {
+        if self.board.find_paths(self.to_move) {
             GameResult::Winner {
-                colour: self.to_move.next(),
+                color: self.to_move,
                 road: true,
             }
-        } else if self.board.find_paths(self.to_move) {
+        } else if self.board.find_paths(self.to_move.not()) {
             GameResult::Winner {
-                colour: self.to_move,
+                color: self.to_move.not(),
                 road: true,
             }
         } else if self.white_caps == 0 && self.white_stones == 0
@@ -246,18 +210,27 @@ impl<const N: usize> Game<N> {
             || self.board.full()
         {
             let flat_diff = self.board.flat_diff();
-            match flat_diff.cmp(&self.komi) {
+            match flat_diff.cmp(&(self.half_komi / 2)) {
                 Ordering::Greater => GameResult::Winner {
-                    colour: Colour::White,
+                    color: Color::White,
                     road: false,
                 },
                 Ordering::Less => GameResult::Winner {
-                    colour: Colour::Black,
+                    color: Color::Black,
                     road: false,
                 },
-                Ordering::Equal => GameResult::Draw { turn_limit: false },
+                Ordering::Equal => {
+                    if self.half_komi % 2 == 0 {
+                        GameResult::Draw { turn_limit: false }
+                    } else {
+                        GameResult::Winner {
+                            color: Color::Black,
+                            road: false,
+                        }
+                    }
+                }
             }
-        } else if self.ply >= TURN_LIMIT {
+        } else if self.ply >= PLY_LIMIT {
             GameResult::Draw { turn_limit: true }
         } else {
             GameResult::Ongoing

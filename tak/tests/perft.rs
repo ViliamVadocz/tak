@@ -1,16 +1,16 @@
 use tak::*;
 
 fn perf_count<const N: usize>(game: Game<N>, depth: usize) -> usize {
-    if depth == 0 || !matches!(game.winner(), GameResult::Ongoing) {
+    if depth == 0 || game.result != GameResult::Ongoing {
         1
     } else if depth == 1 {
-        game.possible_turns().len()
+        game.possible_moves().len()
     } else {
-        game.possible_turns()
+        game.possible_moves()
             .into_iter()
-            .map(|turn| {
+            .map(|m| {
                 let mut clone = game.clone();
-                clone.play(turn).unwrap();
+                clone.play(m).unwrap();
                 perf_count(clone, depth - 1)
             })
             .sum()
@@ -19,8 +19,7 @@ fn perf_count<const N: usize>(game: Game<N>, depth: usize) -> usize {
 
 #[test]
 fn position1_perft() -> StrResult<()> {
-    let mut game = Game::<5>::default();
-    game.play_ptn_moves(&["d3", "c3", "c4", "1d3<", "1c4-", "Sc4"])?;
+    let game = Game::<5>::from_ptn_moves(&["d3", "c3", "c4", "1d3<", "1c4-", "Sc4"])?;
     assert_eq!(perf_count(game.clone(), 1), 87);
     assert_eq!(perf_count(game.clone(), 2), 6_155);
     assert_eq!(perf_count(game, 3), 461_800);
@@ -29,8 +28,7 @@ fn position1_perft() -> StrResult<()> {
 
 #[test]
 fn position2_perft() -> StrResult<()> {
-    let mut game = Game::<5>::default();
-    game.play_ptn_moves(&[
+    let game = Game::<5>::from_ptn_moves(&[
         "c2", "c3", "d3", "b3", "c4", "1c2+", "1d3<", "1b3>", "1c4-", "Cc2", "a1", "1c2+", "a2",
     ])?;
     assert_eq!(perf_count(game.clone(), 1), 104);
@@ -41,8 +39,7 @@ fn position2_perft() -> StrResult<()> {
 
 #[test]
 fn position3_perft() -> StrResult<()> {
-    let mut game = Game::<5>::default();
-    game.play_ptn_moves(&[
+    let game = Game::<5>::from_ptn_moves(&[
         "c4", "c2", "d2", "c3", "b2", "d3", "1d2+", "b3", "d2", "b4", "1c2+", "1b3>", "2d3<", "1c4-", "d4",
         "5c3<23", "c2", "c4", "1d4<", "d3", "1d2+", "1c3+", "Cc3", "2c4>", "1c3<", "d2", "c3", "1d2+",
         "1c3+", "1b4>", "2b3>11", "3c4-12", "d2", "c4", "b4", "c5", "1b3>", "1c4<", "3c3-", "e5", "e2",

@@ -1,63 +1,13 @@
 use tak::*;
 
-#[test]
-fn rotate_even() {
-    // corner
-    let pos: Pos<6> = Pos { x: 0, y: 0 };
-    assert_eq!(pos.rotate(), Pos { x: 0, y: 5 });
-    assert_eq!(pos.rotate().rotate(), Pos { x: 5, y: 5 });
-    assert_eq!(pos.rotate().rotate().rotate(), Pos { x: 5, y: 0 });
-    assert_eq!(pos.rotate().rotate().rotate().rotate(), Pos { x: 0, y: 0 });
-    // centre
-    let pos: Pos<6> = Pos { x: 2, y: 2 };
-    assert_eq!(pos.rotate(), Pos { x: 2, y: 3 });
-    assert_eq!(pos.rotate().rotate(), Pos { x: 3, y: 3 });
-    assert_eq!(pos.rotate().rotate().rotate(), Pos { x: 3, y: 2 });
-    assert_eq!(pos.rotate().rotate().rotate().rotate(), Pos { x: 2, y: 2 });
-}
-
-#[test]
-fn rotate_odd() {
-    // corner
-    let pos: Pos<7> = Pos { x: 0, y: 0 };
-    assert_eq!(pos.rotate(), Pos { x: 0, y: 6 });
-    assert_eq!(pos.rotate().rotate(), Pos { x: 6, y: 6 });
-    assert_eq!(pos.rotate().rotate().rotate(), Pos { x: 6, y: 0 });
-    assert_eq!(pos.rotate().rotate().rotate().rotate(), Pos { x: 0, y: 0 });
-    // centre
-    let pos: Pos<7> = Pos { x: 3, y: 3 };
-    assert_eq!(pos.rotate(), Pos { x: 3, y: 3 });
-    assert_eq!(pos.rotate().rotate(), Pos { x: 3, y: 3 });
-    assert_eq!(pos.rotate().rotate().rotate(), Pos { x: 3, y: 3 });
-    assert_eq!(pos.rotate().rotate().rotate().rotate(), Pos { x: 3, y: 3 });
-}
-
-#[test]
-fn mirror_even() {
-    let pos: Pos<6> = Pos { x: 1, y: 2 };
-    assert_eq!(pos.mirror(), Pos { x: 1, y: 3 });
-    assert_eq!(pos.mirror().mirror(), Pos { x: 1, y: 2 });
-}
-
-#[test]
-fn mirror_odd() {
-    let pos: Pos<7> = Pos { x: 4, y: 1 };
-    assert_eq!(pos.mirror(), Pos { x: 4, y: 5 });
-    assert_eq!(pos.mirror().mirror(), Pos { x: 4, y: 1 });
-
-    // centre line
-    let pos: Pos<7> = Pos { x: 2, y: 3 };
-    assert_eq!(pos.mirror(), Pos { x: 2, y: 3 });
-}
-
-#[test]
-fn symmetrical_boards() -> StrResult<()> {
+fn symmetrical_boards(seed: usize) -> StrResult<()> {
     let [mut g0, mut g1, mut g2, mut g3, mut g4, mut g5, mut g6, mut g7] = Game::<5>::default().symmetries();
-    while matches!(g0.winner(), GameResult::Ongoing) {
-        let turns = g0.possible_turns();
-        let turn = turns.into_iter().next().unwrap();
-        println!("{:#?}", turn.clone().symmetries());
-        let [t0, t1, t2, t3, t4, t5, t6, t7] = turn.symmetries();
+    while matches!(g0.result, GameResult::Ongoing) {
+        let moves = g0.possible_moves();
+        let count = moves.len();
+        let my_move = moves.into_iter().nth(seed % count).unwrap();
+        println!("{:#?}", Symmetry::<5>::symmetries(my_move));
+        let [t0, t1, t2, t3, t4, t5, t6, t7] = Symmetry::<5>::symmetries(my_move);
         g0.play(t0)?;
         g1.play(t1)?;
         g2.play(t2)?;
@@ -67,11 +17,52 @@ fn symmetrical_boards() -> StrResult<()> {
         g6.play(t6)?;
         g7.play(t7)?;
     }
-    assert_eq!(g0.winner(), g1.winner());
-    assert_eq!(g1.winner(), g2.winner());
-    assert_eq!(g2.winner(), g3.winner());
-    assert_eq!(g4.winner(), g5.winner());
-    assert_eq!(g5.winner(), g6.winner());
-    assert_eq!(g6.winner(), g7.winner());
+    assert_eq!(g0.result, g1.result);
+    assert_eq!(g1.result, g2.result);
+    assert_eq!(g2.result, g3.result);
+    assert_eq!(g4.result, g5.result);
+    assert_eq!(g5.result, g6.result);
+    assert_eq!(g6.result, g7.result);
     Ok(())
+}
+
+#[test]
+fn symmetrical_boards_5915587277() -> StrResult<()> {
+    symmetrical_boards(5915587277)
+}
+#[test]
+fn symmetrical_boards_1500450271() -> StrResult<()> {
+    symmetrical_boards(1500450271)
+}
+#[test]
+fn symmetrical_boards_3267000013() -> StrResult<()> {
+    symmetrical_boards(3267000013)
+}
+#[test]
+fn symmetrical_boards_5754853343() -> StrResult<()> {
+    symmetrical_boards(5754853343)
+}
+#[test]
+fn symmetrical_boards_4093082899() -> StrResult<()> {
+    symmetrical_boards(4093082899)
+}
+#[test]
+fn symmetrical_boards_9576890767() -> StrResult<()> {
+    symmetrical_boards(9576890767)
+}
+#[test]
+fn symmetrical_boards_3628273133() -> StrResult<()> {
+    symmetrical_boards(3628273133)
+}
+#[test]
+fn symmetrical_boards_2860486313() -> StrResult<()> {
+    symmetrical_boards(2860486313)
+}
+#[test]
+fn symmetrical_boards_5463458053() -> StrResult<()> {
+    symmetrical_boards(5463458053)
+}
+#[test]
+fn symmetrical_boards_3367900313() -> StrResult<()> {
+    symmetrical_boards(3367900313)
 }
