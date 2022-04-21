@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, error::Error, fmt::Display, ops::Not};
+use std::{cmp::Ordering, ops::Not};
 
 use arrayvec::ArrayVec;
 use takparse::{Color, Direction, Move, MoveKind, Pattern, Piece, Square};
