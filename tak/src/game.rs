@@ -1,9 +1,9 @@
-use std::{cmp::Ordering, ops::Not};
+use std::{cmp::Ordering, error::Error, fmt::Display, ops::Not};
 
 use arrayvec::ArrayVec;
 use takparse::{Color, Direction, Move, MoveKind, Pattern, Piece, Square};
 
-use crate::{board::Board, game_result::GameResult, tile::Tile, StrResult};
+use crate::{board::Board, error::PlayError, game_result::GameResult, tile::Tile};
 
 type Stones = u8;
 type Capstones = u8;
@@ -31,7 +31,6 @@ pub struct Game<const N: usize> {
     pub black_stones: u8,
     pub black_caps: u8,
     pub half_komi: i8,
-    pub result: GameResult,
 }
 
 impl<const N: usize> Default for Game<N> {
@@ -48,7 +47,6 @@ impl<const N: usize> Default for Game<N> {
             black_stones: stones,
             black_caps: caps,
             half_komi: 0,
-            result: GameResult::default(),
         }
     }
 }
@@ -71,7 +69,9 @@ impl<const N: usize> Game<N> {
         }
     }
 
-    pub fn from_ptn_moves(moves: &[&str]) -> StrResult<Game<N>> {
+    /// Create a game from a list of PTN moves.
+    /// Assumes the moves are correct PTN notation.
+    pub fn from_ptn_moves(moves: &[&str]) -> Result<Game<N>, PlayError> {
         let mut game = Game::default();
         for m in moves {
             game.play(m.parse().unwrap())?;
@@ -115,39 +115,38 @@ impl<const N: usize> Game<N> {
     /// Play a move on the board. Returns the updated game result.
     /// In case the move is invalid an error is returned and the game
     /// might be in an invalid state.
-    // TODO try to do all checks before applying the move.
-    pub fn play(&mut self, my_move: Move) -> StrResult<GameResult> {
+    pub fn play(&mut self, my_move: Move) -> Result<(), PlayError> {
         match my_move.kind() {
             MoveKind::Place(piece) => self.execute_place(my_move.square(), piece),
             MoveKind::Spread(direction, pattern) => self.execute_spread(my_move.square(), direction, pattern),
         }?;
         self.ply += 1;
-        self.result = self.game_result();
         self.to_move = self.to_move.not();
-        Ok(self.result)
+        Ok(())
     }
 
-    fn execute_place(&mut self, square: Square, piece: Piece) -> StrResult<()> {
+    /// Play a move, except if an error occurs, revert to the game
+    /// state before the move was played. This should be used
+    /// when the move passed in cannot be trusted (such as user input).
+    pub fn safe_play(&mut self, my_move: Move) -> Result<(), PlayError> {
+        let backup = self.clone();
+        let result = self.play(my_move);
+        if result.is_err() {
+            *self = backup;
+        }
+        result
+    }
+
+    fn execute_place(&mut self, square: Square, piece: Piece) -> Result<(), PlayError> {
         let (stones, caps) = self.get_counts();
         if !self.board[square].is_empty() {
-            Err(format!(
-                "cannot place a piece in that position because it is already occupied, square={square}"
-            ))
+            Err(PlayError::AlreadyOccupied)
         } else if matches!(piece, Piece::Cap) && (caps == 0) {
-            Err(format!(
-                "there is no capstone to play, white=({}, {}), black=({}, {})",
-                self.white_stones, self.white_caps, self.black_stones, self.black_caps
-            ))
+            Err(PlayError::NoCapstone)
         } else if matches!(piece, Piece::Flat | Piece::Wall) && (stones == 0) {
-            Err(format!(
-                "cannot play a stone without stones, white=({}, {}), black=({}, {})",
-                self.white_stones, self.white_caps, self.black_stones, self.black_caps
-            ))
+            Err(PlayError::NoStones)
         } else if self.is_swapped() && matches!(piece, Piece::Wall | Piece::Cap) {
-            Err(format!(
-                "cannot play a wall or capstone on the first two plies, ply={}",
-                self.ply
-            ))
+            Err(PlayError::OpeningNonFlat)
         } else {
             self.board[square] = Tile {
                 piece,
@@ -162,14 +161,14 @@ impl<const N: usize> Game<N> {
         }
     }
 
-    fn execute_spread(&mut self, square: Square, direction: Direction, pattern: Pattern) -> StrResult<()> {
-        if self.board[square]
-            .top()
-            .ok_or("cannot move from an empty square")?
-            .1
-            != self.color()
-        {
-            return Err("cannot move a stack that you do not own".to_string());
+    fn execute_spread(
+        &mut self,
+        square: Square,
+        direction: Direction,
+        pattern: Pattern,
+    ) -> Result<(), PlayError> {
+        if self.board[square].top().ok_or(PlayError::EmptySquare)?.1 != self.color() {
+            return Err(PlayError::StackNotOwned);
         }
 
         let (piece, mut carry) = self.board[square].take::<N>(pattern.count_pieces() as usize)?;
@@ -184,7 +183,7 @@ impl<const N: usize> Game<N> {
         for drop_count in pattern.drop_counts() {
             pos = pos
                 .checked_step(direction, N as u8)
-                .ok_or("spread would leave the board")?;
+                .ok_or(PlayError::SpreadOutOfBounds)?;
             for _ in 0..drop_count {
                 self.board[pos].stack(pieces.pop().unwrap(), carry.pop().unwrap())?;
             }
@@ -194,15 +193,17 @@ impl<const N: usize> Game<N> {
         Ok(())
     }
 
-    fn game_result(&mut self) -> GameResult {
-        if self.board.find_paths(self.to_move) {
-            GameResult::Winner {
-                color: self.to_move,
-                road: true,
-            }
-        } else if self.board.find_paths(self.to_move.not()) {
+    pub fn result(&self) -> GameResult {
+        // We check the result after a move, so for the dragon clause
+        // we look at the other player's path first (they just played).
+        if self.board.find_paths(self.to_move.not()) {
             GameResult::Winner {
                 color: self.to_move.not(),
+                road: true,
+            }
+        } else if self.board.find_paths(self.to_move) {
+            GameResult::Winner {
+                color: self.to_move,
                 road: true,
             }
         } else if self.white_caps == 0 && self.white_stones == 0

@@ -1,7 +1,7 @@
 use arrayvec::ArrayVec;
 use takparse::{Color, Piece};
 
-use crate::StrResult;
+use crate::error::{StackError, TakeError};
 
 #[derive(Clone, Debug, Default)]
 pub struct Tile {
@@ -25,7 +25,7 @@ impl Tile {
     }
 
     /// Try to stack the piece on this tile.
-    pub fn stack(&mut self, piece: Piece, color: Color) -> StrResult<()> {
+    pub fn stack(&mut self, piece: Piece, color: Color) -> Result<(), StackError> {
         // Only allow stacking on top of flats, or flattening walls.
         match self.piece {
             Piece::Flat => Ok(()),
@@ -33,10 +33,10 @@ impl Tile {
                 if matches!(piece, Piece::Cap) {
                     Ok(())
                 } else {
-                    Err("can only flatten a wall with a capstone")
+                    Err(StackError::Wall)
                 }
             }
-            Piece::Cap => Err("cannot create a stack on top of a capstone"),
+            Piece::Cap => Err(StackError::Cap),
         }?;
 
         self.piece = piece;
@@ -46,16 +46,13 @@ impl Tile {
 
     /// Try taking the top `amount` pieces from this tile.
     /// Returned ArrayVec is ordered top to bottom.
-    pub fn take<const N: usize>(&mut self, amount: usize) -> StrResult<(Piece, ArrayVec<Color, N>)> {
+    pub fn take<const N: usize>(&mut self, amount: usize) -> Result<(Piece, ArrayVec<Color, N>), TakeError> {
         if amount == 0 {
-            return Err("cannot take 0 from a tile".to_string());
+            return Err(TakeError::Zero);
         } else if amount > N {
-            return Err(format!("cannot take more than the carry limit, amount={amount}"));
+            return Err(TakeError::CarryLimit);
         } else if amount > self.size() {
-            return Err(format!(
-                "cannot take more pieces than there are on the tile, amount={amount}, count={}",
-                self.size()
-            ));
+            return Err(TakeError::StackSize(self.size()));
         }
 
         let mut stack = std::mem::take(&mut self.stack).into_iter().rev();
