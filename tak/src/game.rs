@@ -139,7 +139,7 @@ impl<const N: usize> Game<N> {
 
     fn execute_place(&mut self, square: Square, piece: Piece) -> Result<(), PlayError> {
         let (stones, caps) = self.get_counts();
-        if !self.board[square].is_empty() {
+        if !self.board.get(square).ok_or(PlayError::OutOfBounds)?.is_empty() {
             Err(PlayError::AlreadyOccupied)
         } else if matches!(piece, Piece::Cap) && (caps == 0) {
             Err(PlayError::NoCapstone)
@@ -167,7 +167,15 @@ impl<const N: usize> Game<N> {
         direction: Direction,
         pattern: Pattern,
     ) -> Result<(), PlayError> {
-        if self.board[square].top().ok_or(PlayError::EmptySquare)?.1 != self.color() {
+        if self
+            .board
+            .get(square)
+            .ok_or(PlayError::OutOfBounds)?
+            .top()
+            .ok_or(PlayError::EmptySquare)?
+            .1
+            != self.color()
+        {
             return Err(PlayError::StackNotOwned);
         }
 

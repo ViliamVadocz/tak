@@ -37,6 +37,27 @@ impl<const N: usize> IndexMut<Square> for Board<N> {
 }
 
 impl<const N: usize> Board<N> {
+    fn has(square: Square) -> bool {
+        let n = N as u8;
+        square.column() < n && square.row() < n
+    }
+
+    pub fn get(&self, index: Square) -> Option<&Tile> {
+        if Board::<N>::has(index) {
+            Some(self.index(index))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_mut(&mut self, index: Square) -> Option<&mut Tile> {
+        if Board::<N>::has(index) {
+            Some(self.index_mut(index))
+        } else {
+            None
+        }
+    }
+
     pub fn full(&self) -> bool {
         !self.data.iter().any(|row| row.iter().any(Tile::is_empty))
     }

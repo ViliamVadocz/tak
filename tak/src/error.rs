@@ -2,6 +2,7 @@ use std::{error::Error, fmt::Display};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlayError {
+    OutOfBounds,
     AlreadyOccupied,
     NoCapstone,
     NoStones,
@@ -22,6 +23,7 @@ impl Display for PlayError {
             take_error.fmt(f)
         } else {
             write!(f, "{}", match self {
+                OutOfBounds => "given square is not on the board",
                 AlreadyOccupied => "cannot place a piece in that position because it is already occupied",
                 NoCapstone => "there is not a capstone left to play",
                 NoStones => "there are no more stones left to play",
