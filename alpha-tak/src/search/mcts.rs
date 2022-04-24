@@ -1,96 +1,99 @@
-use tak::*;
+use tak::{GameResult, *};
 
-use super::{node::Node, turn_map::Lut};
-use crate::{
-    agent::Agent,
-    config::{EXPLORATION_BASE, EXPLORATION_INIT},
-};
+use super::{move_map::move_index, node::Node};
+use crate::model::network::{Eval, Network, Policy};
 
-impl<const N: usize> Node<N>
-where
-    Turn<N>: Lut,
-{
-    pub fn rollout<A: Agent<N>>(&mut self, mut game: Game<N>, agent: &A) {
+// search
+const EXPLORATION_BASE: f32 = 500.0;
+const EXPLORATION_INIT: f32 = 4.0;
+
+fn exploration_rate(n: f32) -> f32 {
+    ((1.0 + n + EXPLORATION_BASE) / EXPLORATION_BASE).ln() + EXPLORATION_INIT
+}
+
+impl Node {
+    /// Do a basic rollout.
+    pub fn rollout<const N: usize, NET: Network<N>>(&mut self, mut game: Game<N>, network: &NET) {
         let mut path = vec![];
-        // perform a virtual rollout
+        // Perform a virtual rollout.
         if matches!(self.virtual_rollout(&mut game, &mut path), GameResult::Ongoing) {
-            // the game result isn't concrete - devirtualize the path
-            self.devirtualize_path(&mut path.into_iter(), &agent.policy_and_eval(&game));
+            // The game result isn't concrete - devirtualize the path.
+            self.devirtualize_path::<N, _>(&mut path.into_iter(), &network.policy_eval(&[game])[0]);
         }
     }
 
-    pub fn virtual_rollout(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
-        let curr_colour = game.to_move;
+    #[must_use]
+    pub fn virtual_rollout<const N: usize>(
+        &mut self,
+        game: &mut Game<N>,
+        path: &mut Vec<usize>,
+    ) -> GameResult {
+        let curr_color = game.to_move;
 
         let result = if self.is_initialized() {
-            // we've been here before - recurse if we can
+            // We've been here before - recurse if we can.
             match self.result {
                 GameResult::Ongoing => self.select(game, path),
                 r => r,
             }
         } else {
-            // uninitialized node - initialize it and stop the recursion
-            self.result = game.winner();
+            // Uninitialized node - initialize it and stop recursion.
+            self.result = game.result();
             if self.result == GameResult::Ongoing {
-                self.children = game
-                    .possible_turns()
+                let possible_moves = game.possible_moves();
+                let temp_policy = 1.0 / possible_moves.len() as f32;
+                self.children = possible_moves
                     .into_iter()
-                    .map(|turn| (turn, Node::default()))
+                    .map(|m| (m, Node::new(temp_policy)))
                     .collect();
             }
             self.result
         };
 
         match result {
-            // our rollout ended on a terminal node - propagate a concrete score
-            GameResult::Winner { colour, .. } => {
-                self.update_concrete(if colour == curr_colour { -1.0 } else { 1.0 })
+            // Our rollout ended on a terminal node - propagate a concrete score.
+            GameResult::Winner { color, .. } => {
+                self.update_concrete(if color == curr_color { -1.0 } else { 1.0 })
             }
             GameResult::Draw { .. } => self.update_concrete(0.0),
 
-            // we've cut the recursion short of a terminal node - count a virtual visit
+            // We've cut the recursion short of a terminal node - count a virtual visit.
             GameResult::Ongoing => self.virtual_visits += 1,
         }
 
         result
     }
 
-    pub fn devirtualize_path<I: Iterator<Item = Turn<N>>>(
+    pub fn devirtualize_path<const N: usize, I: Iterator<Item = usize>>(
         &mut self,
         path: &mut I,
-        result: &(Vec<f32>, f32),
+        net_output: &(Policy, Eval),
     ) -> f32 {
         self.virtual_visits -= 1;
 
-        let eval = -if let Some(turn) = path.next() {
-            self.children
-                .get_mut(&turn)
-                .unwrap()
-                .devirtualize_path(path, result)
+        let eval = if let Some(index) = path.next() {
+            self.children[index].1.devirtualize_path::<N, _>(path, net_output)
         } else {
-            let (policy, eval) = result;
+            let (policy, eval) = net_output;
 
-            // replace the policies with the correct values
-            self.children.iter_mut().for_each(|(turn, child)| {
-                let move_index = turn.turn_map();
-                child.policy = policy[move_index];
+            // Replace the temporary policies with the correct values.
+            self.children.iter_mut().for_each(|(mov, child)| {
+                child.policy = policy[move_index(mov, N)];
             });
 
             *eval
         };
+        // Negate eval because we are switching the perspective.
+        let eval = -eval;
 
         self.update_concrete(eval);
-
         eval
     }
 
-    fn select(&mut self, game: &mut Game<N>, path: &mut Vec<Turn<N>>) -> GameResult {
+    #[must_use]
+    fn select<const N: usize>(&mut self, game: &mut Game<N>, path: &mut Vec<usize>) -> GameResult {
         let visit_count = self.visit_count();
-        let upper_confidence_bound = |child: &Node<N>| {
-            fn exploration_rate(n: f32) -> f32 {
-                ((1.0 + n + EXPLORATION_BASE) / EXPLORATION_BASE).ln() + EXPLORATION_INIT
-            }
-
+        let upper_confidence_bound = |child: &Node| -> f32 {
             // U(s, a) = Q(s, a) + C(s) * P(s, a) * sqrt(N(s)) / (1 + N(s, a))
             child.expected_reward
                 + exploration_rate(visit_count)
@@ -98,19 +101,19 @@ where
                     * (visit_count.sqrt() / (1.0 + child.visit_count()))
         };
 
-        // select the node to recurse into
-        let (_, (turn, node)) = self
+        // Select the node to recurse into.
+        let (_ucb, (index, (my_move, node))) = self
             .children
             .iter_mut()
-            .map(|pair| (upper_confidence_bound(pair.1), pair))
-            .max_by(|(a, _), (b, _)| a.partial_cmp(b).expect("tried to compare nan"))
+            .enumerate()
+            .map(|(index, (mov, child))| (upper_confidence_bound(child), (index, (mov, child))))
+            .max_by(|(a, _), (b, _)| a.partial_cmp(b).expect("tried comparing nan"))
             .expect("tried to select on a node without children");
-
-        // update the game state
-        game.play(turn.clone()).unwrap();
-        // add the move to our path
-        path.push(turn.clone());
-        // continue the rollout
+        // Update the game state.
+        game.play(*my_move).unwrap();
+        // Add the move to our path.
+        path.push(index);
+        // Continue the rollout.
         node.virtual_rollout(game, path)
     }
 

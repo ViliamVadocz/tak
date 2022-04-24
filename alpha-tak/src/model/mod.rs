@@ -1,7 +1,4 @@
-#[cfg(test)]
-pub mod bench;
-
-pub mod forward;
+pub mod net5;
+pub mod net6;
 pub mod network;
-pub mod res_block;
-pub mod train;
+mod res_block;

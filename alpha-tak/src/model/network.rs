@@ -1,80 +1,94 @@
-use std::{error::Error, path::Path};
+use std::path::Path;
 
-use arrayvec::ArrayVec;
-use tch::nn;
-
-use super::res_block::ResBlock;
-use crate::{
-    config::{FILTERS, RES_BLOCKS},
-    repr::{input_channels, moves_dims},
-    DEVICE,
+use rand::{prelude::SliceRandom, thread_rng};
+use tak::*;
+use tch::{
+    data::Iter2,
+    nn::{Adam, Optimizer, OptimizerConfig, VarStore},
+    Kind,
+    TchError,
+    Tensor,
 };
 
-#[derive(Debug)]
-pub struct Network<const N: usize> {
-    pub vs: nn::VarStore,
-    pub initial_conv: nn::Conv2D,
-    pub initial_batch_norm: nn::BatchNorm,
-    pub residual_blocks: ArrayVec<ResBlock, RES_BLOCKS>,
-    pub fully_connected_policy: nn::Linear,
-    pub fully_connected_eval: nn::Linear,
-}
+use crate::{example::Example, repr::possible_moves, DEVICE};
 
-impl<const N: usize> Network<N> {
-    pub fn save<T: AsRef<Path>>(&self, path: T) -> Result<(), Box<dyn Error>> {
-        self.vs.save(path)?;
-        Ok(())
-    }
+const MAX_TRAIN_SIZE: usize = 50_000;
+const BATCH_SIZE: i64 = 10_000;
+const LEARNING_RATE: f64 = 1e-4;
+const WEIGHT_DECAY: f64 = 1e-4;
 
-    pub fn load<T: AsRef<Path>>(path: T) -> Result<Network<N>, Box<dyn Error>> {
-        let mut nn = Self::default();
-        nn.vs.load(path)?;
-        Ok(nn)
-    }
-}
+pub type Policy = Vec<f32>;
+pub type Eval = f32;
 
-impl<const N: usize> Default for Network<N> {
-    fn default() -> Self {
-        let vs = nn::VarStore::new(*DEVICE);
-        let root = &vs.root();
+pub trait Network<const N: usize>: Default {
+    fn vs(&self) -> &VarStore;
 
-        let conv_config = nn::ConvConfig {
-            padding: 1,
+    fn save<T: AsRef<Path>>(&self, path: T) -> Result<(), TchError>;
+    fn load<T: AsRef<Path>>(path: T) -> Result<Self, TchError>;
+
+    fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor);
+    fn forward_training(&self, input: Tensor) -> (Tensor, Tensor);
+    fn policy_eval(&self, games: &[Game<N>]) -> Vec<(Policy, Eval)>;
+
+    fn train(&mut self, examples: &[Example<N>]) {
+        println!("starting training with {} examples", examples.len());
+
+        let mut opt = Adam {
+            wd: WEIGHT_DECAY,
             ..Default::default()
-        };
-
-        let initial_conv = nn::conv2d(root, input_channels(N) as i64, FILTERS, 3, conv_config);
-        let initial_batch_norm = nn::batch_norm2d(root, FILTERS, Default::default());
-
-        let mut residual_blocks = ArrayVec::new();
-        for _ in 0..RES_BLOCKS {
-            let conv1 = nn::conv2d(root, FILTERS, FILTERS, 3, conv_config);
-            let conv2 = nn::conv2d(root, FILTERS, FILTERS, 3, conv_config);
-            let batch_norm1 = nn::batch_norm2d(root, FILTERS, Default::default());
-            let batch_norm2 = nn::batch_norm2d(root, FILTERS, Default::default());
-            residual_blocks.push(ResBlock {
-                conv1,
-                conv2,
-                batch_norm1,
-                batch_norm2,
-            });
         }
+        .build(self.vs(), LEARNING_RATE)
+        .unwrap();
 
-        let fully_connected_policy = nn::linear(
-            root,
-            FILTERS * (N * N) as i64,
-            moves_dims(N) as i64,
-            Default::default(),
-        );
-        let fully_connected_eval = nn::linear(root, FILTERS * (N * N) as i64, 1, Default::default());
+        // shuffle only the references to the examples so that the real storage
+        // of examples preserves order from oldest to newest.
+        let mut refs: Vec<_> = examples.iter().collect();
+        refs.shuffle(&mut thread_rng());
+        for chunk in refs.chunks(MAX_TRAIN_SIZE) {
+            self.train_inner(&mut opt, chunk)
+        }
+    }
 
-        Network {
-            vs,
-            initial_conv,
-            initial_batch_norm,
-            residual_blocks,
-            fully_connected_policy,
-            fully_connected_eval,
+    fn train_inner(&mut self, opt: &mut Optimizer, examples: &[&Example<N>]) {
+        // batch examples
+        let mut batch_iter = {
+            println!("creating symmetries");
+            let symmetries = examples.iter().flat_map(|ex| ex.to_tensors());
+            let mut inputs = Vec::new();
+            let mut policies = Vec::new();
+            let mut results = Vec::new();
+            for (game, pi, v) in symmetries {
+                inputs.push(game);
+                policies.push(pi);
+                results.push(v);
+            }
+            let pi = Tensor::stack(&policies, 0);
+            let v = Tensor::of_slice(&results).unsqueeze_(1);
+            let targets = Tensor::cat(&[pi, v], 1);
+            Iter2::new(&Tensor::stack(&inputs, 0), &targets, BATCH_SIZE)
+        };
+        let batch_iter = batch_iter.shuffle();
+
+        for (mut input, mut target) in batch_iter {
+            input = input.to_device_(*DEVICE, Kind::Float, true, false);
+            target = target.to_device_(*DEVICE, Kind::Float, true, false);
+
+            let batch_size = input.size()[0];
+            let (policy, eval) = self.forward_training(input);
+
+            // get target
+            let mut vec = target.split(possible_moves(N) as i64, 1);
+            let z = vec.pop().unwrap();
+            let p = vec.pop().unwrap();
+
+            // calculate loss
+            let loss_p = -(p * policy).sum(Kind::Float) / batch_size;
+            let loss_z = (z - eval).square_().sum(Kind::Float) / batch_size;
+            println!("p={loss_p:?}\t z={loss_z:?}");
+            let total_loss = loss_z + loss_p;
+
+            opt.zero_grad();
+            opt.backward_step(&total_loss);
         }
     }
 }

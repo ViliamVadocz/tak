@@ -2,7 +2,7 @@ use rand_distr::{Dirichlet, Distribution};
 
 use super::node::Node;
 
-impl<const N: usize> Node<N> {
+impl Node {
     pub fn apply_dirichlet(&mut self, alpha: f32, ratio: f32) {
         assert!(
             self.is_policy_initialized(),
