@@ -1,17 +1,12 @@
 use std::{
-    fs::{read_to_string, File},
+    error::Error,
+    fs::write,
     io::{stdout, Write},
     sync::mpsc::channel,
     thread,
 };
 
-use alpha_tak::{
-    analysis::Analysis,
-    batch_player::BatchPlayer,
-    config::{KOMI, N},
-    model::network::Network,
-    use_cuda,
-};
+use alpha_tak::{use_cuda, Net5, Network, Player};
 use clap::Parser;
 use cli::Args;
 use mimalloc::MiMalloc;
@@ -29,28 +24,13 @@ fn main() {
         return;
     }
 
-    // TODO make nice
-
-    let network = Network::<N>::load(&args.model_path)
+    let network = Net5::load(&args.model_path)
         .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
 
-    if let Some(file_path) = args.ptn_file {
-        let content = read_to_string(file_path).expect("get good scrub");
-        let turns = Vec::<Turn<N>>::from_ptn(&content).expect("idk bozo");
-        let analysis = analysis_for_file(&network, turns, args.batch_size);
+    let mut game = Game::<5>::with_komi(2);
+    let mut player = Player::new(&network, args.batch_size, false, true, &game);
 
-        if let Ok(mut file) = File::create("analysis.ptn") {
-            file.write_all(analysis.to_ptn().as_bytes()).unwrap();
-            println!("created a file `analysis.ptn` with the analysis of this game");
-        }
-
-        return;
-    }
-
-    let mut game = Game::<N>::with_komi(KOMI);
-    let mut player = BatchPlayer::new(&game, &network, vec![], game.komi, args.batch_size);
-
-    while matches!(game.winner(), GameResult::Ongoing) {
+    while matches!(game.result(), GameResult::Ongoing) {
         // Get input from user.
         let (tx, rx) = channel();
         thread::spawn(move || {
@@ -64,7 +44,7 @@ fn main() {
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
                 if input.chars().all(char::is_whitespace) {
-                    println!("{}", player.debug(Some(5)));
+                    println!("{:.10}", player.debug(3));
                 } else {
                     try_play_move(&mut player, &mut game, input).unwrap_or_else(|err| println!("{err}"));
                 }
@@ -73,10 +53,8 @@ fn main() {
         }
     }
 
-    if let Ok(mut file) = File::create("analysis.ptn") {
-        file.write_all(player.get_analysis().to_ptn().as_bytes()).unwrap();
-        println!("created a file `analysis.ptn` with the analysis of this game");
-    }
+    write("analysis.ptn", player.get_analysis().to_string()).unwrap();
+    println!("created a file `analysis.ptn` with the analysis of this game");
 }
 
 fn clear_screen() {
@@ -92,24 +70,13 @@ fn get_input() -> String {
     line
 }
 
-fn try_play_move(player: &mut BatchPlayer<'_, 5>, game: &mut Game<5>, input: String) -> StrResult<()> {
-    let turn = Turn::from_ptn(&input)?;
-    let mut copy = game.clone();
-    copy.play(turn.clone())?;
-    player.play_move(game, &turn);
-    game.play(turn)
-}
-
-fn analysis_for_file(network: &Network<N>, turns: Vec<Turn<N>>, batch_size: u32) -> Analysis<N> {
-    let mut game = Game::with_komi(KOMI);
-    let mut player = BatchPlayer::new(&game, network, vec![], game.komi, batch_size);
-
-    for turn in turns {
-        println!("Analysing {}", turn.to_ptn());
-        player.rollout(&game);
-        player.play_move(&game, &turn);
-        game.play(turn).unwrap();
-    }
-
-    player.get_analysis()
+fn try_play_move(
+    player: &mut Player<'_, 5, Net5>,
+    game: &mut Game<5>,
+    input: String,
+) -> Result<(), Box<dyn Error>> {
+    let my_move = input.trim().parse()?;
+    let before = game.safe_play(my_move)?;
+    player.play_move(&before, my_move);
+    Ok(())
 }
