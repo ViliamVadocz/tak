@@ -2,6 +2,7 @@ mod debug;
 mod mcts;
 mod move_map;
 mod node;
+mod noise;
 mod play;
 
 pub use debug::{MoveInfo, NodeDebugInfo};
