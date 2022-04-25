@@ -1,5 +1,8 @@
 use crate::search::possible_patterns;
 
+/// Get the number of actually possible moves on each board size.
+/// This is used by the older network which has each move one-hot encoded in a
+/// vector.
 pub const fn possible_moves(n: usize) -> usize {
     match n {
         3 => 2 * 3 * 3 + 108,   // 126
@@ -12,10 +15,17 @@ pub const fn possible_moves(n: usize) -> usize {
     }
 }
 
-pub const fn output_size(n: usize) -> usize {
+/// Get the number of channels needed to encode each move type.
+/// This is used by the newer networks.
+pub const fn move_channels(n: usize) -> usize {
     let place_types = 3;
     let patterns = possible_patterns(n);
     let spreads = 4 * patterns;
-    let channels = place_types + spreads;
-    n * n * channels
+    place_types + spreads
+}
+
+/// Multiple number of move channels by board size to get
+/// the total size of the network output.
+pub const fn output_size(n: usize) -> usize {
+    n * n * move_channels(n)
 }

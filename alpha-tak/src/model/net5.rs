@@ -15,7 +15,6 @@ use crate::{
 
 const RES_BLOCKS: usize = 8;
 const FILTERS: i64 = 128;
-const N: i64 = 5;
 
 #[derive(Debug)]
 pub struct Net5 {
@@ -37,7 +36,7 @@ impl Default for Net5 {
             ..Default::default()
         };
 
-        let initial_conv = nn::conv2d(root, input_channels(N as usize) as i64, FILTERS, 3, conv_config);
+        let initial_conv = nn::conv2d(root, input_channels(5) as i64, FILTERS, 3, conv_config);
         let initial_batch_norm = nn::batch_norm2d(root, FILTERS, Default::default());
 
         let mut residual_blocks = ArrayVec::new();
@@ -56,11 +55,11 @@ impl Default for Net5 {
 
         let fully_connected_policy = nn::linear(
             root,
-            FILTERS * N * N,
-            possible_moves(N as usize) as i64,
+            FILTERS * 5 * 5,
+            possible_moves(5) as i64,
             Default::default(),
         );
-        let fully_connected_eval = nn::linear(root, FILTERS * N * N, 1, Default::default());
+        let fully_connected_eval = nn::linear(root, FILTERS * 5 * 5, 1, Default::default());
 
         Net5 {
             vs,
@@ -84,7 +83,7 @@ impl Net5 {
                     .relu_(),
                 |prev, res_block| res_block.forward(prev, train),
             )
-            .view([-1, FILTERS * (N * N) as i64])
+            .view([-1, FILTERS * (5 * 5) as i64])
     }
 }
 

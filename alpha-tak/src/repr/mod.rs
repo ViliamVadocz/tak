@@ -7,4 +7,4 @@ mod reserves;
 mod tests;
 
 pub use game::{game_repr, input_channels};
-pub use moves::{output_size, possible_moves};
+pub use moves::{move_channels, output_size, possible_moves};
