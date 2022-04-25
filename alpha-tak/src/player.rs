@@ -107,8 +107,14 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
         });
     }
 
+    /// Get the debug info for the node.
     pub fn debug(&self, depth: usize) -> NodeDebugInfo {
         self.node.lock().unwrap().debug(depth)
+    }
+
+    /// Add noise to the policies at the current node.
+    pub fn add_noise(&mut self, alpha: f32, ratio: f32) {
+        self.node.lock().unwrap().apply_dirichlet(alpha, ratio);
     }
 
     /// Do a batch of rollouts.
@@ -123,7 +129,7 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
     }
 
     /// Update the search tree, analysis, and create an example.
-    pub fn play_move(&mut self, game: &Game<N>, my_move: Move) {
+    pub fn play_move(&mut self, game: &Game<N>, my_move: Move, with_info: bool) {
         // rollout stale paths
         // necessary to update policies accordingly
         // TODO: avoid rolling out nodes that are going to be discarded
@@ -132,7 +138,7 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
         let mut node = self.node.lock().unwrap();
 
         // Save example.
-        if self.save_examples {
+        if self.save_examples && with_info {
             self.examples.push(IncompleteExample {
                 game: game.clone(),
                 policy: node.improved_policy(),
@@ -141,7 +147,11 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
 
         // Update analysis.
         if self.create_analysis {
-            self.analysis.update(&node, my_move);
+            if with_info {
+                self.analysis.update(&node, my_move);
+            } else {
+                self.analysis.add_move_without_info(my_move)
+            }
         }
 
         *node = std::mem::take(node.deref_mut()).play(my_move);
