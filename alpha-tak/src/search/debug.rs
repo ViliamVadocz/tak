@@ -48,13 +48,14 @@ impl NodeDebugInfo {
     }
 }
 
+/// We use the "precision" format parameter to know how many moves to print.
 impl Display for NodeDebugInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.is_empty() {
             return write!(f, "Node has no children");
         }
         writeln!(f, "turn      visited   reward   policy | continuation")?;
-        for move_info in &self.0 {
+        for move_info in self.0.iter().take(f.precision().unwrap_or(usize::MAX)) {
             move_info.fmt(f)?
         }
         Ok(())
@@ -79,16 +80,16 @@ impl MoveInfo {
 
 impl Display for MoveInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
+        writeln!(
             f,
             "{: <8} {: >8} {: >+8.4} {: >8.4} | {}",
-            self.mov,
+            self.mov.to_string(),
             self.visits,
             self.reward,
             self.policy,
             self.continuation
                 .iter()
-                .map(|(mov, visits)| mov.to_string())
+                .map(|(mov, _visits)| mov.to_string())
                 .collect::<Vec<_>>()
                 .join(" ")
         )

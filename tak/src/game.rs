@@ -128,13 +128,16 @@ impl<const N: usize> Game<N> {
     /// Play a move, except if an error occurs, revert to the game
     /// state before the move was played. This should be used
     /// when the move passed in cannot be trusted (such as user input).
-    pub fn safe_play(&mut self, my_move: Move) -> Result<(), PlayError> {
+    /// Returns the backed up game-state if the move worked.
+    pub fn safe_play(&mut self, my_move: Move) -> Result<Self, PlayError> {
         let backup = self.clone();
         let result = self.play(my_move);
-        if result.is_err() {
+        if let Err(err) = result {
             *self = backup;
+            Err(err)
+        } else {
+            Ok(backup)
         }
-        result
     }
 
     fn execute_place(&mut self, square: Square, piece: Piece) -> Result<(), PlayError> {

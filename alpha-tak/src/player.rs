@@ -118,7 +118,7 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
     }
 
     /// Pick a move to play.
-    pub fn pick_move(&mut self, game: &Game<N>, exploitation: bool) -> Move {
+    pub fn pick_move(&mut self, exploitation: bool) -> Move {
         self.node.lock().unwrap().pick_move(exploitation)
     }
 

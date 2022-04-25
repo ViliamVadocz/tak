@@ -29,7 +29,7 @@ impl Node {
         let (_, child) = self
             .children
             .into_iter()
-            .find(|(mov, node)| mov == &my_move)
+            .find(|(mov, _node)| mov == &my_move)
             .expect("tried to play an invalid move");
         child
     }
