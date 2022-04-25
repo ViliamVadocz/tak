@@ -5,7 +5,7 @@ mod node;
 mod play;
 
 pub use debug::{MoveInfo, NodeDebugInfo};
-pub use move_map::move_index;
+pub use move_map::{move_index, possible_patterns};
 pub use node::Node;
 
 #[cfg(test)]

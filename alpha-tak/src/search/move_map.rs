@@ -12,7 +12,7 @@ lazy_static! {
     };
 }
 
-const fn possible_patterns(board_size: usize) -> usize {
+pub const fn possible_patterns(board_size: usize) -> usize {
     2usize.pow(board_size as u32) - 2
 }
 

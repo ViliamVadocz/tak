@@ -1,7 +1,7 @@
 use tak::*;
 
 use super::node::Node;
-use crate::{model::network::Network, repr::possible_moves};
+use crate::{model::network::Network, repr::output_size};
 
 #[derive(Default)]
 struct DummyNet {}
@@ -31,7 +31,7 @@ impl<const N: usize> Network<N> for DummyNet {
         games: &[Game<N>],
     ) -> Vec<(crate::model::network::Policy, crate::model::network::Eval)> {
         // TODO Fix once Policy type is figured out
-        vec![(vec![1.0; possible_moves(N)], 0.0); games.len()]
+        vec![(vec![1.0; output_size(N)], 0.0); games.len()]
     }
 }
 
