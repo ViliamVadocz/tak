@@ -1,86 +1,50 @@
-use std::{
-    fs::{create_dir_all, File},
-    io::Write,
-};
-
-use alpha_tak::{
-    agent::Agent,
-    analysis::Analysis,
-    config::{
-        DIRICHLET_NOISE,
-        KOMI,
-        N,
-        NOISE_PLIES,
-        NOISE_RATIO,
-        ROLLOUTS_PER_MOVE,
-        SELF_PLAY_GAMES,
-        TEMPERATURE_PLIES,
-    },
-    example::Example,
-    model::network::Network,
-    player::Player,
-    sys_time,
-    threadpool::thread_pool,
-};
+use alpha_tak::{Example, Network, Player};
+use rand::{prelude::SliceRandom, thread_rng};
 use tak::*;
 
-use crate::GAME_DIR;
+const SELF_PLAY_GAMES: u32 = 500;
+const BATCH_SIZE: u32 = 64;
+const ROLLOUTS: u32 = 15;
 
-pub fn self_play(network: &Network<N>) -> Vec<Example<N>> {
-    const WORKERS: usize = 128;
+const NOISE_ALPHA: f32 = 0.2;
+const NOISE_RATIO: f32 = 0.5;
+const NOISE_PLIES: u16 = 50;
 
-    let outputs = thread_pool::<N, WORKERS, _, _>(network, SELF_PLAY_GAMES, self_play_game);
+const RANDOM_PLIES: u32 = 2;
+const EXPLOIT_PLIES: u16 = 30;
+
+pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<N>> {
     let mut examples = Vec::new();
-    let mut analyses = Vec::new();
-    for output in outputs {
-        examples.extend(output.0.into_iter());
-        analyses.push(output.1);
-    }
 
-    // TODO Do some opening analysis on the analyses
-    let time = sys_time();
-    if create_dir_all(format!("{GAME_DIR}/{time}")).is_ok() {
-        for (i, analysis) in analyses.into_iter().enumerate() {
-            if let Ok(mut file) = File::create(format!("{GAME_DIR}/{time}/{i}.ptn")) {
-                file.write_all(analysis.to_ptn().as_bytes()).unwrap();
-            }
+    // TODO parallel batches, create new kind of player?
+    let mut rng = thread_rng();
+    for i in 0..SELF_PLAY_GAMES {
+        println!("self_play game {i}/{SELF_PLAY_GAMES}");
+        let mut game = Game::with_komi(2);
+        let mut player = Player::new(network, BATCH_SIZE, true, false, &game);
+
+        // Do random opening.
+        for _ in 0..RANDOM_PLIES {
+            let my_move = *game.possible_moves().choose(&mut rng).unwrap();
+            player.play_move(&game, my_move, false);
+            game.play(my_move).unwrap();
         }
+
+        while game.result() == GameResult::Ongoing {
+            if game.ply < NOISE_PLIES {
+                player.add_noise(NOISE_ALPHA, NOISE_RATIO);
+            }
+            for _ in 0..ROLLOUTS {
+                player.rollout(&game);
+            }
+            let my_move = player.pick_move(game.ply >= EXPLOIT_PLIES);
+            player.play_move(&game, my_move, true);
+            game.play(my_move).unwrap();
+        }
+        println!("{:?} in {} plies", game.result(), game.ply);
+
+        examples.extend(player.get_examples(game.result()).into_iter());
     }
 
     examples
-}
-
-fn self_play_game<A: Agent<N>>(agent: &A, _index: usize) -> (Vec<Example<N>>, Analysis<N>) {
-    let mut game = Game::with_komi(KOMI);
-
-    // TODO proper opening book using index
-    let opening = vec![
-        Turn::Place {
-            pos: Pos { x: 0, y: 0 },
-            shape: Shape::Flat,
-        },
-        Turn::Place {
-            pos: Pos {
-                x: 4,
-                y: if rand::random() { 0 } else { 4 },
-            },
-            shape: Shape::Flat,
-        },
-    ];
-    for turn in opening.clone() {
-        game.play(turn).unwrap()
-    }
-
-    let mut player = Player::new(agent, opening, game.komi);
-
-    while matches!(game.winner(), GameResult::Ongoing) {
-        if game.ply < NOISE_PLIES {
-            player.apply_dirichlet(&game, DIRICHLET_NOISE, NOISE_RATIO);
-        }
-        player.rollout(&game, ROLLOUTS_PER_MOVE);
-        let turn = player.pick_move(&game, game.ply > TEMPERATURE_PLIES);
-        game.play(turn).unwrap();
-    }
-
-    (player.get_examples(game.winner()), player.get_analysis())
 }

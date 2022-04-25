@@ -2,7 +2,7 @@ use tak::*;
 use tch::Tensor;
 
 use crate::{
-    repr::{game_repr, possible_moves},
+    repr::{game_repr, output_size, possible_moves},
     search::move_index,
 };
 
@@ -31,17 +31,34 @@ pub struct Example<const N: usize> {
 }
 
 impl<const N: usize> Example<N> {
+    fn empty_pi() -> [Vec<f32>; 8] {
+        if N == 5 {
+            [
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+            ]
+        } else {
+            [
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+            ]
+        }
+    }
+
     pub fn to_tensors(&self) -> Vec<(Tensor, Tensor, f32)> {
-        let mut pi = [
-            vec![0.; possible_moves(N)],
-            vec![0.; possible_moves(N)],
-            vec![0.; possible_moves(N)],
-            vec![0.; possible_moves(N)],
-            vec![0.; possible_moves(N)],
-            vec![0.; possible_moves(N)],
-            vec![0.; possible_moves(N)],
-            vec![0.; possible_moves(N)],
-        ];
+        let mut pi = Self::empty_pi();
         let total = self.policy.iter().map(|(_, c)| c).sum::<u32>() as f32;
         for (m, value) in &self.policy {
             for (i, symm) in Symmetry::<N>::symmetries(*m).into_iter().enumerate() {

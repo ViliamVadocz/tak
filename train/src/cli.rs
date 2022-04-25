@@ -3,6 +3,7 @@ use clap::Parser;
 /// Train AlphaTak
 #[derive(Parser)]
 pub struct Args {
+    pub board_size: usize,
     /// Path to model, use "random" or leave blank if you want a new model
     pub model_path: Option<String>,
     /// Paths to example files
@@ -10,7 +11,4 @@ pub struct Args {
     /// Disable GPU usage
     #[clap(short, long)]
     pub no_gpu: bool,
-    /// Only do self-play, no training
-    #[clap(short, long)]
-    pub only_self_play: bool,
 }
