@@ -95,7 +95,7 @@ impl Node {
         let visit_count = self.visit_count();
         let upper_confidence_bound = |child: &Node| -> f32 {
             // U(s, a) = Q(s, a) + C(s) * P(s, a) * sqrt(N(s)) / (1 + N(s, a))
-            child.expected_reward
+            child.expected_reward()
                 + exploration_rate(visit_count)
                     * child.policy
                     * (visit_count.sqrt() / (1.0 + child.visit_count()))
@@ -118,8 +118,7 @@ impl Node {
     }
 
     fn update_concrete(&mut self, reward: f32) {
-        let scaled_reward = self.expected_reward * self.visits as f32;
         self.visits += 1;
-        self.expected_reward = (scaled_reward + reward) / self.visits as f32;
+        self.cumulative_reward += reward;
     }
 }

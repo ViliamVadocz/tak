@@ -13,7 +13,7 @@ impl Node {
             .map(|(mov, node)| MoveInfo {
                 mov: *mov,
                 visits: node.visits,
-                reward: node.expected_reward,
+                reward: node.expected_reward(),
                 policy: node.policy,
                 continuation: node.continuation(depth),
             })
