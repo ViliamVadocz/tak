@@ -36,11 +36,12 @@ pub fn board_repr<const N: usize>(board: &Board<N>, to_move: Color) -> Tensor {
             for (i, &color) in tile
                 .stack
                 .iter()
+                .rev()
                 .take(N + STACK_DEPTH_BEYOND_CARRY)
                 .skip(1)
                 .enumerate()
             {
-                let channel = 6 + i + if color == to_move { 0 } else { 1 };
+                let channel = 6 + 2 * i + if color == to_move { 0 } else { 1 };
                 positions.push((board_offset + N * N * channel) as i64);
             }
         }
