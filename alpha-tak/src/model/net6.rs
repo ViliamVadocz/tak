@@ -54,7 +54,7 @@ impl Default for Net6 {
         }
 
         let final_conv_policy = nn::conv2d(root, FILTERS, move_channels(6) as i64, 3, conv_config);
-        let fully_connected_eval = nn::linear(root, FILTERS * 5 * 5, 1, Default::default());
+        let fully_connected_eval = nn::linear(root, FILTERS * 6 * 6, 1, Default::default());
 
         Net6 {
             vs,
@@ -69,16 +69,13 @@ impl Default for Net6 {
 
 impl Net6 {
     fn forward_conv(&self, input: Tensor, train: bool) -> Tensor {
-        self.residual_blocks
-            .iter()
-            .fold(
-                input
-                    .apply_t(&self.initial_conv, train)
-                    .apply_t(&self.initial_batch_norm, train)
-                    .relu_(),
-                |prev, res_block| res_block.forward(prev, train),
-            )
-            .view([-1, FILTERS * (5 * 5) as i64])
+        self.residual_blocks.iter().fold(
+            input
+                .apply_t(&self.initial_conv, train)
+                .apply_t(&self.initial_batch_norm, train)
+                .relu_(),
+            |prev, res_block| res_block.forward(prev, train),
+        )
     }
 }
 
@@ -101,14 +98,20 @@ impl Network<6> for Net6 {
     fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor) {
         let s = self.forward_conv(input, false);
         let policy = s.apply(&self.final_conv_policy).softmax(1, Kind::Float);
-        let eval = s.apply(&self.fully_connected_eval).tanh_();
+        let eval = s
+            .view([-1, FILTERS * (6 * 6) as i64])
+            .apply(&self.fully_connected_eval)
+            .tanh_();
         (policy, eval)
     }
 
     fn forward_training(&self, input: Tensor) -> (Tensor, Tensor) {
         let s = self.forward_conv(input, true);
         let policy = s.apply(&self.final_conv_policy).log_softmax(1, Kind::Float);
-        let eval = s.apply(&self.fully_connected_eval).tanh_();
+        let eval = s
+            .view([-1, FILTERS * (6 * 6) as i64])
+            .apply(&self.fully_connected_eval)
+            .tanh_();
         (policy, eval)
     }
 
