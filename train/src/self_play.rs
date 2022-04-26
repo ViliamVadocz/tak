@@ -16,6 +16,8 @@ const EXPLOIT_PLIES: u16 = 30;
 pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<N>> {
     let mut examples = Vec::new();
 
+    let mut example_file = File::create(format!("{EXAMPLE_DIR}/{}.data", sys_time())).unwrap();
+
     // TODO parallel batches, create new kind of player?
     let mut rng = thread_rng();
     for i in 0..SELF_PLAY_GAMES {
@@ -43,7 +45,14 @@ pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<
         }
         println!("{:?} in {} plies", game.result(), game.ply);
 
-        examples.extend(player.get_examples(game.result()).into_iter());
+        // Save examples as we go to a file.
+        let new_examples = player.get_examples(game.result());
+        for example in &new_examples {
+            writeln!(example_file, "{example}").unwrap();
+        }
+        example_file.flush().unwrap();
+        // Save examples to output vector.
+        examples.extend(new_examples.into_iter());
     }
 
     examples

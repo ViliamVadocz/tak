@@ -1,4 +1,6 @@
-use tak::*;
+use std::{error::Error, fmt::Display, str::FromStr};
+
+use tak::{takparse::Tps, *};
 use tch::Tensor;
 
 use crate::{
@@ -73,5 +75,59 @@ impl<const N: usize> Example<N> {
             .enumerate()
             .map(|(i, game)| (game_repr(&game), Tensor::of_slice(&pi[i]), self.result))
             .collect()
+    }
+}
+
+impl<const N: usize> Display for Example<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{};{};{};{};{};{};{};{}",
+            Tps::from(self.game.clone()),
+            self.game.white_stones,
+            self.game.white_caps,
+            self.game.black_stones,
+            self.game.black_caps,
+            self.game.half_komi,
+            self.result,
+            self.policy
+                .iter()
+                .map(|(mov, visits)| format!("{mov}:{visits}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+}
+
+impl<const N: usize> FromStr for Example<N> {
+    type Err = Box<dyn Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split(';');
+
+        let tps = iter.next().ok_or("missing tps")?.parse::<Tps>()?;
+        let mut game: Game<N> = tps.into();
+
+        game.white_stones = iter.next().ok_or("missing white stones")?.parse()?;
+        game.white_caps = iter.next().ok_or("missing white caps")?.parse()?;
+        game.black_stones = iter.next().ok_or("missing black stones")?.parse()?;
+        game.black_caps = iter.next().ok_or("missing black caps")?.parse()?;
+        game.half_komi = iter.next().ok_or("missing half komi")?.parse()?;
+
+        let result = iter.next().ok_or("missing result")?.parse()?;
+
+        fn parse_pair(pair: &str) -> Result<(Move, u32), Box<dyn Error>> {
+            let (move_str, visit_str) = pair.split_once(':').ok_or("pair has missing delimiter")?;
+            Ok((move_str.parse()?, visit_str.parse()?))
+        }
+
+        let policy = iter
+            .next()
+            .ok_or("missing policy")?
+            .split(',')
+            .map(parse_pair)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Example { game, result, policy })
     }
 }
