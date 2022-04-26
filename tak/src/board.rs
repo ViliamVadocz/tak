@@ -6,7 +6,7 @@ use crate::tile::Tile;
 
 #[derive(Clone, Debug)]
 pub struct Board<const N: usize> {
-    data: [[Tile; N]; N],
+    pub(crate) data: [[Tile; N]; N],
 }
 
 impl<const N: usize> Default for Board<N> {
