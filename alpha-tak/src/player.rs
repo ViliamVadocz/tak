@@ -113,8 +113,10 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
     }
 
     /// Add noise to the policies at the current node.
-    pub fn add_noise(&mut self, alpha: f32, ratio: f32) {
+    pub fn add_noise(&mut self, alpha: f32, ratio: f32, game: &Game<N>) {
+        self.consume_batch();
         self.node.lock().unwrap().apply_dirichlet(alpha, ratio);
+        self.request_batch(game)
     }
 
     /// Do a batch of rollouts.
@@ -129,7 +131,7 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
     }
 
     /// Update the search tree, analysis, and create an example.
-    pub fn play_move(&mut self, game: &Game<N>, my_move: Move, with_info: bool) {
+    pub fn play_move(&mut self, my_move: Move, game: &Game<N>, with_info: bool) {
         // rollout stale paths
         // necessary to update policies accordingly
         // TODO: avoid rolling out nodes that are going to be discarded

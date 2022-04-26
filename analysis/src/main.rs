@@ -77,6 +77,6 @@ fn try_play_move(
 ) -> Result<(), Box<dyn Error>> {
     let my_move = input.trim().parse()?;
     let before = game.safe_play(my_move)?;
-    player.play_move(&before, my_move);
+    player.play_move(&before, my_move, true);
     Ok(())
 }

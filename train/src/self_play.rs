@@ -1,14 +1,18 @@
-use alpha_tak::{Example, Network, Player};
+use std::{fs::File, io::Write};
+
+use alpha_tak::{sys_time, Example, Network, Player};
 use rand::{prelude::SliceRandom, thread_rng};
 use tak::*;
 
-const SELF_PLAY_GAMES: u32 = 500;
+use crate::EXAMPLE_DIR;
+
+const SELF_PLAY_GAMES: u32 = 100;
 const BATCH_SIZE: u32 = 64;
 const ROLLOUTS: u32 = 15;
 
 const NOISE_ALPHA: f32 = 0.2;
 const NOISE_RATIO: f32 = 0.5;
-const NOISE_PLIES: u16 = 50;
+const NOISE_PLIES: u16 = 80;
 
 const RANDOM_PLIES: u32 = 2;
 const EXPLOIT_PLIES: u16 = 30;
@@ -28,19 +32,19 @@ pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<
         // Do random opening.
         for _ in 0..RANDOM_PLIES {
             let my_move = *game.possible_moves().choose(&mut rng).unwrap();
-            player.play_move(&game, my_move, false);
+            player.play_move(my_move, &game, false);
             game.play(my_move).unwrap();
         }
 
         while game.result() == GameResult::Ongoing {
             if game.ply < NOISE_PLIES {
-                player.add_noise(NOISE_ALPHA, NOISE_RATIO);
+                player.add_noise(NOISE_ALPHA, NOISE_RATIO, &game);
             }
             for _ in 0..ROLLOUTS {
                 player.rollout(&game);
             }
             let my_move = player.pick_move(game.ply >= EXPLOIT_PLIES);
-            player.play_move(&game, my_move, true);
+            player.play_move(my_move, &game, true);
             game.play(my_move).unwrap();
         }
         println!("{:?} in {} plies", game.result(), game.ply);

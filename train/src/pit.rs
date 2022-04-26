@@ -2,7 +2,7 @@ use alpha_tak::{Network, Player};
 use rand::{prelude::SliceRandom, thread_rng};
 use tak::*;
 
-const PIT_GAMES: u32 = 100;
+const PIT_GAMES: u32 = 50;
 const BATCH_SIZE: u32 = 64;
 const ROLLOUTS: u32 = 15;
 
@@ -27,15 +27,15 @@ pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
                 for _ in 0..RANDOM_PLIES {
                     let my_move = *game.possible_moves().choose(&mut rng).unwrap();
                     opening.push(my_move);
-                    new_player.play_move(&game, my_move, false);
-                    old_player.play_move(&game, my_move, false);
+                    new_player.play_move(my_move, &game, false);
+                    old_player.play_move(my_move, &game, false);
                     game.play(my_move).unwrap();
                 }
                 println!("opening: {opening:?}");
             } else {
                 for &my_move in opening.iter() {
-                    new_player.play_move(&game, my_move, false);
-                    old_player.play_move(&game, my_move, false);
+                    new_player.play_move(my_move, &game, false);
+                    old_player.play_move(my_move, &game, false);
                     game.play(my_move).unwrap();
                 }
             }
@@ -50,8 +50,8 @@ pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
                     to_move.rollout(&game);
                 }
                 let my_move = to_move.pick_move(game.ply >= EXPLOIT_PLIES);
-                new_player.play_move(&game, my_move, true);
-                old_player.play_move(&game, my_move, true);
+                new_player.play_move(my_move, &game, true);
+                old_player.play_move(my_move, &game, true);
                 game.play(my_move).unwrap();
             }
             println!("{:?} in {} plies", game.result(), game.ply);
