@@ -64,8 +64,8 @@ async fn run_playtak_game(
         if take_my_turn {
             tx.send(Message::MoveRequest)?;
             match rx.recv().await {
-                Some(Message::Turn(m)) => {
-                    if game.play(m.parse()?).await.is_err() {
+                Some(Message::Move(my_move)) => {
+                    if game.play(my_move).await.is_err() {
                         println!("Failed to play move!");
                     }
                 }
@@ -77,7 +77,7 @@ async fn run_playtak_game(
 
         match game.update().await? {
             GameUpdate::Played(m) => {
-                tx.send(Message::Turn(m.to_string()))?;
+                tx.send(Message::Move(m))?;
             }
             GameUpdate::Ended(_result) => {
                 tx.send(Message::GameEnded)?;

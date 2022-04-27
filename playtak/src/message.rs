@@ -1,6 +1,8 @@
+use tak::Move;
+
 #[derive(Debug)]
 pub enum Message {
     MoveRequest,
-    Turn(String),
+    Move(Move),
     GameEnded,
 }
