@@ -1,4 +1,7 @@
-use std::fs::create_dir_all;
+use std::{
+    fs::{create_dir_all, read_to_string},
+    str::FromStr,
+};
 
 use alpha_tak::{sys_time, use_cuda, Example, Net5, Net6, Network};
 use clap::Parser;
@@ -49,10 +52,18 @@ fn get_network<const N: usize, NET: Network<N>>(model_path: Option<String>) -> N
 fn train<const N: usize, NET: Network<N>>(args: Args) -> ! {
     let network = get_network::<N, NET>(args.model_path);
 
-    let examples = Vec::new();
+    let mut examples = Vec::new();
     for ex_path in args.examples {
         println!("loading {ex_path}");
-        todo!();
+        examples.extend(
+            read_to_string(ex_path)
+                .unwrap()
+                .split_terminator('\n')
+                .map(Example::from_str)
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+                .into_iter(),
+        );
     }
 
     training_loop(network, examples)
@@ -87,7 +98,6 @@ fn training_loop<const N: usize, NET: Network<N>>(mut network: NET, mut examples
         // Do self-play to get new examples.
         println!("starting self-play");
         let new_examples = self_play(&network);
-        // TODO save examples
         examples.extend(new_examples.into_iter())
     }
 }
