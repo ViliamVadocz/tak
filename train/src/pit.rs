@@ -31,7 +31,10 @@ pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
                     old_player.play_move(my_move, &game, false);
                     game.play(my_move).unwrap();
                 }
-                println!("opening: {opening:?}");
+                println!(
+                    "opening: {:?}",
+                    opening.iter().map(Move::to_string).collect::<Vec<_>>()
+                );
             } else {
                 for &my_move in opening.iter() {
                     new_player.play_move(my_move, &game, false);
@@ -54,7 +57,7 @@ pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
                 old_player.play_move(my_move, &game, true);
                 game.play(my_move).unwrap();
             }
-            println!("{:?} in {} plies", game.result(), game.ply);
+            println!("{:?} in {} plies as {color}", game.result(), game.ply);
 
             result.update(game.result(), color);
         }
