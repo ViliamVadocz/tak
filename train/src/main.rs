@@ -35,11 +35,8 @@ fn main() {
         return;
     }
 
-    match args.board_size {
-        5 => train::<5, Net5>(args),
-        6 => train::<6, Net6>(args),
-        x => println!("Unsupported board size {x}."),
-    }
+    // train::<5, Net5>(args);
+    train::<6, Net6>(args);
 }
 
 fn get_network<const N: usize, NET: Network<N>>(model_path: Option<String>) -> NET {

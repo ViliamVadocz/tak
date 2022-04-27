@@ -3,7 +3,6 @@ use clap::Parser;
 /// Train AlphaTak
 #[derive(Parser)]
 pub struct Args {
-    pub board_size: usize,
     /// Path to model, use "random" or leave blank if you want a new model
     pub model_path: Option<String>,
     /// Paths to example files
