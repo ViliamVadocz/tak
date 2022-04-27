@@ -3,6 +3,8 @@ use clap::Parser;
 /// Train AlphaTak
 #[derive(Parser)]
 pub struct Args {
+    /// Board size
+    pub board_size: usize,
     /// Path to model
     pub model_path: String,
     /// How many virtual rollouts to perform per batch

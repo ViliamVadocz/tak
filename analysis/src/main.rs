@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use alpha_tak::{use_cuda, Net5, Network, Player};
+use alpha_tak::{use_cuda, Net5, Net6, Network, Player};
 use clap::Parser;
 use cli::Args;
 use mimalloc::MiMalloc;
@@ -24,10 +24,16 @@ fn main() {
         return;
     }
 
-    let network = Net5::load(&args.model_path)
-        .unwrap_or_else(|_| panic!("could not load model at {}", args.model_path));
+    match args.board_size {
+        5 => interactive_analysis::<5, Net5>(args),
+        6 => interactive_analysis::<6, Net6>(args),
+        n => println!("Unsupported board size: {n}"),
+    }
+}
 
-    let mut game = Game::<5>::with_komi(2);
+fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
+    let network: NET = get_model(&args);
+    let mut game = Game::<N>::with_komi(2);
     let mut player = Player::new(&network, args.batch_size, false, true, &game);
 
     while matches!(game.result(), GameResult::Ongoing) {
@@ -57,6 +63,10 @@ fn main() {
     println!("created a file `analysis.ptn` with the analysis of this game");
 }
 
+fn get_model<const N: usize, NET: Network<N>>(args: &Args) -> NET {
+    NET::load(&args.model_path).unwrap_or_else(|_| panic!("could not load model at {}", args.model_path))
+}
+
 fn clear_screen() {
     print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
     stdout().flush().unwrap()
@@ -70,13 +80,13 @@ fn get_input() -> String {
     line
 }
 
-fn try_play_move(
-    player: &mut Player<'_, 5, Net5>,
-    game: &mut Game<5>,
+fn try_play_move<const N: usize, NET: Network<N>>(
+    player: &mut Player<'_, N, NET>,
+    game: &mut Game<N>,
     input: String,
 ) -> Result<(), Box<dyn Error>> {
     let my_move = input.trim().parse()?;
     let before = game.safe_play(my_move)?;
-    player.play_move(&before, my_move, true);
+    player.play_move(my_move, &before, true);
     Ok(())
 }
