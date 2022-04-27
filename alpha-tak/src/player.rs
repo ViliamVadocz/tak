@@ -88,7 +88,9 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
                     })
                     .unzip();
 
-                response_tx.send(paths).unwrap();
+                if response_tx.send(paths).is_err() {
+                    break;
+                };
             }
         });
     }
