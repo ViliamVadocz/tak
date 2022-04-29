@@ -128,7 +128,7 @@ fn format_branch(ply: usize, info: &MoveInfo) -> String {
     } else {
         out.push_str(&format!(
             "{move_num}. -- {} {}\n",
-            move_iter.next().unwrap(),
+            info.mov,
             info.ptn_comment(true),
         ));
     }
