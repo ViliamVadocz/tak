@@ -3,7 +3,7 @@ use takparse::Color;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GameResult {
     Winner { color: Color, road: bool },
-    Draw { turn_limit: bool },
+    Draw { reversible_plies: bool },
     Ongoing,
 }
 

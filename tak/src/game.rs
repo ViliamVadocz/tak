@@ -19,7 +19,7 @@ pub const fn default_starting_stones(width: usize) -> (Stones, Capstones) {
     }
 }
 
-const PLY_LIMIT: u16 = 240;
+const REVERSIBLE_PLIES: u8 = 20; // playtak uses 50
 
 #[derive(Clone, Debug)]
 pub struct Game<const N: usize> {
@@ -31,6 +31,7 @@ pub struct Game<const N: usize> {
     pub black_stones: u8,
     pub black_caps: u8,
     pub half_komi: i8,
+    pub reversible_plies: u8,
 }
 
 impl<const N: usize> Default for Game<N> {
@@ -47,6 +48,7 @@ impl<const N: usize> Default for Game<N> {
             black_stones: stones,
             black_caps: caps,
             half_komi: 0,
+            reversible_plies: 0,
         }
     }
 }
@@ -120,6 +122,7 @@ impl<const N: usize> Game<N> {
             MoveKind::Place(piece) => self.execute_place(my_move.square(), piece),
             MoveKind::Spread(direction, pattern) => self.execute_spread(my_move.square(), direction, pattern),
         }?;
+        self.update_reversible(my_move);
         self.ply += 1;
         self.to_move = self.to_move.not();
         Ok(())
@@ -204,6 +207,15 @@ impl<const N: usize> Game<N> {
         Ok(())
     }
 
+    fn update_reversible(&mut self, my_move: Move) {
+        // TODO detect smashes
+        if matches!(my_move.kind(), MoveKind::Place(_)) {
+            self.reversible_plies = 0;
+        } else {
+            self.reversible_plies += 1;
+        }
+    }
+
     pub fn result(&self) -> GameResult {
         // We check the result after a move, so for the dragon clause
         // we look at the other player's path first (they just played).
@@ -233,7 +245,9 @@ impl<const N: usize> Game<N> {
                 },
                 Ordering::Equal => {
                     if self.half_komi % 2 == 0 {
-                        GameResult::Draw { turn_limit: false }
+                        GameResult::Draw {
+                            reversible_plies: false,
+                        }
                     } else {
                         GameResult::Winner {
                             color: Color::Black,
@@ -242,8 +256,10 @@ impl<const N: usize> Game<N> {
                     }
                 }
             }
-        } else if self.ply >= PLY_LIMIT {
-            GameResult::Draw { turn_limit: true }
+        } else if self.reversible_plies >= REVERSIBLE_PLIES {
+            GameResult::Draw {
+                reversible_plies: true,
+            }
         } else {
             GameResult::Ongoing
         }
