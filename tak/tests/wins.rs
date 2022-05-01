@@ -50,7 +50,9 @@ fn board_fill_komi() -> Result<(), PlayError> {
     let mut game = Game::<4>::from_ptn_moves(&[
         "a1", "a2", "b1", "b2", "c2", "c1", "d1", "d2", "d3", "c3", "b3", "a3", "a4", "b4", "c4", "d4",
     ])?;
-    assert_eq!(game.result(), GameResult::Draw { turn_limit: false });
+    assert_eq!(game.result(), GameResult::Draw {
+        reversible_plies: false
+    });
     game.half_komi = 1;
     assert_eq!(game.result(), GameResult::Winner {
         color: Color::Black,
