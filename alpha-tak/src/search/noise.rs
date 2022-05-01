@@ -5,7 +5,7 @@ use super::node::Node;
 impl Node {
     pub fn apply_dirichlet(&mut self, alpha: f32, ratio: f32) {
         assert!(
-            self.is_initialized(),
+            self.visits > 0,
             "cannot apply dirichlet noise without initialized policy"
         );
         let dirichlet = Dirichlet::new(&vec![alpha; self.children.len()]).unwrap();
