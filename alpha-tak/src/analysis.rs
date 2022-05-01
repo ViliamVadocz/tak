@@ -60,12 +60,17 @@ impl Analysis {
             }
         }
     }
+
+    pub fn without_branches(mut self) -> Self {
+        self.branches = Vec::new();
+        self
+    }
 }
 
 impl Display for Analysis {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut out = format!(
-            "[Size \"{}\"]\n[Komi\"{}\"]\n",
+            "[Size \"{}\"]\n[Komi \"{}\"]\n",
             self.board_size,
             (self.half_komi / 2).to_string() + if self.half_komi % 2 == 0 { "" } else { ".5" }
         );
