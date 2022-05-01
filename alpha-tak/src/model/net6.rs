@@ -99,10 +99,10 @@ impl Network<6> for Net6 {
         let s = self.forward_conv(input, false);
         let policy = s
             .apply(&self.final_conv_policy)
-            .view([-1, move_channels(6) as i64 * 6 * 6])
+            .view([-1, output_size(6) as i64])
             .softmax(1, Kind::Float);
         let eval = s
-            .view([-1, FILTERS * (6 * 6) as i64])
+            .view([-1, FILTERS * 6 * 6])
             .apply(&self.fully_connected_eval)
             .tanh_();
         (policy, eval)
@@ -112,10 +112,10 @@ impl Network<6> for Net6 {
         let s = self.forward_conv(input, true);
         let policy = s
             .apply(&self.final_conv_policy)
-            .view([-1, move_channels(6) as i64 * 6 * 6])
+            .view([-1, output_size(6) as i64])
             .log_softmax(1, Kind::Float);
         let eval = s
-            .view([-1, FILTERS * (6 * 6) as i64])
+            .view([-1, FILTERS * 6 * 6])
             .apply(&self.fully_connected_eval)
             .tanh_();
         (policy, eval)
