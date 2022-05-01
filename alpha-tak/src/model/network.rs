@@ -18,7 +18,7 @@ const WEIGHT_DECAY: f64 = 1e-4;
 // This was done to reduce GPU memory usage.
 // Product of CHUNK_SIZE and CHUNKS_IN_STEP is the effective batch size.
 const CHUNK_SIZE: usize = 500;
-const CHUNKS_IN_STEP: usize = 6;
+const CHUNKS_IN_STEP: usize = 5;
 
 pub type Policy = Vec<f32>;
 pub type Eval = f32;

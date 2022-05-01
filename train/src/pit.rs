@@ -3,11 +3,14 @@ use rand::{prelude::SliceRandom, thread_rng};
 use tak::*;
 
 const PIT_GAMES: u32 = 50;
-const BATCH_SIZE: u32 = 64;
-const ROLLOUTS: u32 = 15;
+const BATCH_SIZE: u32 = 16;
+const ROLLOUTS: u32 = 50;
 
 const RANDOM_PLIES: u32 = 2;
-const EXPLOIT_PLIES: u16 = 30;
+
+const NOISE_ALPHA: f32 = 0.4;
+const NOISE_RATIO: f32 = 0.5;
+const NOISE_PLIES: u16 = 30;
 
 pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
     let mut result = PitResult::default();
@@ -49,10 +52,13 @@ pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
                 } else {
                     &mut old_player
                 };
+                if game.ply < NOISE_PLIES {
+                    to_move.add_noise(NOISE_ALPHA, NOISE_RATIO, &game);
+                }
                 for _ in 0..ROLLOUTS {
                     to_move.rollout(&game);
                 }
-                let my_move = to_move.pick_move(game.ply >= EXPLOIT_PLIES);
+                let my_move = to_move.pick_move(true);
                 new_player.play_move(my_move, &game, true);
                 old_player.play_move(my_move, &game, true);
                 game.play(my_move).unwrap();
