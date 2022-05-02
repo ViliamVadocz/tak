@@ -3,7 +3,7 @@ use takparse::{Color, Piece};
 
 use crate::error::{StackError, TakeError};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Tile {
     pub piece: Piece,
     pub stack: Vec<Color>,

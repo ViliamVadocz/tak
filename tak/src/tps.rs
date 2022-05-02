@@ -10,6 +10,7 @@ impl<const N: usize> From<Game<N>> for Tps {
             .board
             .data
             .into_iter()
+            .rev()
             .map(|row| {
                 row.into_iter()
                     .map(|tile| {
@@ -35,27 +36,27 @@ impl<const N: usize> From<Game<N>> for Tps {
 
 impl<const N: usize> From<Tps> for Game<N> {
     fn from(tps: Tps) -> Game<N> {
-        let board = Board {
-            data: tps
-                .board_2d()
-                .map(|row| {
-                    row.map(|square| {
-                        if let Some(stack) = square {
-                            Tile {
-                                piece: stack.top(),
-                                stack: stack.colors().collect(),
-                            }
-                        } else {
-                            Tile::default()
+        let mut data = tps
+            .board_2d()
+            .map(|row| {
+                row.map(|square| {
+                    if let Some(stack) = square {
+                        Tile {
+                            piece: stack.top(),
+                            stack: stack.colors().collect(),
                         }
-                    })
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap()
+                    } else {
+                        Tile::default()
+                    }
                 })
                 .collect::<Vec<_>>()
                 .try_into()
-                .unwrap(),
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        data.reverse();
+        let board = Board {
+            data: data.try_into().unwrap(),
         };
         Game {
             board,

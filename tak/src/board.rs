@@ -4,7 +4,7 @@ use takparse::{Color, Piece, Square};
 
 use crate::tile::Tile;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Board<const N: usize> {
     pub(crate) data: [[Tile; N]; N],
 }
