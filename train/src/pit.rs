@@ -4,7 +4,7 @@ use tak::*;
 
 const PIT_GAMES: u32 = 50;
 const BATCH_SIZE: u32 = 16;
-const ROLLOUTS: u32 = 50;
+const ROLLOUTS: u32 = 200;
 
 const RANDOM_PLIES: u32 = 2;
 
