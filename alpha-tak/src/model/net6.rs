@@ -98,12 +98,12 @@ impl Network<6> for Net6 {
     fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor) {
         let s = self.forward_conv(input, false);
         let policy = s
-            .apply(&self.final_conv_policy)
+            .apply_t(&self.final_conv_policy, false)
             .view([-1, output_size(6) as i64])
             .softmax(1, Kind::Float);
         let eval = s
             .view([-1, FILTERS * 6 * 6])
-            .apply(&self.fully_connected_eval)
+            .apply_t(&self.fully_connected_eval, false)
             .tanh_();
         (policy, eval)
     }
@@ -111,12 +111,12 @@ impl Network<6> for Net6 {
     fn forward_training(&self, input: Tensor) -> (Tensor, Tensor) {
         let s = self.forward_conv(input, true);
         let policy = s
-            .apply(&self.final_conv_policy)
+            .apply_t(&self.final_conv_policy, true)
             .view([-1, output_size(6) as i64])
             .log_softmax(1, Kind::Float);
         let eval = s
             .view([-1, FILTERS * 6 * 6])
-            .apply(&self.fully_connected_eval)
+            .apply_t(&self.fully_connected_eval, true)
             .tanh_();
         (policy, eval)
     }
