@@ -11,7 +11,7 @@ use tch::{
 
 use crate::{example::Example, DEVICE};
 
-const LEARNING_RATE: f64 = 1e-4;
+const LEARNING_RATE: f64 = 1e-5;
 const WEIGHT_DECAY: f64 = 1e-4;
 
 // Each training step is made up of multiple chunks.
