@@ -3,6 +3,7 @@ use std::{
     str::FromStr,
 };
 
+#[allow(unused_imports)]
 use alpha_tak::{sys_time, use_cuda, Example, Net5, Net6, Network};
 use clap::Parser;
 use cli::Args;

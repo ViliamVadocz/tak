@@ -12,10 +12,10 @@ const ROLLOUTS: u32 = 50;
 
 const NOISE_ALPHA: f32 = 0.2;
 const NOISE_RATIO: f32 = 0.5;
-const NOISE_PLIES: u16 = 200; // TEMPORARY
+const NOISE_PLIES: u16 = 80;
 
 const RANDOM_PLIES: u32 = 2;
-const EXPLOIT_PLIES: u16 = 200; // TEMPORARY
+const EXPLOIT_PLIES: u16 = 40;
 
 pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<N>> {
     let mut examples = Vec::new();
