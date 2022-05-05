@@ -19,7 +19,7 @@ pub const fn default_starting_stones(width: usize) -> (Stones, Capstones) {
     }
 }
 
-const REVERSIBLE_PLIES: u8 = 20; // playtak uses 50
+const REVERSIBLE_PLIES: u8 = 50;
 
 #[derive(Clone, Debug)]
 pub struct Game<const N: usize> {
