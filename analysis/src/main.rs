@@ -4,6 +4,7 @@ use std::{
     io::{stdout, Write},
     sync::mpsc::channel,
     thread,
+    time::{Duration, Instant},
 };
 
 use alpha_tak::{use_cuda, Net5, Net6, Network, Player};
@@ -25,12 +26,59 @@ fn main() {
     }
 
     match args.board_size {
-        5 => interactive_analysis::<5, Net5>(args),
-        6 => interactive_analysis::<6, Net6>(args),
+        5 => generic_main::<5, Net5>(args),
+        6 => generic_main::<6, Net6>(args),
         n => println!("Unsupported board size: {n}"),
     }
 }
 
+fn generic_main<const N: usize, NET: Network<N>>(args: Args) {
+    if args.ptn_file.is_some() {
+        analyze_file::<N, NET>(args);
+    } else if args.example_game {
+        run_example_game::<N, NET>(args);
+    } else {
+        interactive_analysis::<N, NET>(args);
+    }
+}
+
+/// Take a file and generate an analysis.
+fn analyze_file<const N: usize, NET: Network<N>>(_args: Args) {
+    todo!()
+}
+
+/// Run a game with the bot playing against itself
+fn run_example_game<const N: usize, NET: Network<N>>(args: Args) {
+    let network: NET = get_model(&args);
+    let mut game = Game::<N>::with_komi(2);
+    let mut player = Player::new(&network, args.batch_size, false, true, &game);
+
+    // TODO allow custom openings
+    // (and also make them work for different board sizes)
+    for my_move in ["a1", "f1"] {
+        let my_move = my_move.parse().unwrap();
+        player.play_move(my_move, &game, false);
+        game.play(my_move).unwrap();
+    }
+
+    let think_time = Duration::from_secs(args.think_seconds);
+
+    while game.result() == GameResult::Ongoing {
+        let start = Instant::now();
+        while Instant::now().duration_since(start) < think_time {
+            player.rollout(&game);
+        }
+        let my_move = player.pick_move(true);
+        println!("{:.5}", player.debug(5));
+        player.play_move(my_move, &game, true);
+        game.play(my_move).unwrap();
+    }
+
+    save_analysis(player)
+}
+
+/// Run an interactive analysis where the user can input moves and see
+/// intermediate evaluations.
 fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
     let network: NET = get_model(&args);
     let mut game = Game::<N>::with_komi(2);
@@ -59,8 +107,7 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
         }
     }
 
-    write("analysis.ptn", player.get_analysis().to_string()).unwrap();
-    println!("created a file `analysis.ptn` with the analysis of this game");
+    save_analysis(player)
 }
 
 fn get_model<const N: usize, NET: Network<N>>(args: &Args) -> NET {
@@ -89,4 +136,9 @@ fn try_play_move<const N: usize, NET: Network<N>>(
     let before = game.safe_play(my_move)?;
     player.play_move(my_move, &before, true);
     Ok(())
+}
+
+fn save_analysis<const N: usize, NET: Network<N>>(mut player: Player<N, NET>) {
+    write("analysis.ptn", player.get_analysis().to_string()).unwrap();
+    println!("created a file `analysis.ptn` with the analysis of this game");
 }

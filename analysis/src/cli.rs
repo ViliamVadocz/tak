@@ -13,6 +13,12 @@ pub struct Args {
     /// Path to PTN game file
     #[clap(short, long)]
     pub ptn_file: Option<String>,
+    /// Run an example game
+    #[clap(short, long)]
+    pub example_game: bool,
+    /// Number of seconds to think
+    #[clap(short, long, default_value_t = 15)]
+    pub think_seconds: u64,
     /// Disable GPU usage
     #[clap(short, long)]
     pub no_gpu: bool,
