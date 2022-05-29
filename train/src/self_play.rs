@@ -1,12 +1,12 @@
 use std::{fs::File, io::Write};
 
 use alpha_tak::{sys_time, Example, Network, Player};
-use rand::{prelude::SliceRandom, thread_rng};
+use rand::{thread_rng, Rng};
 use tak::*;
 
 use crate::EXAMPLE_DIR;
 
-const SELF_PLAY_GAMES: u32 = 500;
+const SELF_PLAY_GAMES: u32 = 800;
 const BATCH_SIZE: u32 = 16;
 const ROLLOUTS: u32 = 50;
 
@@ -14,8 +14,9 @@ const NOISE_ALPHA: f32 = 0.2;
 const NOISE_RATIO: f32 = 0.5;
 const NOISE_PLIES: u16 = 80;
 
-const RANDOM_PLIES: u32 = 2;
+// const RANDOM_PLIES: u32 = 2;
 const EXPLOIT_PLIES: u16 = 40;
+const QUAD_ROLLOUT_PLIES: u16 = 10;
 
 pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<N>> {
     let mut examples = Vec::new();
@@ -30,17 +31,41 @@ pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<
         let mut player = Player::new(network, BATCH_SIZE, true, true, &game);
 
         // Do random opening.
-        for _ in 0..RANDOM_PLIES {
-            let my_move = *game.possible_moves().choose(&mut rng).unwrap();
-            player.play_move(my_move, &game, false);
-            game.play(my_move).unwrap();
-        }
+        // for _ in 0..RANDOM_PLIES {
+        //     let my_move = *game.possible_moves().choose(&mut rng).unwrap();
+        //     player.play_move(my_move, &game, false);
+        //     game.play(my_move).unwrap();
+        // }
+
+        // first
+        let my_move = "a1".parse().unwrap();
+        player.play_move(my_move, &game, false);
+        game.play(my_move).unwrap();
+
+        // second
+        let my_move = if rng.gen::<f64>() < 0.5 {
+            "a6".parse().unwrap()
+        } else {
+            "f6".parse().unwrap()
+        };
+
+        // let my_move = match rng.gen::<f64>() {
+        //     x if x < 0.4 => "a6".parse().unwrap(),
+        //     x if x < 0.8 => "f6".parse().unwrap(),
+        //     _ => "a3".parse().unwrap(),
+        // };
+        player.play_move(my_move, &game, false);
+        game.play(my_move).unwrap();
 
         while game.result() == GameResult::Ongoing {
             if game.ply < NOISE_PLIES {
                 player.add_noise(NOISE_ALPHA, NOISE_RATIO, &game);
             }
-            for _ in 0..ROLLOUTS {
+            for _ in 0..if game.ply < QUAD_ROLLOUT_PLIES {
+                4 * ROLLOUTS
+            } else {
+                ROLLOUTS
+            } {
                 player.rollout(&game);
             }
             let my_move = player.pick_move(game.ply >= EXPLOIT_PLIES);

@@ -1,16 +1,16 @@
 use alpha_tak::{Network, Player};
-use rand::{prelude::SliceRandom, thread_rng};
+use rand::{prelude::SliceRandom, thread_rng, Rng};
 use tak::*;
 
-const PIT_GAMES: u32 = 50;
+const PIT_GAMES: u32 = 80;
 const BATCH_SIZE: u32 = 16;
-const ROLLOUTS: u32 = 200;
+const ROLLOUTS: u32 = 100;
 
 const RANDOM_PLIES: u32 = 2;
 
-const NOISE_ALPHA: f32 = 0.4;
-const NOISE_RATIO: f32 = 0.5;
-const NOISE_PLIES: u16 = 30;
+// const NOISE_ALPHA: f32 = 0.4;
+// const NOISE_RATIO: f32 = 0.2;
+// const NOISE_PLIES: u16 = 30;
 
 pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
     let mut result = PitResult::default();
@@ -25,25 +25,43 @@ pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
             let mut new_player = Player::new(new, BATCH_SIZE, false, false, &game);
             let mut old_player = Player::new(old, BATCH_SIZE, false, false, &game);
 
-            // Do random opening.
+            // Generate an opening opening.
             if opening.is_empty() {
-                for _ in 0..RANDOM_PLIES {
-                    let my_move = *game.possible_moves().choose(&mut rng).unwrap();
-                    opening.push(my_move);
-                    new_player.play_move(my_move, &game, false);
-                    old_player.play_move(my_move, &game, false);
-                    game.play(my_move).unwrap();
+                // Hardcoded moves.
+                opening.push("a1".parse().unwrap());
+                opening.push(if rng.gen::<f64>() < 0.5 {
+                    "a6".parse().unwrap()
+                } else {
+                    "f6".parse().unwrap()
+                });
+                let mut clone = game.clone();
+                for &my_move in &opening {
+                    clone.play(my_move).unwrap();
                 }
+
+                // Random moves.
+                for _ in 0..RANDOM_PLIES {
+                    let my_move = *clone
+                        .possible_moves()
+                        .into_iter()
+                        .filter(|m| matches!(m.kind(), MoveKind::Place(Piece::Flat | Piece::Cap)))
+                        .collect::<Vec<_>>()
+                        .choose(&mut rng)
+                        .unwrap();
+                    opening.push(my_move);
+                    clone.play(my_move).unwrap();
+                }
+
                 println!(
                     "opening: {:?}",
                     opening.iter().map(Move::to_string).collect::<Vec<_>>()
                 );
-            } else {
-                for &my_move in opening.iter() {
-                    new_player.play_move(my_move, &game, false);
-                    old_player.play_move(my_move, &game, false);
-                    game.play(my_move).unwrap();
-                }
+            }
+
+            for &my_move in &opening {
+                new_player.play_move(my_move, &game, false);
+                old_player.play_move(my_move, &game, false);
+                game.play(my_move).unwrap();
             }
 
             while game.result() == GameResult::Ongoing {
@@ -52,9 +70,9 @@ pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
                 } else {
                     &mut old_player
                 };
-                if game.ply < NOISE_PLIES {
-                    to_move.add_noise(NOISE_ALPHA, NOISE_RATIO, &game);
-                }
+                // if game.ply < NOISE_PLIES {
+                //     to_move.add_noise(NOISE_ALPHA, NOISE_RATIO, &game);
+                // }
                 for _ in 0..ROLLOUTS {
                     to_move.rollout(&game);
                 }
