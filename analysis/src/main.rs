@@ -111,7 +111,11 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
 }
 
 fn get_model<const N: usize, NET: Network<N>>(args: &Args) -> NET {
-    NET::load(&args.model_path).unwrap_or_else(|_| panic!("could not load model at {}", args.model_path))
+    if args.model_path == "random" {
+        NET::default()
+    } else {
+        NET::load(&args.model_path).unwrap_or_else(|_| panic!("could not load model at {}", args.model_path))
+    }
 }
 
 fn clear_screen() {
