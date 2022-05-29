@@ -1,5 +1,5 @@
 use std::{
-    fs::{create_dir_all, read_to_string},
+    fs::{self, create_dir_all, read_to_string},
     str::FromStr,
 };
 
@@ -21,6 +21,8 @@ mod self_play;
 const MODEL_DIR: &str = "_models";
 const EXAMPLE_DIR: &str = "_examples";
 const GAME_DIR: &str = "_games";
+
+const MAX_EXAMPLES: usize = 400_000;
 
 const WIN_RATE_THRESHOLD: f64 = 0.55;
 
@@ -47,10 +49,22 @@ fn get_network<const N: usize, NET: Network<N>>(model_path: Option<String>) -> N
     }
 }
 
-fn train<const N: usize, NET: Network<N>>(args: Args) -> ! {
+fn train<const N: usize, NET: Network<N>>(mut args: Args) -> ! {
     let network = get_network::<N, NET>(args.model_path);
 
     let mut examples = Vec::new();
+
+    if let Some(dir) = args.folder {
+        for entry in fs::read_dir(dir).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let metadata = fs::metadata(&path).unwrap();
+            if metadata.is_file() {
+                args.examples.push(path.to_str().unwrap().to_owned())
+            }
+        }
+    }
+
     for ex_path in args.examples {
         println!("loading {ex_path}");
         examples.extend(
@@ -89,7 +103,14 @@ fn training_loop<const N: usize, NET: Network<N>>(mut network: NET, mut examples
                 network.save(format!("{MODEL_DIR}/{}.model", sys_time())).unwrap();
 
                 // Clear examples after
-                examples.clear();
+                // examples.clear();
+            }
+
+            // Keep only the latest MAX_EXAMPLES examples.
+            if examples.len() > MAX_EXAMPLES {
+                examples.reverse();
+                examples.truncate(MAX_EXAMPLES);
+                examples.reverse();
             }
         }
 
