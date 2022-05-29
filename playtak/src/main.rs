@@ -21,8 +21,8 @@ mod seek;
 const KOMI: i32 = 2;
 const HALF_KOMI: i32 = KOMI * 2;
 
-const WHITE_FIRST_MOVE: &str = "e5";
-const OPENING_BOOK: [(&str, &str); 4] = [("a1", "e5"), ("a5", "e1"), ("e1", "a5"), ("e5", "a1")];
+const WHITE_FIRST_MOVE: &str = "a1";
+const OPENING_BOOK: [(&str, &str); 4] = [("a1", "f6"), ("a6", "f1"), ("f1", "a6"), ("f6", "a1")];
 
 const PONDER_ROLLOUT_LIMIT: u64 = 50_000;
 

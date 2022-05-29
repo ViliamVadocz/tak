@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use alpha_tak::{sys_time, Net5, Network, Player};
+use alpha_tak::{sys_time, Net5, Net6, Network, Player};
 use tak::*;
 use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver, UnboundedSender};
 
@@ -20,10 +20,10 @@ use crate::{
 
 pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiver<Message>) {
     let model_path = &args.model_path;
-    let network = Net5::load(model_path).unwrap_or_else(|_| panic!("could not load model at {model_path}"));
+    let network = Net6::load(model_path).unwrap_or_else(|_| panic!("could not load model at {model_path}"));
 
     'game_loop: loop {
-        let mut game = Game::<5>::with_komi(KOMI as i8);
+        let mut game = Game::<6>::with_komi(KOMI as i8);
         let mut player = Player::new(&network, 64, false, true, &game);
         let mut last_move: String = String::new();
         let mut ponder_rollouts = 0;
