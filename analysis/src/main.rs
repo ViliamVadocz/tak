@@ -11,7 +11,7 @@ use alpha_tak::{use_cuda, Net5, Net6, Network, Player};
 use clap::Parser;
 use cli::Args;
 use mimalloc::MiMalloc;
-use tak::*;
+use tak::{takparse::Tps, *};
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -69,7 +69,7 @@ fn run_example_game<const N: usize, NET: Network<N>>(args: Args) {
             player.rollout(&game);
         }
         let my_move = player.pick_move(true);
-        println!("{:.5}", player.debug(5));
+        println!("{:.10}", player.debug(5));
         player.play_move(my_move, &game, true);
         game.play(my_move).unwrap();
     }
@@ -77,11 +77,26 @@ fn run_example_game<const N: usize, NET: Network<N>>(args: Args) {
     save_analysis(player)
 }
 
+fn parse_position<const N: usize>(s: &str) -> Result<Game<N>, Box<dyn std::error::Error>> {
+    let mut iter = s.split(';');
+    let mut game: Game<N> = iter.next().ok_or("missing tps")?.parse::<Tps>()?.into();
+    game.white_stones = iter.next().ok_or("missing white stones")?.parse()?;
+    game.white_caps = iter.next().ok_or("missing white caps")?.parse()?;
+    game.black_stones = iter.next().ok_or("missing black stones")?.parse()?;
+    game.black_caps = iter.next().ok_or("missing black caps")?.parse()?;
+    game.half_komi = iter.next().ok_or("missing half komi")?.parse()?;
+    Ok(game)
+}
+
 /// Run an interactive analysis where the user can input moves and see
 /// intermediate evaluations.
 fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
     let network: NET = get_model(&args);
-    let mut game = Game::<N>::with_komi(2);
+    let mut game = if let Some(s) = args.from_tps {
+        parse_position(&s).unwrap()
+    } else {
+        Game::<N>::with_komi(2)
+    };
     let mut player = Player::new(&network, args.batch_size, false, true, &game);
 
     while matches!(game.result(), GameResult::Ongoing) {
@@ -98,7 +113,7 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
                 if input.chars().all(char::is_whitespace) {
-                    println!("{:.10}", player.debug(3));
+                    println!("{:.10}", player.debug(5));
                 } else {
                     try_play_move(&mut player, &mut game, input).unwrap_or_else(|err| println!("{err}"));
                 }

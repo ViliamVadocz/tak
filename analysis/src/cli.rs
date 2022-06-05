@@ -13,6 +13,10 @@ pub struct Args {
     /// Path to PTN game file
     #[clap(short, long)]
     pub ptn_file: Option<String>,
+    /// Start analysis from a position
+    /// Format: "TPS;white_stones;white_caps;black_stones;black_caps;half_komi"
+    #[clap(short, long)]
+    pub from_tps: Option<String>,
     /// Run an example game
     #[clap(short, long)]
     pub example_game: bool,
