@@ -13,10 +13,10 @@ mod repr;
 mod search;
 
 pub use analysis::Analysis;
-pub use example::Example;
+pub use example::{Example, IncompleteExample};
 pub use model::{net5::Net5, net6::Net6, network::Network};
 pub use player::Player;
-pub use search::{MoveInfo, NodeDebugInfo};
+pub use search::{MoveInfo, Node, NodeDebugInfo};
 
 lazy_static! {
     static ref DEVICE: Device = Device::cuda_if_available();
