@@ -2,9 +2,9 @@ use alpha_tak::{Network, Player};
 use rand::{prelude::SliceRandom, thread_rng, Rng};
 use tak::*;
 
-const PIT_GAMES: u32 = 80;
+const PIT_GAMES: u32 = 128;
 const BATCH_SIZE: u32 = 16;
-const ROLLOUTS: u32 = 100;
+const ROLLOUTS: u32 = 50;
 
 const RANDOM_PLIES: u32 = 2;
 
@@ -17,6 +17,11 @@ pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
 
     let mut rng = thread_rng();
     for i in 0..PIT_GAMES {
+        if result.wins > (PIT_GAMES + PIT_GAMES / 10) || result.losses > (PIT_GAMES - PIT_GAMES / 10) {
+            println!("breaking early because result is already known");
+            break;
+        }
+
         println!("pit game {i}/{PIT_GAMES}");
         let mut opening = Vec::new();
         for color in [Color::White, Color::Black] {
