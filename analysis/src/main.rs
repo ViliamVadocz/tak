@@ -92,7 +92,7 @@ fn parse_position<const N: usize>(s: &str) -> Result<Game<N>, Box<dyn std::error
 /// intermediate evaluations.
 fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
     let network: NET = get_model(&args);
-    let mut game = if let Some(s) = args.from_tps {
+    let mut game = if let Some(s) = args.from_position {
         parse_position(&s).unwrap()
     } else {
         Game::<N>::with_komi(2)
