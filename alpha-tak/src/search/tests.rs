@@ -30,7 +30,6 @@ impl<const N: usize> Network<N> for DummyNet {
         &self,
         games: &[Game<N>],
     ) -> Vec<(crate::model::network::Policy, crate::model::network::Eval)> {
-        // TODO Fix once Policy type is figured out
         vec![(vec![1.0; output_size(N)], 0.0); games.len()]
     }
 }
