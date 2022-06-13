@@ -39,6 +39,16 @@ fn tps_consistency(seed: usize) -> Result<(), PlayError> {
         assert_eq!(game.board, tps_game.board, "board does not equal");
         assert_eq!(game.to_move, tps_game.to_move, "to_move does not equal");
         assert_eq!(game.ply, tps_game.ply, "ply does not equal");
+        assert_eq!(game.white_caps, tps_game.white_caps, "white caps do not equal");
+        assert_eq!(
+            game.white_stones, tps_game.white_stones,
+            "white stones do not equal"
+        );
+        assert_eq!(game.black_caps, tps_game.black_caps, "black caps do not equal");
+        assert_eq!(
+            game.black_stones, tps_game.black_stones,
+            "black stones do not equal"
+        );
     }
 
     Ok(())
