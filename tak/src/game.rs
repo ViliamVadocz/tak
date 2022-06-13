@@ -101,9 +101,10 @@ impl<const N: usize> Game<N> {
     }
 
     fn dec_stones(&mut self) {
-        match self.to_move {
-            Color::White => self.white_stones -= 1,
-            Color::Black => self.black_stones -= 1,
+        if (self.to_move == Color::White) ^ self.is_swapped() {
+            self.white_stones -= 1
+        } else {
+            self.black_stones -= 1
         }
     }
 
