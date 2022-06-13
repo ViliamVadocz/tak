@@ -80,11 +80,17 @@ fn run_example_game<const N: usize, NET: Network<N>>(args: Args) {
 fn parse_position<const N: usize>(s: &str) -> Result<Game<N>, Box<dyn std::error::Error>> {
     let mut iter = s.split(';');
     let mut game: Game<N> = iter.next().ok_or("missing tps")?.parse::<Tps>()?.into();
-    game.white_stones = iter.next().ok_or("missing white stones")?.parse()?;
-    game.white_caps = iter.next().ok_or("missing white caps")?.parse()?;
-    game.black_stones = iter.next().ok_or("missing black stones")?.parse()?;
-    game.black_caps = iter.next().ok_or("missing black caps")?.parse()?;
-    game.half_komi = iter.next().ok_or("missing half komi")?.parse()?;
+    if let Some(white_stones) = iter.next() {
+        game.white_stones = white_stones.parse()?;
+        game.white_caps = iter.next().ok_or("missing white caps")?.parse()?;
+        game.black_stones = iter.next().ok_or("missing black stones")?.parse()?;
+        game.black_caps = iter.next().ok_or("missing black caps")?.parse()?;
+        game.half_komi = iter.next().ok_or("missing half komi")?.parse()?;
+    } else {
+        println!("Assuming standard reserve counts and Komi 2");
+        game.half_komi = 4;
+    }
+
     Ok(game)
 }
 
