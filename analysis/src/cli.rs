@@ -13,9 +13,10 @@ pub struct Args {
     /// Path to PTN game file
     #[clap(short, long)]
     pub ptn_file: Option<String>,
-    /// Start analysis from a position
-    /// Format: "TPS;white_stones;white_caps;black_stones;black_caps;half_komi"
-    /// Otherwise will assume reserve counts from TPS and Komi 2.
+    /// Start analysis from a position.
+    /// Use this format:
+    /// "TPS;white_stones;white_caps;black_stones;black_caps;half_komi"
+    /// Otherwise it will assume reserve counts from TPS and Komi 2.
     #[clap(short, long)]
     pub from_position: Option<String>,
     /// Run an example game

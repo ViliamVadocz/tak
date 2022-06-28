@@ -1,6 +1,9 @@
+#[macro_use]
+extern crate lazy_static;
+
 use std::{
     error::Error,
-    fs::write,
+    fs::{read_to_string, write},
     io::{stdout, Write},
     sync::mpsc::channel,
     thread,
@@ -11,12 +14,14 @@ use alpha_tak::{use_cuda, Net5, Net6, Network, Player};
 use clap::Parser;
 use cli::Args;
 use mimalloc::MiMalloc;
-use tak::{takparse::Tps, *};
+use parse::{parse_position, parse_ptn};
+use tak::*;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
 mod cli;
+mod parse;
 
 fn main() {
     let args = Args::parse();
@@ -43,8 +48,25 @@ fn generic_main<const N: usize, NET: Network<N>>(args: Args) {
 }
 
 /// Take a file and generate an analysis.
-fn analyze_file<const N: usize, NET: Network<N>>(_args: Args) {
-    todo!()
+fn analyze_file<const N: usize, NET: Network<N>>(args: Args) {
+    let network: NET = get_model(&args);
+    let file = read_to_string(args.ptn_file.unwrap()).unwrap();
+    let (mut game, moves): (Game<N>, _) = parse_ptn(&file).unwrap();
+    let mut player = Player::new(&network, args.batch_size, false, true, &game);
+    let think_time = Duration::from_secs(args.think_seconds);
+
+    for my_move in moves {
+        let start = Instant::now();
+        while Instant::now().duration_since(start) < think_time {
+            player.rollout(&game);
+        }
+        println!("{:.10}", player.debug(5));
+        println!("playing {my_move}");
+        player.play_move(my_move, &game, true);
+        game.play(my_move).unwrap();
+    }
+
+    save_analysis(player)
 }
 
 /// Run a game with the bot playing against itself
@@ -77,23 +99,6 @@ fn run_example_game<const N: usize, NET: Network<N>>(args: Args) {
     save_analysis(player)
 }
 
-fn parse_position<const N: usize>(s: &str) -> Result<Game<N>, Box<dyn std::error::Error>> {
-    let mut iter = s.split(';');
-    let mut game: Game<N> = iter.next().ok_or("missing tps")?.parse::<Tps>()?.into();
-    if let Some(white_stones) = iter.next() {
-        game.white_stones = white_stones.parse()?;
-        game.white_caps = iter.next().ok_or("missing white caps")?.parse()?;
-        game.black_stones = iter.next().ok_or("missing black stones")?.parse()?;
-        game.black_caps = iter.next().ok_or("missing black caps")?.parse()?;
-        game.half_komi = iter.next().ok_or("missing half komi")?.parse()?;
-    } else {
-        println!("Assuming standard reserve counts and Komi 2");
-        game.half_komi = 4;
-    }
-
-    Ok(game)
-}
-
 /// Run an interactive analysis where the user can input moves and see
 /// intermediate evaluations.
 fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
@@ -105,7 +110,7 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
     };
     let mut player = Player::new(&network, args.batch_size, false, true, &game);
 
-    while matches!(game.result(), GameResult::Ongoing) {
+    'game_loop: while matches!(game.result(), GameResult::Ongoing) {
         // Get input from user.
         let (tx, rx) = channel();
         thread::spawn(move || {
@@ -120,6 +125,8 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
                 clear_screen();
                 if input.chars().all(char::is_whitespace) {
                     println!("{:.10}", player.debug(5));
+                } else if input.trim() == "finish" {
+                    break 'game_loop;
                 } else {
                     try_play_move(&mut player, &mut game, input).unwrap_or_else(|err| println!("{err}"));
                 }
