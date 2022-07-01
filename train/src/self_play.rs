@@ -1,17 +1,18 @@
 use std::{fs::File, io::Write};
 
-use alpha_tak::{sys_time, Example, Network, Player};
+use alpha_tak::*;
+use array_init::array_init;
 use rand::{thread_rng, Rng};
 use tak::*;
 
 use crate::EXAMPLE_DIR;
 
-const SELF_PLAY_GAMES: u32 = 800;
-const BATCH_SIZE: u32 = 16;
+const SELF_PLAY_GAMES: u32 = 1000;
+const BATCH_SIZE: u32 = 32;
 const ROLLOUTS: u32 = 50;
 
 const NOISE_ALPHA: f32 = 0.2;
-const NOISE_RATIO: f32 = 0.5;
+const NOISE_RATIO: f32 = 0.3;
 const NOISE_PLIES: u16 = 80;
 
 // const RANDOM_PLIES: u32 = 2;
@@ -23,7 +24,6 @@ pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<
 
     let mut example_file = File::create(format!("{EXAMPLE_DIR}/{}.data", sys_time())).unwrap();
 
-    // TODO parallel batches, create new kind of player?
     let mut rng = thread_rng();
     for i in 0..SELF_PLAY_GAMES {
         println!("self_play game {i}/{SELF_PLAY_GAMES}");
@@ -90,4 +90,152 @@ pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<
     }
 
     examples
+}
+
+const WORKERS: usize = 64;
+
+pub fn self_play_parallel<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<N>> {
+    let mut examples = Vec::new();
+    let mut example_file = File::create(format!("{EXAMPLE_DIR}/{}.data", sys_time())).unwrap();
+
+    let mut rng = thread_rng();
+
+    let mut nodes: [Node; WORKERS] = array_init(|_| Node::default());
+    let mut games: [Game<N>; WORKERS] = array_init(|_| Game::with_komi(2));
+    let mut incomplete_examples: [Vec<IncompleteExample<N>>; WORKERS] = array_init(|_| Vec::new());
+
+    let mut completed_games = 0;
+
+    while completed_games < SELF_PLAY_GAMES {
+        // Play winning moves if there are any
+        for ((game, node), exs) in games.iter_mut().zip(nodes.iter_mut()).zip(incomplete_examples.iter_mut()) {
+            let mut win = false;
+            let policy = game
+                .possible_moves()
+                .into_iter()
+                .map(|my_move| {
+                    let mut clone = game.clone();
+                    clone.play(my_move).unwrap();
+                    let visits = if matches!(clone.result(), GameResult::Winner { color, .. } if color == game.to_move) {
+                        win = true;
+                        1_000_000 // super high value for winning moves
+                    } else {
+                        1 // at least one visit for all possible moves
+                    };
+                    (my_move, visits)
+                })
+                .collect::<Vec<_>>();
+            if win {
+                exs.push(IncompleteExample {
+                    game: game.clone(),
+                    policy,
+                });
+
+                completed_games += 1;
+
+                // Reset objects.
+                *node = Node::default();
+                *game = Game::with_komi(2);
+
+                // Complete examples.
+                let white_result = result_to_number(GameResult::Winner { color: game.to_move, road: false });
+                examples.extend(exs.drain(..).map(|ex| {
+                    let perspective = if ex.game.to_move == Color::White {
+                        white_result
+                    } else {
+                        -white_result
+                    };
+                    ex.complete(perspective)
+                }));
+            }
+        }
+
+        // Apply noise at the start of a ply.
+        for (game, node) in games.iter().zip(nodes.iter_mut()) {
+            if game.ply < NOISE_PLIES {
+                node.apply_dirichlet(NOISE_ALPHA, NOISE_RATIO);
+            }
+        }
+        for _ in 0..ROLLOUTS {
+            // Virtual rollouts.
+            let (indices, (for_eval, paths)): (Vec<_>, (Vec<_>, Vec<_>)) = games
+                .clone()
+                .into_iter()
+                .zip(nodes.iter_mut())
+                .enumerate()
+                .filter_map(|(i, (mut game, node))| {
+                    let mut path = Vec::new();
+                    if node.virtual_rollout(&mut game, &mut path) == GameResult::Ongoing {
+                        Some((i, (game, path)))
+                    } else {
+                        // TODO maybe do more rollouts until virtual.
+                        None
+                    }
+                })
+                .unzip();
+
+            // Network evaluation and de-virtualization.
+            let network_output = network.policy_eval(&for_eval);
+            network_output
+                .into_iter()
+                .zip(paths)
+                .zip(indices)
+                .for_each(|((net_output, path), i)| {
+                    nodes[i].devirtualize_path::<N, _>(&mut path.into_iter(), &net_output);
+                });
+        }
+
+        nodes
+            .iter_mut()
+            .zip(games.iter_mut())
+            .zip(incomplete_examples.iter_mut())
+            .for_each(|((node, game), exs)| {
+                let my_move = node.pick_move(game.ply >= EXPLOIT_PLIES);
+
+                exs.push(IncompleteExample {
+                    game: game.clone(),
+                    policy: node.improved_policy(),
+                });
+
+                *node = std::mem::take(node).play(my_move);
+                game.play(my_move).unwrap();
+
+                let result = game.result();
+                if result != GameResult::Ongoing {
+                    completed_games += 1;
+
+                    // Reset objects.
+                    *node = Node::default();
+                    *game = Game::with_komi(2);
+
+                    // Complete examples.
+                    let white_result = result_to_number(result);
+                    examples.extend(exs.drain(..).map(|ex| {
+                        let perspective = if ex.game.to_move == Color::White {
+                            white_result
+                        } else {
+                            -white_result
+                        };
+                        ex.complete(perspective)
+                    }));
+                }
+            });
+    }
+
+    // TODO finish leftover games?
+
+    examples
+}
+
+fn result_to_number(result: GameResult) -> f32 {
+    match result {
+        GameResult::Winner {
+            color: Color::White, ..
+        } => 1.,
+        GameResult::Winner {
+            color: Color::Black, ..
+        } => -1.,
+        GameResult::Draw { .. } => 0.,
+        GameResult::Ongoing { .. } => unreachable!("cannot complete examples with ongoing game"),
+    }
 }
