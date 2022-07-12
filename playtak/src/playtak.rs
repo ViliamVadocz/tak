@@ -5,7 +5,12 @@ use tokio::{
     signal::ctrl_c,
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
-use tokio_takconnect::{connect_as, connect_guest, Client, Color, GameUpdate};
+use tokio_takconnect::{
+    connect_as,
+    connect_guest,
+    data_types::{Color, Update},
+    Client,
+};
 
 use crate::{cli::Args, message::Message, seek::create_seek};
 
@@ -40,7 +45,7 @@ pub async fn seek_loop(
                     break;
                 }
 
-                // Alternate seek colours.
+                // Alternate seek colors.
                 seek_as_white = !seek_as_white;
             }
         } => (),
@@ -57,7 +62,10 @@ async fn run_playtak_game(
     seek_as_white: bool,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut game = client.game().await?;
-    println!("Game started!");
+    let game_info = game.game();
+    tx.send(Message::GameInfo(game_info.clone()))?;
+
+    println!("Game started! {} vs {}", game_info.white(), game_info.black());
 
     let mut take_my_turn = seek_as_white;
     loop {
@@ -76,10 +84,10 @@ async fn run_playtak_game(
         }
 
         match game.update().await? {
-            GameUpdate::Played(m) => {
+            Update::Played(m) => {
                 tx.send(Message::Move(m))?;
             }
-            GameUpdate::Ended(_result) => {
+            Update::GameEnded(_result) => {
                 tx.send(Message::GameEnded)?;
                 break Ok(());
             }

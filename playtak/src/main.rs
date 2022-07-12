@@ -24,7 +24,7 @@ const HALF_KOMI: i32 = KOMI * 2;
 const WHITE_FIRST_MOVE: &str = "a1";
 const OPENING_BOOK: [(&str, &str); 4] = [("a1", "f6"), ("a6", "f1"), ("f1", "a6"), ("f6", "a1")];
 
-const PONDER_ROLLOUT_LIMIT: u64 = 10_000;
+const PONDER_ROLLOUT_LIMIT: u64 = 50_000;
 
 const ANALYSIS_DIR: &str = "_playtak_games";
 

@@ -27,6 +27,7 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
         let mut player = Player::new(&network, 64, false, true, &game);
         let mut last_move: String = String::new();
         let mut ponder_rollouts = 0;
+        let mut game_info = None;
 
         'turn_loop: loop {
             match if ponder_rollouts < PONDER_ROLLOUT_LIMIT {
@@ -34,6 +35,11 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
             } else {
                 rx.blocking_recv().ok_or(TryRecvError::Disconnected)
             } {
+                // Set the game info.
+                Ok(Message::GameInfo(info)) => {
+                    game_info = Some(info);
+                }
+
                 // Play a move.
                 Ok(Message::MoveRequest) => {
                     println!("Did {ponder_rollouts} ponder rollouts.");
@@ -124,11 +130,22 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
             }
         }
 
-        println!("Game ended, creating analysis file");
         // Create analysis file.
+        println!("Game ended, creating analysis file");
+
+        let mut analysis = player.get_analysis();
+
+        let mut name = String::new();
+        if let Some(info) = game_info.take() {
+            let (white, black) = (info.white(), info.black());
+            analysis.add_setting("Player1", white);
+            analysis.add_setting("Player2", black);
+            name = format!("_{white}_vs_{black}");
+        }
+
         write(
-            format!("./{ANALYSIS_DIR}/analysis_{}.ptn", sys_time()),
-            player.get_analysis().to_string(),
+            format!("./{ANALYSIS_DIR}/{}{name}.ptn", sys_time()),
+            analysis.to_string(),
         )
         .unwrap_or_else(|err| println!("{err}"));
     }
