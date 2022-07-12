@@ -33,7 +33,6 @@ impl Analysis {
     pub fn add_move_without_info(&mut self, mov: Move) {
         self.played_moves.push(mov);
         self.move_info.push(None);
-        self.evals.push(f32::default());
     }
 
     fn add_move(&mut self, mov: Move, info: MoveInfo, eval: f32) {
