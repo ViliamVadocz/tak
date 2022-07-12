@@ -41,10 +41,11 @@ pub struct NodeDebugInfo(pub(crate) Vec<MoveInfo>);
 
 impl NodeDebugInfo {
     pub fn eval(&self) -> f32 {
+        let total_visits = self.0.iter().map(|move_info| move_info.visits).sum::<u32>() as f32;
         self.0
-            .first()
-            .map(|move_info| move_info.reward)
-            .unwrap_or_default()
+            .iter()
+            .map(|move_info| move_info.reward * (move_info.visits as f32 / total_visits))
+            .sum()
     }
 }
 
@@ -54,6 +55,7 @@ impl Display for NodeDebugInfo {
         if self.0.is_empty() {
             return write!(f, "Node has no children");
         }
+        writeln!(f, "evaluation: {:+.4}", self.eval())?;
         writeln!(f, "turn      visited   reward   policy | continuation")?;
         for move_info in self.0.iter().take(f.precision().unwrap_or(usize::MAX)) {
             move_info.fmt(f)?
@@ -74,7 +76,7 @@ pub struct MoveInfo {
 impl MoveInfo {
     pub fn ptn_comment(&self, flip_reward: bool) -> String {
         let eval = if flip_reward { -self.reward } else { self.reward };
-        format!(" {{e: {:+.3}, p: {:.4}, v: {}}}", eval, self.policy, self.visits)
+        format!(" {{r: {:+.3}, p: {:.4}, v: {}}}", eval, self.policy, self.visits)
     }
 }
 

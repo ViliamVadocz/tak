@@ -55,7 +55,7 @@ impl<'a, const N: usize, NET: Network<N>> Player<'a, N, NET> {
             save_examples,
             create_analysis,
             examples: Vec::new(),
-            analysis: Analysis::new(N as u8, game.half_komi),
+            analysis: Analysis::new(N as u8, game.half_komi, game.ply),
         };
 
         // Create virtual rollout thread.
