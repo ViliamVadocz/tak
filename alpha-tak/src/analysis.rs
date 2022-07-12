@@ -10,8 +10,7 @@ const CANDIDATE_MOVE_RATIO: f32 = 0.9;
 
 #[derive(Clone, Debug, Default)]
 pub struct Analysis {
-    board_size: u8,
-    half_komi: i8,
+    settings: String,
     start_ply: u16,
     played_moves: Vec<Move>,
     move_info: Vec<Option<MoveInfo>>,
@@ -22,12 +21,21 @@ pub struct Analysis {
 
 impl Analysis {
     pub fn new(board_size: u8, half_komi: i8, start_ply: u16) -> Self {
-        Analysis {
+        let settings = format!(
+            "[Size \"{}\"]\n[Komi \"{}\"]\n",
             board_size,
-            half_komi,
+            (half_komi / 2).to_string() + if half_komi % 2 == 0 { "" } else { ".5" }
+        );
+
+        Analysis {
+            settings,
             start_ply,
             ..Default::default()
         }
+    }
+
+    pub fn add_setting<T: Display>(&mut self, name: &str, value: T) {
+        writeln!(self.settings, "[{name} \"{value}\"]").unwrap();
     }
 
     pub fn add_move_without_info(&mut self, mov: Move) {
@@ -55,9 +63,9 @@ impl Analysis {
 
         if let Some(prev) = self.evals.last() {
             let eval_diff = -(eval + prev); // due to flipping perspectives
-            if (..=-0.6).contains(&eval_diff) {
+            if (..=-0.5).contains(&eval_diff) {
                 self.marks.push((ply - 1, Mark::Blunder))
-            } else if (-0.6..=-0.2).contains(&eval_diff) {
+            } else if (-0.5..=-0.2).contains(&eval_diff) {
                 self.marks.push((ply - 1, Mark::Mistake))
             } else if (0.1..=0.3).contains(&eval_diff) {
                 self.marks.push((ply - 1, Mark::Strong))
@@ -88,11 +96,7 @@ impl Analysis {
 
 impl Display for Analysis {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut out = format!(
-            "[Size \"{}\"]\n[Komi \"{}\"]\n",
-            self.board_size,
-            (self.half_komi / 2).to_string() + if self.half_komi % 2 == 0 { "" } else { ".5" }
-        );
+        let mut out = self.settings.clone();
 
         let mut move_iter = self.played_moves.iter();
         let mut info_iter = self.move_info.iter();
