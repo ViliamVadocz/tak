@@ -23,14 +23,21 @@ impl Node {
     /// Get the sub-tree for the given move.
     /// This allows tree reuse.
     #[must_use]
-    pub fn play(self, my_move: Move) -> Node {
+    pub fn play(mut self, my_move: Move) -> Node {
         self.check_initialized();
 
-        let (_, child) = self
+        let index = self
             .children
-            .into_iter()
-            .find(|(mov, _node)| mov == &my_move)
-            .expect("tried to play an invalid move");
+            .iter()
+            .enumerate()
+            .find(|(_i, (mov, _node))| mov == &my_move)
+            .expect("tried to play an invalid move")
+            .0;
+        let child = self.children.swap_remove(index).1;
+
+        // Drop other children on a separate thread.
+        std::thread::spawn(move || drop(self));
+
         child
     }
 
