@@ -66,7 +66,7 @@ fn analyze_file<const N: usize, NET: Network<N>>(args: Args) {
         game.play(my_move).unwrap();
     }
 
-    save_analysis(player)
+    save_analysis(player, args.from_position)
 }
 
 /// Run a game with the bot playing against itself
@@ -96,14 +96,14 @@ fn run_example_game<const N: usize, NET: Network<N>>(args: Args) {
         game.play(my_move).unwrap();
     }
 
-    save_analysis(player)
+    save_analysis(player, args.from_position)
 }
 
 /// Run an interactive analysis where the user can input moves and see
 /// intermediate evaluations.
 fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
     let network: NET = get_model(&args);
-    let mut game = if let Some(s) = args.from_position {
+    let mut game = if let Some(s) = args.from_position.clone() {
         parse_position(&s).unwrap()
     } else {
         Game::<N>::with_komi(2)
@@ -135,7 +135,7 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
         }
     }
 
-    save_analysis(player)
+    save_analysis(player, args.from_position)
 }
 
 fn get_model<const N: usize, NET: Network<N>>(args: &Args) -> NET {
@@ -170,7 +170,11 @@ fn try_play_move<const N: usize, NET: Network<N>>(
     Ok(())
 }
 
-fn save_analysis<const N: usize, NET: Network<N>>(mut player: Player<N, NET>) {
-    write("analysis.ptn", player.get_analysis().to_string()).unwrap();
+fn save_analysis<const N: usize, NET: Network<N>>(mut player: Player<N, NET>, from_position: Option<String>) {
+    let mut analysis = player.get_analysis();
+    if let Some(tps) = from_position {
+        analysis.add_setting("TPS", tps);
+    }
+    write("analysis.ptn", analysis.to_string()).unwrap();
     println!("created a file `analysis.ptn` with the analysis of this game");
 }
