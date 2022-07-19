@@ -63,11 +63,11 @@ impl Analysis {
 
         if let Some(prev) = self.evals.last() {
             let eval_diff = -(eval + prev); // due to flipping perspectives
-            if (..=-0.5).contains(&eval_diff) {
+            if (..=-0.4).contains(&eval_diff) {
                 self.marks.push((ply - 1, Mark::Blunder))
-            } else if (-0.5..=-0.2).contains(&eval_diff) {
+            } else if (-0.4..=-0.15).contains(&eval_diff) {
                 self.marks.push((ply - 1, Mark::Mistake))
-            } else if (0.1..=0.3).contains(&eval_diff) {
+            } else if (0.05..=0.3).contains(&eval_diff) {
                 self.marks.push((ply - 1, Mark::Strong))
             } else if (0.3..).contains(&eval_diff) {
                 self.marks.push((ply - 1, Mark::Brilliancy))
