@@ -9,7 +9,8 @@ use clap::Parser;
 use cli::Args;
 use mimalloc::MiMalloc;
 use pit::pit;
-use self_play::self_play;
+// use self_play::self_play;
+use self_play::self_play_parallel;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -116,7 +117,7 @@ fn training_loop<const N: usize, NET: Network<N>>(mut network: NET, mut examples
 
         // Do self-play to get new examples.
         println!("starting self-play");
-        let new_examples = self_play(&network);
+        let new_examples = self_play_parallel(&network);
         examples.extend(new_examples.into_iter())
     }
 }

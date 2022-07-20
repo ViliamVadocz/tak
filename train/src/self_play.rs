@@ -9,13 +9,12 @@ use crate::EXAMPLE_DIR;
 
 const SELF_PLAY_GAMES: u32 = 1000;
 const BATCH_SIZE: u32 = 32;
-const ROLLOUTS: u32 = 50;
+const ROLLOUTS: u32 = 10_000;
 
 const NOISE_ALPHA: f32 = 0.2;
 const NOISE_RATIO: f32 = 0.3;
 const NOISE_PLIES: u16 = 80;
 
-// const RANDOM_PLIES: u32 = 2;
 const EXPLOIT_PLIES: u16 = 40;
 const QUAD_ROLLOUT_PLIES: u16 = 10;
 
@@ -92,7 +91,7 @@ pub fn self_play<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<
     examples
 }
 
-const WORKERS: usize = 64;
+const WORKERS: usize = 32;
 
 pub fn self_play_parallel<const N: usize, NET: Network<N>>(network: &NET) -> Vec<Example<N>> {
     let mut examples = Vec::new();
@@ -101,24 +100,35 @@ pub fn self_play_parallel<const N: usize, NET: Network<N>>(network: &NET) -> Vec
     let mut rng = thread_rng();
 
     let mut nodes: [Node; WORKERS] = array_init(|_| Node::default());
-    let mut games: [Game<N>; WORKERS] = array_init(|_| Game::with_komi(2));
+    let mut games: [Option<Game<N>>; WORKERS] = array_init(|_| Some(Game::with_komi(2)));
     let mut incomplete_examples: [Vec<IncompleteExample<N>>; WORKERS] = array_init(|_| Vec::new());
 
     let mut completed_games = 0;
 
-    while completed_games < SELF_PLAY_GAMES {
+    while games.iter().any(Option::is_some) {
+        // Play opening moves
+        for game in games.iter_mut() {
+            let game = if let Some(g) = game.as_mut() { g } else { continue };
+            if game.ply == 0 {
+                game.play("a1".parse().unwrap()).unwrap();
+                game.play(if rng.gen::<bool>() {"a6".parse().unwrap()} else {"f6".parse().unwrap()}).unwrap();
+            }
+        }
+
         // Play winning moves if there are any
         for ((game, node), exs) in games.iter_mut().zip(nodes.iter_mut()).zip(incomplete_examples.iter_mut()) {
+            let inner_game = if let Some(g) = game.as_mut() { g } else { continue };
+
             let mut win = false;
-            let policy = game
+            let policy = inner_game
                 .possible_moves()
                 .into_iter()
                 .map(|my_move| {
-                    let mut clone = game.clone();
+                    let mut clone = inner_game.clone();
                     clone.play(my_move).unwrap();
-                    let visits = if matches!(clone.result(), GameResult::Winner { color, .. } if color == game.to_move) {
+                    let visits = if matches!(clone.result(), GameResult::Winner { color, .. } if color == inner_game.to_move) {
                         win = true;
-                        1_000_000 // super high value for winning moves
+                        1_000 // high fake visits for winning moves
                     } else {
                         1 // at least one visit for all possible moves
                     };
@@ -127,32 +137,44 @@ pub fn self_play_parallel<const N: usize, NET: Network<N>>(network: &NET) -> Vec
                 .collect::<Vec<_>>();
             if win {
                 exs.push(IncompleteExample {
-                    game: game.clone(),
+                    game: inner_game.clone(),
                     policy,
                 });
 
                 completed_games += 1;
+                println!("win {completed_games}");
+
+                let white_result = result_to_number(GameResult::Winner { color: inner_game.to_move, road: false });
 
                 // Reset objects.
                 *node = Node::default();
-                *game = Game::with_komi(2);
+                if completed_games + WORKERS < SELF_PLAY_GAMES as usize {
+                    *inner_game = Game::with_komi(2);
+                } else {
+                    *game = None;
+                }
 
                 // Complete examples.
-                let white_result = result_to_number(GameResult::Winner { color: game.to_move, road: false });
-                examples.extend(exs.drain(..).map(|ex| {
+                let new_examples: Vec<_> = exs.drain(..).map(|ex| {
                     let perspective = if ex.game.to_move == Color::White {
                         white_result
                     } else {
                         -white_result
                     };
                     ex.complete(perspective)
-                }));
+                }).collect();
+                for e in &new_examples {
+                    writeln!(example_file, "{e}").unwrap();
+                }
+                examples.extend(new_examples.into_iter());
             }
         }
 
         // Apply noise at the start of a ply.
         for (game, node) in games.iter().zip(nodes.iter_mut()) {
+            let game = if let Some(g) = game.as_ref() { g } else { continue };
             if game.ply < NOISE_PLIES {
+                node.rollout(game.clone(), network);
                 node.apply_dirichlet(NOISE_ALPHA, NOISE_RATIO);
             }
         }
@@ -161,9 +183,10 @@ pub fn self_play_parallel<const N: usize, NET: Network<N>>(network: &NET) -> Vec
             let (indices, (for_eval, paths)): (Vec<_>, (Vec<_>, Vec<_>)) = games
                 .clone()
                 .into_iter()
-                .zip(nodes.iter_mut())
                 .enumerate()
-                .filter_map(|(i, (mut game, node))| {
+                .filter_map(|(i, game)| game.map(|g| (i, g)))
+                .zip(nodes.iter_mut())
+                .filter_map(|((i, mut game), node)| {
                     let mut path = Vec::new();
                     if node.virtual_rollout(&mut game, &mut path) == GameResult::Ongoing {
                         Some((i, (game, path)))
@@ -174,6 +197,7 @@ pub fn self_play_parallel<const N: usize, NET: Network<N>>(network: &NET) -> Vec
                 })
                 .unzip();
 
+            // TODO Put this part on another thread and pipeline.
             // Network evaluation and de-virtualization.
             let network_output = network.policy_eval(&for_eval);
             network_output
@@ -189,40 +213,50 @@ pub fn self_play_parallel<const N: usize, NET: Network<N>>(network: &NET) -> Vec
             .iter_mut()
             .zip(games.iter_mut())
             .zip(incomplete_examples.iter_mut())
+            .filter(|((_, game), _)| game.is_some())
             .for_each(|((node, game), exs)| {
-                let my_move = node.pick_move(game.ply >= EXPLOIT_PLIES);
+                let inner_game = game.as_mut().unwrap();
+
+                let my_move = node.pick_move(inner_game.ply >= EXPLOIT_PLIES);
 
                 exs.push(IncompleteExample {
-                    game: game.clone(),
+                    game: inner_game.clone(),
                     policy: node.improved_policy(),
                 });
 
                 *node = std::mem::take(node).play(my_move);
-                game.play(my_move).unwrap();
+                inner_game.play(my_move).unwrap();
 
-                let result = game.result();
+                let result = inner_game.result();
                 if result != GameResult::Ongoing {
                     completed_games += 1;
+                    println!("normal game end {completed_games}");
 
                     // Reset objects.
                     *node = Node::default();
-                    *game = Game::with_komi(2);
+                    if completed_games + WORKERS < SELF_PLAY_GAMES as usize {
+                        *inner_game = Game::with_komi(2);
+                    } else {
+                        *game = None;
+                    }
 
                     // Complete examples.
                     let white_result = result_to_number(result);
-                    examples.extend(exs.drain(..).map(|ex| {
+                    let new_examples: Vec<_> = exs.drain(..).map(|ex| {
                         let perspective = if ex.game.to_move == Color::White {
                             white_result
                         } else {
                             -white_result
                         };
                         ex.complete(perspective)
-                    }));
+                    }).collect();
+                    for e in &new_examples {
+                        writeln!(example_file, "{e}").unwrap();
+                    }
+                    examples.extend(new_examples.into_iter());
                 }
             });
     }
-
-    // TODO finish leftover games?
 
     examples
 }
