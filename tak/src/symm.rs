@@ -1,10 +1,28 @@
-use crate::{board::Board, direction::Direction, game::Game, pos::Pos, tile::Tile, turn::Turn};
+use takparse::{Direction, Move, MoveKind, Square};
 
-pub trait Symmetry: Sized {
+use crate::{board::Board, game::Game};
+
+pub trait Symmetry<const N: usize>: Sized {
     fn symmetries(self) -> [Self; 8];
 }
 
-impl<const N: usize> Symmetry for Pos<N> {
+impl<const N: usize> Symmetry<N> for Square {
+    fn symmetries(self) -> [Self; 8] {
+        let n = N as u8;
+        [
+            self,
+            self.rotate(n),
+            self.rotate(n).rotate(n),
+            self.rotate(n).rotate(n).rotate(n),
+            self.mirror(n),
+            self.mirror(n).rotate(n),
+            self.mirror(n).rotate(n).rotate(n),
+            self.mirror(n).rotate(n).rotate(n).rotate(n),
+        ]
+    }
+}
+
+impl<const N: usize> Symmetry<N> for Direction {
     fn symmetries(self) -> [Self; 8] {
         [
             self,
@@ -19,69 +37,48 @@ impl<const N: usize> Symmetry for Pos<N> {
     }
 }
 
-impl Symmetry for Direction {
+impl<const N: usize> Symmetry<N> for Move {
     fn symmetries(self) -> [Self; 8] {
-        [
-            self,
-            self.rotate(),
-            self.rotate().rotate(),
-            self.rotate().rotate().rotate(),
-            self.mirror(),
-            self.mirror().rotate(),
-            self.mirror().rotate().rotate(),
-            self.mirror().rotate().rotate().rotate(),
-        ]
-    }
-}
-
-impl<const N: usize> Symmetry for Turn<N> {
-    fn symmetries(self) -> [Self; 8] {
-        match self {
-            Turn::Place { pos, shape } => pos.symmetries().map(|pos| Turn::Place { pos, shape }),
-            Turn::Move {
-                pos,
-                direction,
-                moves,
-            } => pos
-                .symmetries()
-                .zip(direction.symmetries())
-                .map(|(pos, direction)| Turn::Move {
-                    pos,
-                    direction,
-                    moves: moves.clone(),
-                }),
+        let square = self.square();
+        let kind = self.kind();
+        match kind {
+            MoveKind::Place(_) => Symmetry::<N>::symmetries(square).map(|square| Move::new(square, kind)),
+            MoveKind::Spread(direction, pattern) => {
+                let mut directions = Symmetry::<N>::symmetries(direction).into_iter();
+                Symmetry::<N>::symmetries(square)
+                    .map(|square| Move::new(square, MoveKind::Spread(directions.next().unwrap(), pattern)))
+            }
         }
     }
 }
 
-impl<const N: usize> Symmetry for Board<N>
-where
-    [[Option<Tile>; N]; N]: Default,
-{
+impl<const N: usize> Symmetry<N> for Board<N> {
     fn symmetries(self) -> [Self; 8] {
-        (0..8)
-            .map(|i| {
-                let mut board = Board::default();
-                for y in 0..N {
-                    for x in 0..N {
-                        let pos = Pos { x, y };
-                        board[pos.symmetries()[i]] = self[pos].clone();
-                    }
+        let mut boards = [
+            Board::default(),
+            Board::default(),
+            Board::default(),
+            Board::default(),
+            Board::default(),
+            Board::default(),
+            Board::default(),
+            Board::default(),
+        ];
+        for x in 0..N {
+            for y in 0..N {
+                let square = Square::new(x as u8, y as u8);
+                for (i, sym) in Symmetry::<N>::symmetries(square).into_iter().enumerate() {
+                    boards[i][sym] = self[square].clone();
                 }
-                board
-            })
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap()
+            }
+        }
+        boards
     }
 }
 
-impl<const N: usize> Symmetry for Game<N>
-where
-    [[Option<Tile>; N]; N]: Default,
-{
+impl<const N: usize> Symmetry<N> for Game<N> {
     fn symmetries(self) -> [Self; 8] {
-        [
+        let games = [
             self.clone(),
             self.clone(),
             self.clone(),
@@ -90,10 +87,10 @@ where
             self.clone(),
             self.clone(),
             self.clone(),
-        ]
-        .zip(self.board.symmetries())
-        .map(|(mut game, board)| {
-            game.board = board;
+        ];
+        let mut boards = self.board.symmetries().into_iter();
+        games.map(|mut game| {
+            game.board = boards.next().unwrap();
             game
         })
     }

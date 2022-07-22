@@ -1,150 +1,114 @@
-use std::{
-    collections::HashSet,
-    fmt::Display,
-    ops::{Index, IndexMut},
-};
+use std::ops::{Index, IndexMut};
 
-use crate::{
-    colour::Colour,
-    pos::Pos,
-    tile::{Piece, Shape, Tile},
-};
+use takparse::{Color, Piece, Square};
 
-#[derive(Clone, Debug)]
+use crate::tile::Tile;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Board<const N: usize> {
-    data: [[Option<Tile>; N]; N],
+    pub(crate) data: [[Tile; N]; N],
+}
+
+impl<const N: usize> Default for Board<N> {
+    fn default() -> Self {
+        let data = vec![vec![Tile::default(); N].try_into().unwrap(); N]
+            .try_into()
+            .unwrap();
+        Board { data }
+    }
+}
+
+impl<const N: usize> Index<Square> for Board<N> {
+    type Output = Tile;
+
+    fn index(&self, index: Square) -> &Self::Output {
+        let x = index.column() as usize;
+        let y = index.row() as usize;
+        self.data.index(y).index(x)
+    }
+}
+
+impl<const N: usize> IndexMut<Square> for Board<N> {
+    fn index_mut(&mut self, index: Square) -> &mut Self::Output {
+        let x = index.column() as usize;
+        let y = index.row() as usize;
+        self.data.index_mut(y).index_mut(x)
+    }
 }
 
 impl<const N: usize> Board<N> {
-    pub fn empty(&self) -> bool {
-        self.data.iter().all(|row| row.iter().all(|x| x.is_none()))
+    fn has(square: Square) -> bool {
+        let n = N as u8;
+        square.column() < n && square.row() < n
+    }
+
+    pub fn get(&self, index: Square) -> Option<&Tile> {
+        if Board::<N>::has(index) {
+            Some(self.index(index))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_mut(&mut self, index: Square) -> Option<&mut Tile> {
+        if Board::<N>::has(index) {
+            Some(self.index_mut(index))
+        } else {
+            None
+        }
     }
 
     pub fn full(&self) -> bool {
-        self.data.iter().all(|row| row.iter().all(|x| x.is_some()))
+        !self.data.iter().any(|row| row.iter().any(Tile::is_empty))
     }
 
-    pub fn flat_diff(&self) -> i32 {
-        let mut diff = 0;
-        for row in &self.data {
-            row.iter().flatten().for_each(|tile| {
-                if matches!(tile.top.shape, Shape::Flat) {
-                    match tile.top.colour {
-                        Colour::White => diff += 1,
-                        Colour::Black => diff -= 1,
-                    }
-                }
-            });
-        }
-        diff
+    pub fn flat_diff(&self) -> i8 {
+        self.data
+            .iter()
+            .flat_map(|row| row.iter())
+            .map(|tile| match tile.top() {
+                Some((Piece::Flat, Color::White)) => 1,
+                Some((Piece::Flat, Color::Black)) => -1,
+                _ => 0,
+            })
+            .sum()
     }
 
-    pub fn find_paths(&self, colour: Colour) -> bool {
-        // check vertical paths
-        let mut seen = HashSet::new();
+    pub fn find_paths(&self, color: Color) -> bool {
+        // check vertical paths.
+        let mut seen = [[false; N]; N];
         for x in 0..N {
-            let pos = Pos { x, y: 0 };
-            self.find_paths_recursive(pos, colour, &mut seen);
+            self.find_paths_recursive(x, 0, color, &mut seen);
         }
-        if (0..N).any(|x| seen.contains(&Pos { x, y: N - 1 })) {
+        if seen[N - 1].iter().any(|&x| x) {
             return true;
         }
-        // check horizontal paths
-        let mut seen = HashSet::new();
+        // check horizontal paths.
+        let mut seen = [[false; N]; N];
         for y in 0..N {
-            let pos = Pos { x: 0, y };
-            self.find_paths_recursive(pos, colour, &mut seen);
+            self.find_paths_recursive(0, y, color, &mut seen);
         }
-        (0..N).any(|y| seen.contains(&Pos { x: N - 1, y }))
+        seen.iter().any(|row| row[N - 1])
     }
 
-    fn find_paths_recursive(&self, pos: Pos<N>, colour: Colour, seen: &mut HashSet<Pos<N>>) {
-        if seen.contains(&pos) {
+    fn find_paths_recursive(&self, x: usize, y: usize, color: Color, seen: &mut [[bool; N]; N]) {
+        if y >= N || x >= N || seen[y][x] {
             return;
         }
-        if let Some(Tile {
-            top: Piece {
-                colour: piece_colour,
-                shape,
-            },
-            ..
-        }) = self[pos]
-        {
-            if piece_colour == colour && matches!(shape, Shape::Flat | Shape::Capstone) {
-                seen.insert(pos);
-                for neighbor in pos.neighbors() {
-                    self.find_paths_recursive(neighbor, colour, seen)
+
+        if let Some((top_piece, top_color)) = self.data[y][x].top() {
+            if top_color == color && matches!(top_piece, Piece::Flat | Piece::Cap) {
+                seen[y][x] = true;
+                // Recursive board fill.
+                self.find_paths_recursive(x + 1, y, color, seen);
+                self.find_paths_recursive(x, y + 1, color, seen);
+                if let Some(x) = x.checked_sub(1) {
+                    self.find_paths_recursive(x, y, color, seen);
+                }
+                if let Some(y) = y.checked_sub(1) {
+                    self.find_paths_recursive(x, y, color, seen)
                 }
             }
         }
-    }
-}
-
-impl<const N: usize> Default for Board<N>
-where
-    [[Option<Tile>; N]; N]: Default,
-{
-    fn default() -> Self {
-        Self {
-            data: <[[Option<Tile>; N]; N]>::default(),
-        }
-    }
-}
-
-impl<const N: usize> Index<Pos<N>> for Board<N> {
-    type Output = Option<Tile>;
-
-    fn index(&self, index: Pos<N>) -> &Self::Output {
-        self.data.index(index.y).index(index.x)
-    }
-}
-
-impl<const N: usize> IndexMut<Pos<N>> for Board<N> {
-    fn index_mut(&mut self, index: Pos<N>) -> &mut Self::Output {
-        self.data.index_mut(index.y).index_mut(index.x)
-    }
-}
-
-impl<const N: usize> Display for Board<N> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut output = String::new();
-
-        // header with letters
-        output.push(' ');
-        output.push(' ');
-        for x in 0..N {
-            output.push((b'a' + x as u8) as char);
-            output.push_str("   ");
-        }
-        output.push('\n');
-
-        for y in 0..N {
-            // each line start with number
-            output.push_str(&(y + 1).to_string());
-            output.push(' ');
-            // then do each tile in row
-            for x in 0..N {
-                let pos = Pos { x, y };
-                if let Some(tile) = &self[pos] {
-                    output.push(match tile.top.shape {
-                        Shape::Flat => '_',
-                        Shape::Wall => '/',
-                        Shape::Capstone => 'o',
-                    });
-                    output.push(match tile.top.colour {
-                        Colour::White => 'w',
-                        Colour::Black => 'b',
-                    });
-                    output.push_str(&tile.size().to_string());
-                } else {
-                    output.push('.');
-                    output.push('.');
-                    output.push('.');
-                }
-                output.push(' ');
-            }
-            output.push('\n');
-        }
-        write!(f, "{}", output)
     }
 }

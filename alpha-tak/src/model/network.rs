@@ -1,80 +1,98 @@
-use std::{error::Error, path::Path};
+use std::path::Path;
 
-use arrayvec::ArrayVec;
-use tch::nn;
-
-use super::res_block::ResBlock;
-use crate::{
-    config::{FILTERS, RES_BLOCKS},
-    repr::{input_channels, moves_dims},
-    DEVICE,
+use rand::{prelude::SliceRandom, thread_rng};
+use tak::*;
+use tch::{
+    nn::{Adam, Optimizer, OptimizerConfig, VarStore},
+    Kind,
+    TchError,
+    Tensor,
 };
 
-#[derive(Debug)]
-pub struct Network<const N: usize> {
-    pub vs: nn::VarStore,
-    pub initial_conv: nn::Conv2D,
-    pub initial_batch_norm: nn::BatchNorm,
-    pub residual_blocks: ArrayVec<ResBlock, RES_BLOCKS>,
-    pub fully_connected_policy: nn::Linear,
-    pub fully_connected_eval: nn::Linear,
-}
+use crate::{example::Example, DEVICE};
 
-impl<const N: usize> Network<N> {
-    pub fn save<T: AsRef<Path>>(&self, path: T) -> Result<(), Box<dyn Error>> {
-        self.vs.save(path)?;
-        Ok(())
-    }
+const LEARNING_RATE: f64 = 1e-4;
+const WEIGHT_DECAY: f64 = 1e-4;
 
-    pub fn load<T: AsRef<Path>>(path: T) -> Result<Network<N>, Box<dyn Error>> {
-        let mut nn = Self::default();
-        nn.vs.load(path)?;
-        Ok(nn)
-    }
-}
+// Each training step is made up of multiple chunks.
+// This was done to reduce GPU memory usage.
+// Product of CHUNK_SIZE and CHUNKS_IN_STEP is the effective batch size.
+const CHUNK_SIZE: usize = 500;
+const CHUNKS_IN_STEP: usize = 20;
 
-impl<const N: usize> Default for Network<N> {
-    fn default() -> Self {
-        let vs = nn::VarStore::new(*DEVICE);
-        let root = &vs.root();
+pub type Policy = Vec<f32>;
+pub type Eval = f32;
 
-        let conv_config = nn::ConvConfig {
-            padding: 1,
+pub trait Network<const N: usize>: Default {
+    fn vs(&self) -> &VarStore;
+
+    fn save<T: AsRef<Path>>(&self, path: T) -> Result<(), TchError>;
+    fn load<T: AsRef<Path>>(path: T) -> Result<Self, TchError>;
+
+    fn forward_mcts(&self, input: Tensor) -> (Tensor, Tensor);
+    fn forward_training(&self, input: Tensor) -> (Tensor, Tensor);
+    fn policy_eval(&self, games: &[Game<N>]) -> Vec<(Policy, Eval)>;
+
+    /// Train the network on a set of examples.
+    fn train(&mut self, examples: &[Example<N>]) {
+        println!("starting training with {} examples", examples.len());
+
+        let mut opt = Adam {
+            wd: WEIGHT_DECAY,
             ..Default::default()
-        };
+        }
+        .build(self.vs(), LEARNING_RATE)
+        .unwrap();
 
-        let initial_conv = nn::conv2d(root, input_channels(N) as i64, FILTERS, 3, conv_config);
-        let initial_batch_norm = nn::batch_norm2d(root, FILTERS, Default::default());
+        // Shuffle only the references to the examples so that the real storage
+        // of examples preserves order from oldest to newest.
+        let mut refs: Vec<_> = examples.iter().collect();
+        refs.shuffle(&mut thread_rng());
+        // Training happens in batches made up of multiple chunks
+        // (to reduce GPU memory load).
+        for (i, chunk) in refs.chunks_exact(CHUNK_SIZE).enumerate() {
+            self.train_inner(&mut opt, chunk, i);
+        }
+    }
 
-        let mut residual_blocks = ArrayVec::new();
-        for _ in 0..RES_BLOCKS {
-            let conv1 = nn::conv2d(root, FILTERS, FILTERS, 3, conv_config);
-            let conv2 = nn::conv2d(root, FILTERS, FILTERS, 3, conv_config);
-            let batch_norm1 = nn::batch_norm2d(root, FILTERS, Default::default());
-            let batch_norm2 = nn::batch_norm2d(root, FILTERS, Default::default());
-            residual_blocks.push(ResBlock {
-                conv1,
-                conv2,
-                batch_norm1,
-                batch_norm2,
-            });
+    fn train_inner(&mut self, opt: &mut Optimizer, examples: &[&Example<N>], chunk_num: usize) {
+        let symmetries = examples.iter().flat_map(|ex| ex.to_tensors());
+        // Manually unzip.
+        let mut inputs = Vec::new();
+        let mut policies = Vec::new();
+        let mut results = Vec::new();
+        for (game, pi, v) in symmetries {
+            inputs.push(game);
+            policies.push(pi);
+            results.push(v);
         }
 
-        let fully_connected_policy = nn::linear(
-            root,
-            FILTERS * (N * N) as i64,
-            moves_dims(N) as i64,
-            Default::default(),
-        );
-        let fully_connected_eval = nn::linear(root, FILTERS * (N * N) as i64, 1, Default::default());
+        // Get network output.
+        let input = Tensor::stack(&inputs, 0).to_device_(*DEVICE, Kind::Float, true, false);
+        let batch_size = input.size()[0];
+        let (policy, eval) = self.forward_training(input);
 
-        Network {
-            vs,
-            initial_conv,
-            initial_batch_norm,
-            residual_blocks,
-            fully_connected_policy,
-            fully_connected_eval,
+        // Get the target.
+        let p = Tensor::stack(&policies, 0)
+            .to_device_(*DEVICE, Kind::Float, true, false)
+            .view(policy.size().as_slice());
+        let z = Tensor::of_slice(&results)
+            .unsqueeze_(1)
+            .to_device_(*DEVICE, Kind::Float, true, false);
+
+        // Calculate loss.
+        let loss_p = -(p * policy).sum(Kind::Float) / batch_size;
+        let loss_z = (z - eval).square_().sum(Kind::Float) / batch_size;
+        println!("p={loss_p:?}\t z={loss_z:?}");
+        let total_loss = loss_z + loss_p;
+
+        // Back-propagate loss.
+        total_loss.backward();
+        // If we have done enough chunks, do an optimization step.
+        if (chunk_num + 1) % CHUNKS_IN_STEP == 0 {
+            println!("making step!");
+            opt.step();
+            opt.zero_grad();
         }
     }
 }

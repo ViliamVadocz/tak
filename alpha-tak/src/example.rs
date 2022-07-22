@@ -1,23 +1,17 @@
-use std::{
-    collections::HashMap,
-    error::Error,
-    fs::File,
-    io::{Read, Write},
-    path::Path,
-};
+use std::{error::Error, fmt::Display, str::FromStr};
 
-use tak::*;
+use tak::{takparse::Tps, *};
 use tch::Tensor;
 
 use crate::{
-    repr::{game_repr, moves_dims},
-    search::turn_map::Lut,
+    repr::{game_repr, output_size, possible_moves},
+    search::move_index,
 };
 
 #[derive(Debug)]
 pub struct IncompleteExample<const N: usize> {
     pub game: Game<N>,
-    pub policy: HashMap<Turn<N>, u32>,
+    pub policy: Vec<(Move, u32)>,
 }
 
 impl<const N: usize> IncompleteExample<N> {
@@ -34,30 +28,43 @@ impl<const N: usize> IncompleteExample<N> {
 #[derive(Debug)]
 pub struct Example<const N: usize> {
     pub game: Game<N>,
-    pub policy: HashMap<Turn<N>, u32>,
+    pub policy: Vec<(Move, u32)>,
     pub result: f32,
 }
 
-impl<const N: usize> Example<N>
-where
-    Turn<N>: Lut,
-    [[Option<Tile>; N]; N]: Default,
-{
+impl<const N: usize> Example<N> {
+    fn empty_pi() -> [Vec<f32>; 8] {
+        if N == 5 {
+            [
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+                vec![0.; possible_moves(N)],
+            ]
+        } else {
+            [
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+                vec![0.; output_size(N)],
+            ]
+        }
+    }
+
     pub fn to_tensors(&self) -> Vec<(Tensor, Tensor, f32)> {
-        let mut pi = [
-            vec![0.; moves_dims(N)],
-            vec![0.; moves_dims(N)],
-            vec![0.; moves_dims(N)],
-            vec![0.; moves_dims(N)],
-            vec![0.; moves_dims(N)],
-            vec![0.; moves_dims(N)],
-            vec![0.; moves_dims(N)],
-            vec![0.; moves_dims(N)],
-        ];
+        let mut pi = Self::empty_pi();
         let total = self.policy.iter().map(|(_, c)| c).sum::<u32>() as f32;
-        for (turn, &value) in self.policy.iter() {
-            for (i, symm) in turn.clone().symmetries().into_iter().enumerate() {
-                pi[i][symm.turn_map()] = value as f32 / total;
+        for (m, value) in &self.policy {
+            for (i, symm) in Symmetry::<N>::symmetries(*m).into_iter().enumerate() {
+                pi[i][move_index(&symm, N)] = *value as f32 / total;
             }
         }
 
@@ -71,123 +78,56 @@ where
     }
 }
 
-pub fn save_examples<const N: usize, P: AsRef<Path>>(examples: &[Example<N>], path: P) {
-    if let Ok(mut file) = File::create(path) {
-        let out = examples
-            .iter()
-            .map(|example| {
-                format!(
-                    "{};{};{}\n",
-                    example.game.to_tps(),
-                    example.result,
-                    example
-                        .policy
-                        .iter()
-                        .map(|(turn, visits)| format!("{} {visits},", turn.to_ptn()))
-                        .collect::<String>()
-                )
-            })
-            .collect::<String>();
-        file.write_all(out.as_bytes()).unwrap();
+impl<const N: usize> Display for Example<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{};{};{};{};{};{};{};{}",
+            Tps::from(self.game.clone()),
+            self.game.white_stones,
+            self.game.white_caps,
+            self.game.black_stones,
+            self.game.black_caps,
+            self.game.half_komi,
+            self.result,
+            self.policy
+                .iter()
+                .map(|(mov, visits)| format!("{mov}:{visits}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
     }
 }
 
-// TODO clean this up
-pub fn load_examples<const N: usize>(path: &str) -> Result<Vec<Example<N>>, Box<dyn Error>>
-where
-    [[Option<Tile>; N]; N]: Default,
-{
-    let mut file = File::open(path)?;
-    let mut s = String::new();
-    file.read_to_string(&mut s)?;
+impl<const N: usize> FromStr for Example<N> {
+    type Err = Box<dyn Error>;
 
-    s.split_terminator('\n')
-        .map(|example| {
-            let mut chunks = example.split(';');
-            let mut tps = chunks.next().expect("missing board").split(' ');
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split(';');
 
-            // TODO put this ugly code into different functions, clean it up a bit
-            // MOVE IT TO FromTPS for Game
-            let board = Board::from_tps(tps.next().expect("missing board")).unwrap();
-            let to_move = Colour::from_ptn(tps.next().expect("missing to_move")).unwrap();
-            let ply = (tps.next().expect("missing move number").parse::<u64>().unwrap() - 1) * 2
-                + match to_move {
-                    Colour::White => 0,
-                    Colour::Black => 1,
-                };
-            let mut white_reserves = tps.next().expect("missing white reserves").split('/');
-            let white_stones = white_reserves.next().unwrap()[1..].parse().unwrap();
-            let white_caps = white_reserves.next().unwrap().replace(')', "").parse().unwrap();
-            let mut black_reserves = tps.next().expect("missing black reserves").split('/');
-            let black_stones = black_reserves.next().unwrap()[1..].parse().unwrap();
-            let black_caps = black_reserves.next().unwrap().replace(')', "").parse().unwrap();
-            let komi = tps.next().expect("missing komi").parse::<i32>().unwrap();
+        let tps = iter.next().ok_or("missing tps")?.parse::<Tps>()?;
+        let mut game: Game<N> = tps.into();
 
-            let game = Game {
-                board,
-                to_move,
-                white_caps,
-                black_caps,
-                white_stones,
-                black_stones,
-                ply,
-                komi,
-            };
+        game.white_stones = iter.next().ok_or("missing white stones")?.parse()?;
+        game.white_caps = iter.next().ok_or("missing white caps")?.parse()?;
+        game.black_stones = iter.next().ok_or("missing black stones")?.parse()?;
+        game.black_caps = iter.next().ok_or("missing black caps")?.parse()?;
+        game.half_komi = iter.next().ok_or("missing half komi")?.parse()?;
 
-            let result = chunks
-                .next()
-                .expect("missing result")
-                .parse::<f32>()
-                .expect("game result cannot be parsed");
+        let result = iter.next().ok_or("missing result")?.parse()?;
 
-            let mut policy = HashMap::new();
-            for line in chunks.next().expect("missing turns").split_terminator(',') {
-                let mut words = line.split(' ');
-                let turn = Turn::from_ptn(words.next().expect("missing turn")).expect("invalid turn");
-                let visited = words
-                    .next()
-                    .expect("missing visited count")
-                    .parse::<u32>()
-                    .expect("invalid visited count");
-                policy.insert(turn, visited);
-            }
+        fn parse_pair(pair: &str) -> Result<(Move, u32), Box<dyn Error>> {
+            let (move_str, visit_str) = pair.split_once(':').ok_or("pair has missing delimiter")?;
+            Ok((move_str.parse()?, visit_str.parse()?))
+        }
 
-            Ok(Example { game, policy, result })
-        })
-        .collect()
-}
+        let policy = iter
+            .next()
+            .ok_or("missing policy")?
+            .split(',')
+            .map(parse_pair)
+            .collect::<Result<Vec<_>, _>>()?;
 
-#[cfg(test)]
-mod test {
-    use std::collections::HashMap;
-
-    use tak::*;
-    use test::Bencher;
-
-    use super::Example;
-
-    #[bench]
-    fn to_tensors_bench(b: &mut Bencher) {
-        let game = Game::<5>::from_ptn(
-            "
-            1. a1 e1
-            2. c3 Cd3
-            3. d4 c4
-            4. c2 d2
-            5. b4 c5
-        ",
-        )
-        .unwrap();
-        let policy = game
-            .possible_turns()
-            .into_iter()
-            .map(|t| (t, 1))
-            .collect::<HashMap<Turn<5>, u32>>();
-        let example = Example {
-            game,
-            policy,
-            result: 1.0,
-        };
-        b.iter(|| example.to_tensors())
+        Ok(Example { game, result, policy })
     }
 }

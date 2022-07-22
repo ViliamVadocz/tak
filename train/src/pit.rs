@@ -1,29 +1,105 @@
-use std::{
-    fs::{create_dir_all, File},
-    io::Write,
-};
-
-use alpha_tak::{
-    agent::Agent,
-    analysis::Analysis,
-    config::{DIRICHLET_NOISE, KOMI, N, NOISE_RATIO, PIT_MATCHES, ROLLOUTS_PER_MOVE},
-    example::Example,
-    model::network::Network,
-    player::Player,
-    search::turn_map::Lut,
-    sys_time,
-    threadpool::thread_pool_2,
-};
-use arrayvec::ArrayVec;
+use alpha_tak::{Network, Player};
+use rand::{prelude::SliceRandom, thread_rng, Rng};
 use tak::*;
 
-use crate::GAME_DIR;
+const PIT_GAMES: u32 = 128;
+const BATCH_SIZE: u32 = 16;
+const ROLLOUTS: u32 = 50;
+
+const RANDOM_PLIES: u32 = 2;
+
+// const NOISE_ALPHA: f32 = 0.4;
+// const NOISE_RATIO: f32 = 0.2;
+// const NOISE_PLIES: u16 = 30;
+
+pub fn pit<const N: usize, NET: Network<N>>(new: &NET, old: &NET) -> PitResult {
+    let mut result = PitResult::default();
+
+    let mut rng = thread_rng();
+    for i in 0..PIT_GAMES {
+        if result.wins > (PIT_GAMES + PIT_GAMES / 10) || result.losses > (PIT_GAMES - PIT_GAMES / 10) {
+            println!("breaking early because result is already known");
+            break;
+        }
+
+        println!("pit game {i}/{PIT_GAMES}");
+        let mut opening = Vec::new();
+        for color in [Color::White, Color::Black] {
+            let mut game = Game::with_komi(2);
+
+            let mut new_player = Player::new(new, BATCH_SIZE, false, false, &game);
+            let mut old_player = Player::new(old, BATCH_SIZE, false, false, &game);
+
+            // Generate an opening opening.
+            if opening.is_empty() {
+                // Hardcoded moves.
+                opening.push("a1".parse().unwrap());
+                opening.push(if rng.gen::<f64>() < 0.5 {
+                    "a6".parse().unwrap()
+                } else {
+                    "f6".parse().unwrap()
+                });
+                let mut clone = game.clone();
+                for &my_move in &opening {
+                    clone.play(my_move).unwrap();
+                }
+
+                // Random moves.
+                for _ in 0..RANDOM_PLIES {
+                    let my_move = *clone
+                        .possible_moves()
+                        .into_iter()
+                        .filter(|m| matches!(m.kind(), MoveKind::Place(Piece::Flat | Piece::Cap)))
+                        .collect::<Vec<_>>()
+                        .choose(&mut rng)
+                        .unwrap();
+                    opening.push(my_move);
+                    clone.play(my_move).unwrap();
+                }
+
+                println!(
+                    "opening: {:?}",
+                    opening.iter().map(Move::to_string).collect::<Vec<_>>()
+                );
+            }
+
+            for &my_move in &opening {
+                new_player.play_move(my_move, &game, false);
+                old_player.play_move(my_move, &game, false);
+                game.play(my_move).unwrap();
+            }
+
+            while game.result() == GameResult::Ongoing {
+                let to_move = if game.to_move == color {
+                    &mut new_player
+                } else {
+                    &mut old_player
+                };
+                // if game.ply < NOISE_PLIES {
+                //     to_move.add_noise(NOISE_ALPHA, NOISE_RATIO, &game);
+                // }
+                for _ in 0..ROLLOUTS {
+                    to_move.rollout(&game);
+                }
+                let my_move = to_move.pick_move(true);
+                new_player.play_move(my_move, &game, true);
+                old_player.play_move(my_move, &game, true);
+                game.play(my_move).unwrap();
+            }
+            println!("{:?} in {} plies as {color}", game.result(), game.ply);
+
+            result.update(game.result(), color);
+        }
+    }
+
+    result
+}
 
 #[derive(Debug, Default)]
 pub struct PitResult {
     wins: u32,
-    draws: u32,
     losses: u32,
+    draws: u32,
 }
 
 impl PitResult {
@@ -34,10 +110,10 @@ impl PitResult {
         self.wins as f64 / (self.wins + self.losses) as f64
     }
 
-    fn update(&mut self, result: GameResult, colour: Colour) {
+    fn update(&mut self, result: GameResult, color: Color) {
         match result {
-            GameResult::Winner { colour: winner, .. } => {
-                if winner == colour {
+            GameResult::Winner { color: winner, .. } => {
+                if winner == color {
                     self.wins += 1
                 } else {
                     self.losses += 1
@@ -47,116 +123,4 @@ impl PitResult {
             GameResult::Ongoing => {}
         }
     }
-}
-
-pub fn pit(new: &Network<N>, old: &Network<N>) -> (PitResult, Vec<Example<N>>) {
-    const WORKERS: usize = 64;
-
-    let outputs = thread_pool_2::<N, WORKERS, _, _>(new, old, PIT_MATCHES, pit_game);
-
-    let mut result = PitResult::default();
-    let mut examples = Vec::new();
-    let mut analyses = Vec::new();
-    for output in outputs {
-        result.update(output.0, Colour::White);
-        result.update(output.1, Colour::Black);
-        examples.extend(output.2.into_iter());
-        analyses.extend(output.3.into_iter());
-    }
-
-    // TODO Do analysis on analyses?
-    let time = sys_time();
-    if create_dir_all(format!("{GAME_DIR}/pit_{time}")).is_ok() {
-        for (i, analysis) in analyses.into_iter().enumerate() {
-            if let Ok(mut file) = File::create(format!("{GAME_DIR}/pit_{time}/{i}.ptn")) {
-                file.write_all(analysis.to_ptn().as_bytes()).unwrap();
-            }
-        }
-    }
-
-    (result, examples)
-}
-
-/// Play an opening from both sides with two different agents.
-fn pit_game<A: Agent<N>>(
-    new: &A,
-    old: &A,
-    _index: usize,
-) -> (GameResult, GameResult, Vec<Example<N>>, ArrayVec<Analysis<N>, 4>)
-where
-    [[Option<Tile>; N]; N]: Default,
-    Turn<N>: Lut,
-{
-    let mut results = ArrayVec::<_, 2>::new();
-    let mut analyses = ArrayVec::<_, 4>::new();
-    let mut examples = Vec::new();
-
-    // Play one game as white and one game as black from the same opening.
-    for my_colour in [Colour::White, Colour::Black] {
-        let mut game = Game::with_komi(KOMI);
-
-        // TODO proper opening book using index
-        let opening = vec![
-            Turn::Place {
-                pos: Pos { x: 0, y: 0 },
-                shape: Shape::Flat,
-            },
-            Turn::Place {
-                pos: Pos {
-                    x: 4,
-                    y: if rand::random() { 0 } else { 4 },
-                },
-                shape: Shape::Flat,
-            },
-        ];
-        for turn in opening.clone() {
-            game.play(turn).unwrap()
-        }
-
-        let mut new_player = Player::new(new, opening.clone(), game.komi);
-        let mut old_player = Player::new(old, opening, game.komi);
-
-        const PIT_NOISE_PLIES: u64 = 20;
-
-        while matches!(game.winner(), GameResult::Ongoing) {
-            let turn;
-            if game.to_move == my_colour {
-                if game.ply < PIT_NOISE_PLIES {
-                    new_player.apply_dirichlet(&game, DIRICHLET_NOISE, NOISE_RATIO)
-                }
-                new_player.rollout(&game, ROLLOUTS_PER_MOVE);
-                turn = new_player.pick_move(&game, true);
-                old_player.play_move(&game, &turn);
-            } else {
-                if game.ply < PIT_NOISE_PLIES {
-                    old_player.apply_dirichlet(&game, DIRICHLET_NOISE, NOISE_RATIO)
-                }
-                old_player.rollout(&game, ROLLOUTS_PER_MOVE);
-                turn = old_player.pick_move(&game, true);
-                new_player.play_move(&game, &turn);
-            };
-            game.play(turn).unwrap();
-        }
-
-        let winner = game.winner();
-        results.push(winner);
-
-        examples.extend(
-            new_player
-                .get_examples(winner)
-                .into_iter()
-                .filter(|ex| ex.game.to_move == my_colour),
-        );
-        examples.extend(
-            old_player
-                .get_examples(winner)
-                .into_iter()
-                .filter(|ex| ex.game.to_move != my_colour),
-        );
-
-        analyses.push(new_player.get_analysis());
-        analyses.push(old_player.get_analysis());
-    }
-
-    (results[0], results[1], examples, analyses)
 }

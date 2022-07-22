@@ -6,3 +6,6 @@ target/
 *.ptn
 *.data
 *.log
+*.txt
+*.py
+*.zip

@@ -1,28 +1,16 @@
-#![feature(array_zip)]
-
-#[macro_use]
-extern crate lazy_static;
-
 mod board;
-mod colour;
-mod direction;
+mod error;
 mod game;
-mod pos;
-mod ptn;
+mod game_result;
+mod move_gen;
 mod symm;
 mod tile;
 mod tps;
-mod turn;
 
-pub type StrResult<T> = Result<T, String>;
-
-// re-export so you can star import everything important
 pub use board::Board;
-pub use colour::Colour;
-pub use game::{default_starting_stones, Game, GameResult};
-pub use pos::Pos;
-pub use ptn::{FromPTN, ToPTN};
+pub use error::*;
+pub use game::{default_starting_stones, Game};
+pub use game_result::GameResult;
 pub use symm::Symmetry;
-pub use tile::{Piece, Shape, Tile};
-pub use tps::{FromTPS, ToTPS};
-pub use turn::Turn;
+pub use takparse::{self, Color, Direction, Move, MoveKind, Pattern, Piece, Square};
+pub use tile::Tile;

@@ -1,40 +1,39 @@
-use std::collections::HashMap;
-
 use tak::*;
 
-#[derive(Clone, Debug)]
-pub struct Node<const N: usize> {
-    pub result: GameResult,
+#[derive(Clone, Debug, Default)]
+pub struct Node {
     pub policy: f32,
     pub expected_reward: f32,
+    pub result: GameResult,
     pub visits: u32,
     pub virtual_visits: u32,
-    pub children: HashMap<Turn<N>, Node<N>>,
+    pub children: Vec<(Move, Node)>,
 }
 
-impl<const N: usize> Default for Node<N> {
-    fn default() -> Self {
-        Self {
-            result: GameResult::Ongoing,
-            policy: 1.0,
-            expected_reward: 0.0,
-            visits: 0,
-            virtual_visits: 0,
-            children: HashMap::new(),
+impl Node {
+    pub fn new(policy: f32) -> Self {
+        Node {
+            policy,
+            ..Default::default()
         }
     }
-}
 
-impl<const N: usize> Node<N> {
+    /// Check whether this node has been visited at least once
+    /// and that the children are initialized.
     pub fn is_initialized(&self) -> bool {
         self.visits != 0 || self.virtual_visits != 0
     }
 
-    pub fn is_policy_initialized(&self) -> bool {
-        self.visits != 0
-    }
-
+    /// Get the visit count of this node, including virtual visits.
     pub fn visit_count(&self) -> f32 {
         (self.visits + self.virtual_visits) as f32
+    }
+
+    /// Get the expected reward, accounting for virtual losses.
+    pub fn expected_reward_with_losses(&self) -> f32 {
+        if !self.is_initialized() {
+            return 0.0;
+        }
+        (self.expected_reward * self.visits as f32 - self.virtual_visits as f32) / self.visit_count()
     }
 }

@@ -1,9 +1,13 @@
-pub mod debug;
-pub mod mcts;
-pub mod node;
-pub mod noise;
-pub mod play;
-pub mod turn_map;
+mod debug;
+mod mcts;
+mod move_map;
+mod node;
+mod noise;
+mod play;
+
+pub use debug::{MoveInfo, NodeDebugInfo};
+pub use move_map::{move_index, possible_patterns};
+pub use node::Node;
 
 #[cfg(test)]
 mod tests;

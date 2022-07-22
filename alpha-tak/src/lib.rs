@@ -1,7 +1,3 @@
-#![feature(test)]
-
-extern crate test;
-
 use std::time::SystemTime;
 
 use tch::{Cuda, Device};
@@ -9,18 +5,18 @@ use tch::{Cuda, Device};
 #[macro_use]
 extern crate lazy_static;
 
-pub mod model;
-pub mod search;
+mod analysis;
+mod example;
+mod model;
+mod player;
+mod repr;
+mod search;
 
-pub mod analysis;
-pub mod config;
-pub mod threadpool;
-
-pub mod agent;
-pub mod batch_player;
-pub mod example;
-pub mod player;
-pub mod repr;
+pub use analysis::Analysis;
+pub use example::{Example, IncompleteExample};
+pub use model::{net5::Net5, net6::Net6, network::Network};
+pub use player::Player;
+pub use search::{MoveInfo, Node, NodeDebugInfo};
 
 lazy_static! {
     static ref DEVICE: Device = Device::cuda_if_available();

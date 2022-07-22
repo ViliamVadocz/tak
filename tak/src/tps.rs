@@ -1,127 +1,96 @@
-use regex::Regex;
+use std::num::NonZeroUsize;
 
-use crate::{
-    board::Board,
-    colour::Colour,
-    game::Game,
-    pos::Pos,
-    ptn::{FromPTN, ToPTN},
-    tile::{Piece, Shape, Tile},
-    StrResult,
-};
+use takparse::{Color, ExtendedSquare, Piece, Stack, Tps};
 
-lazy_static! {
-    static ref EMPTY_TILE_RE: Regex = Regex::new("x([0-9]?)").unwrap();
-    static ref STACK_TILE_RE: Regex = Regex::new("([12]*)([12])([CS]?)").unwrap();
-}
+use crate::{default_starting_stones, Board, Game, Tile};
 
-pub trait FromTPS: Sized {
-    fn from_tps(s: &str) -> StrResult<Self>;
-}
+impl<const N: usize> From<Game<N>> for Tps {
+    fn from(game: Game<N>) -> Self {
+        let board = game
+            .board
+            .data
+            .into_iter()
+            .rev()
+            .map(|row| {
+                row.into_iter()
+                    .map(|tile| {
+                        if tile.is_empty() {
+                            ExtendedSquare::EmptySquares(1)
+                        } else {
+                            ExtendedSquare::Stack(Stack::new(tile.piece, tile.stack.into_iter()))
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
 
-pub trait ToTPS {
-    fn to_tps(&self) -> String;
-}
-
-impl<const N: usize> ToTPS for Game<N> {
-    /// Technically this is modified TPS with extra info
-    fn to_tps(&self) -> String {
-        // TPS to_move move_num (white_reserves) (black_reserves)
-        format!(
-            "{} {} {} ({}/{}) ({}/{}) {}",
-            self.board.to_tps(),
-            self.to_move.to_ptn(),
-            (self.ply / 2) + 1,
-            self.white_stones,
-            self.white_caps,
-            self.black_stones,
-            self.black_caps,
-            self.komi
-        )
+        unsafe {
+            Tps::new_unchecked(
+                board,
+                game.to_move,
+                NonZeroUsize::new(1 + game.ply as usize / 2).unwrap(),
+            )
+        }
     }
 }
 
-impl<const N: usize> ToTPS for Board<N> {
-    /// Get board TPS
-    fn to_tps(&self) -> String {
-        let mut out = String::new();
-
-        // combine empty squares
-        let add_empty = |out: &mut String, empty: usize| {
-            if empty > 0 {
-                out.push('x');
-                if empty > 1 {
-                    out.push_str(&empty.to_string());
-                }
-                out.push(',');
-            }
-            0
+impl<const N: usize> From<Tps> for Game<N> {
+    fn from(tps: Tps) -> Game<N> {
+        // Transform board representation.
+        let mut data = tps
+            .board_2d()
+            .map(|row| {
+                row.map(|square| {
+                    if let Some(stack) = square {
+                        Tile {
+                            piece: stack.top(),
+                            stack: stack.colors().collect(),
+                        }
+                    } else {
+                        Tile::default()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        data.reverse();
+        let board = Board {
+            data: data.try_into().unwrap(),
         };
 
-        // for each row
-        for y in (0..N).rev() {
-            let mut empty = 0;
-            // for each tile
-            for x in 0..N {
-                let pos = Pos { x, y };
-                if let Some(tile) = &self[pos] {
-                    empty = add_empty(&mut out, empty);
-                    for colour in &tile.stack {
-                        out.push_str(&colour.to_ptn());
-                    }
-                    out.push_str(&tile.top.colour.to_ptn());
-                    out.push_str(&tile.top.shape.to_ptn());
-                    out.push(',');
+        // Figure out how many reserves each player has left.
+        let (mut white_stones, mut white_caps) = default_starting_stones(N);
+        let (mut black_stones, mut black_caps) = default_starting_stones(N);
+        for stack in tps.board().flatten() {
+            if stack.top() == Piece::Cap {
+                if stack.colors().last().unwrap() == Color::White {
+                    white_stones += 1;
+                    white_caps -= 1;
                 } else {
-                    empty += 1;
+                    black_stones += 1;
+                    black_caps -= 1;
                 }
             }
-            add_empty(&mut out, empty);
-            out.pop().unwrap(); // remove last comma
-            out.push('/');
+            for color in stack.colors() {
+                if color == Color::White {
+                    white_stones -= 1;
+                } else {
+                    black_stones -= 1;
+                }
+            }
         }
-        out.pop().unwrap(); // remove last slash
-        out
-    }
-}
 
-impl<const N: usize> FromTPS for Board<N>
-where
-    [[Option<Tile>; N]; N]: Default,
-{
-    fn from_tps(s: &str) -> StrResult<Self> {
-        let mut board = Board::default();
-        let row_count = s.split('/').count();
-        if row_count != N {
-            return Err(format!("expected {N} rows, got {row_count}"));
+        Game {
+            board,
+            to_move: tps.color(),
+            ply: tps.ply() as u16,
+            white_stones,
+            white_caps,
+            black_stones,
+            black_caps,
+            ..Default::default()
         }
-        for (i, row) in s.split('/').enumerate() {
-            let y = N - i - 1;
-            let mut x = 0;
-            for tile in row.split(',') {
-                if let Some(cap) = EMPTY_TILE_RE.captures(tile) {
-                    x += cap[1].parse::<usize>().unwrap_or(1);
-                } else {
-                    let pos = Pos { x, y };
-                    let cap = STACK_TILE_RE
-                        .captures(tile)
-                        .ok_or_else(|| format!("didn't recognize stack {tile}"))?;
-                    let stack = cap[1]
-                        .chars()
-                        .map(|c| Colour::from_ptn(&c.to_string()))
-                        .collect::<StrResult<Vec<_>>>()?;
-                    let piece = Piece {
-                        shape: Shape::from_ptn(&cap[3])?,
-                        colour: Colour::from_ptn(&cap[2])?,
-                    };
-                    board[pos] = Some(Tile { top: piece, stack });
-                    x += 1;
-                }
-            }
-            if x != N {
-                return Err(format!("only got {x} tiles in row number {y}, expected {N}"));
-            }
-        }
-        Ok(board)
     }
 }
