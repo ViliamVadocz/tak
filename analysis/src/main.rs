@@ -124,7 +124,11 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
                 if input.chars().all(char::is_whitespace) {
-                    println!("{:.10}", player.debug(5));
+                    if game.to_move == Color::White {
+                        println!("{:.10}", player.debug(5));
+                    } else {
+                        println!("{:-.10}", player.debug(5));
+                    }
                 } else if input.trim() == "finish" {
                     break 'game_loop;
                 } else {

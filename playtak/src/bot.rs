@@ -87,7 +87,11 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
                         while Instant::now().duration_since(start) < Duration::from_secs(args.time_to_think) {
                             player.rollout(&game);
                         }
+                        if game.to_move == Color::White {
                         print!("{:.10}", player.debug(5));
+                        } else {
+                            print!("{:-.10}", player.debug(5));
+                        }
 
                         (player.pick_move(true), true)
                     };
@@ -101,7 +105,11 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
 
                 // Opponent played a move.
                 Ok(Message::Move(their_move)) => {
+                    if game.to_move == Color::White {
                     print!("{:.10}", player.debug(5));
+                    } else {
+                        print!("{:-.10}", player.debug(5));
+                    }
                     println!("=== Opponent played {their_move}");
 
                     last_move = their_move.to_string();
