@@ -77,7 +77,7 @@ async fn run_playtak_game(
                         println!("Failed to play move!");
                     }
                 }
-                Some(Message::GameEnded) => {}
+                Some(Message::GameEnded(_)) => {}
                 None => break Ok(()),
                 _ => {}
             }
@@ -87,8 +87,8 @@ async fn run_playtak_game(
             Update::Played(m) => {
                 tx.send(Message::Move(m))?;
             }
-            Update::GameEnded(_result) => {
-                tx.send(Message::GameEnded)?;
+            Update::GameEnded(result) => {
+                tx.send(Message::GameEnded(Some(result)))?;
                 break Ok(());
             }
             _ => {}

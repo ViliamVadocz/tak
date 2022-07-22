@@ -1,5 +1,6 @@
 use std::{
-    fs::write,
+    fs::{write, File},
+    io::Write,
     thread,
     time::{Duration, Instant},
 };
@@ -12,6 +13,7 @@ use crate::{
     cli::Args,
     message::Message,
     ANALYSIS_DIR,
+    EXAMPLE_DIR,
     KOMI,
     OPENING_BOOK,
     PONDER_ROLLOUT_LIMIT,
@@ -22,14 +24,16 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
     let model_path = &args.model_path;
     let network = Net6::load(model_path).unwrap_or_else(|_| panic!("could not load model at {model_path}"));
 
+    let mut example_file = File::create(format!("{EXAMPLE_DIR}/playtak_{}.data", sys_time())).unwrap();
+
     'game_loop: loop {
         let mut game = Game::<6>::with_komi(KOMI as i8);
-        let mut player = Player::new(&network, 64, false, true, &game);
+        let mut player = Player::new(&network, 64, true, true, &game);
         let mut last_move: String = String::new();
         let mut ponder_rollouts = 0;
         let mut game_info = None;
 
-        'turn_loop: loop {
+        let game_result = 'turn_loop: loop {
             match if ponder_rollouts < PONDER_ROLLOUT_LIMIT {
                 rx.try_recv()
             } else {
@@ -47,7 +51,7 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
 
                     println!("A move has been requested.");
                     if game.result() != GameResult::Ongoing {
-                        tx.send(Message::GameEnded).unwrap();
+                        tx.send(Message::GameEnded(None)).unwrap();
                         continue;
                     }
 
@@ -88,7 +92,7 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
                             player.rollout(&game);
                         }
                         if game.to_move == Color::White {
-                        print!("{:.10}", player.debug(5));
+                            print!("{:.10}", player.debug(5));
                         } else {
                             print!("{:-.10}", player.debug(5));
                         }
@@ -96,7 +100,7 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
                         (player.pick_move(true), true)
                     };
 
-                    player.play_move(my_move, &game, with_info);
+                    player.play_move(my_move, &game, game.ply > 1 && with_info);
 
                     println!("=== Network played  {my_move}");
                     tx.send(Message::Move(my_move)).unwrap();
@@ -106,7 +110,7 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
                 // Opponent played a move.
                 Ok(Message::Move(their_move)) => {
                     if game.to_move == Color::White {
-                    print!("{:.10}", player.debug(5));
+                        print!("{:.10}", player.debug(5));
                     } else {
                         print!("{:-.10}", player.debug(5));
                     }
@@ -119,8 +123,8 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
                 }
 
                 // Game ended.
-                Ok(Message::GameEnded) => {
-                    break 'turn_loop;
+                Ok(Message::GameEnded(result)) => {
+                    break 'turn_loop result;
                 }
 
                 // Ponder.
@@ -136,7 +140,7 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
                     break 'game_loop;
                 }
             }
-        }
+        };
 
         // Create analysis file.
         println!("Game ended, creating analysis file");
@@ -156,5 +160,22 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
             analysis.to_string(),
         )
         .unwrap_or_else(|err| println!("{err}"));
+        if let Some(r) = game_result {
+            for example in player.get_examples(convert(r)) {
+                writeln!(example_file, "{example}").unwrap_or_else(|err| println!("{err}"));
+            }
+        }
+    }
+}
+
+fn convert(result: tokio_takconnect::data_types::GameResult) -> tak::GameResult {
+    match result.winner() {
+        Some(color) => GameResult::Winner {
+            color,
+            road: result.is_road(),
+        },
+        None => GameResult::Draw {
+            reversible_plies: false,
+        },
     }
 }

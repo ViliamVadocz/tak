@@ -27,6 +27,7 @@ const OPENING_BOOK: [(&str, &str); 4] = [("a1", "f6"), ("a6", "f1"), ("f1", "a6"
 const PONDER_ROLLOUT_LIMIT: u64 = 50_000;
 
 const ANALYSIS_DIR: &str = "_playtak_games";
+const EXAMPLE_DIR: &str = "_examples";
 
 #[tokio::main]
 async fn main() {
