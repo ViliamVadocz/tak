@@ -8,6 +8,7 @@ use std::{
 use alpha_tak::{sys_time, Net5, Net6, Network, Player};
 use tak::*;
 use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver, UnboundedSender};
+use tokio_takconnect::data_types::WinReason;
 
 use crate::{
     cli::Args,
@@ -161,21 +162,23 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
         )
         .unwrap_or_else(|err| println!("{err}"));
         if let Some(r) = game_result {
-            for example in player.get_examples(convert(r)) {
-                writeln!(example_file, "{example}").unwrap_or_else(|err| println!("{err}"));
+            if r != tokio_takconnect::data_types::GameResult::Unknown {
+                for example in player.get_examples(convert(r)) {
+                    writeln!(example_file, "{example}").unwrap_or_else(|err| println!("{err}"));
+                }
             }
         }
     }
 }
 
 fn convert(result: tokio_takconnect::data_types::GameResult) -> tak::GameResult {
-    match result.winner() {
-        Some(color) => GameResult::Winner {
-            color,
-            road: result.is_road(),
-        },
-        None => GameResult::Draw {
+    use tokio_takconnect::data_types::GameResult::*;
+    match result {
+        Win(color, WinReason::Road) => GameResult::Winner { color, road: true },
+        Win(color, WinReason::Flat | WinReason::Forfeit) => GameResult::Winner { color, road: false },
+        Draw(_reason) => GameResult::Draw {
             reversible_plies: false,
         },
+        _ => unreachable!(),
     }
 }

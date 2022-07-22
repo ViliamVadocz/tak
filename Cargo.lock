@@ -1216,9 +1216,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-takconnect"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69f594470e73cbffc82203e8c3f8d24bc467c81f042b6b87e52351e4e5433352"
+checksum = "4e72be6bff4e21536b639ab27288d5941ab1c52859fba41f74506bd46bdb43f5"
 dependencies = [
  "futures",
  "log",
