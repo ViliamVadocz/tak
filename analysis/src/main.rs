@@ -116,6 +116,8 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
     };
     let mut player = Player::new(&network, args.batch_size, false, true, &game);
 
+    let mut past_game_states = vec![game.clone()];
+
     'game_loop: while matches!(game.result(), GameResult::Ongoing) {
         // Get input from user.
         let (tx, rx) = channel();
@@ -129,15 +131,29 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
 
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
+                let trim = input.trim();
                 if input.chars().all(char::is_whitespace) {
                     println!(
                         "{:.10}",
                         player.debug(10).maybe_flip(game.to_move == Color::Black)
                     );
-                } else if input.trim() == "finish" {
+                } else if trim == "finish" {
                     break 'game_loop;
+                } else if trim == "undo" {
+                    if let Some(prev) = past_game_states.pop() {
+                        // Currently also resets the analysis file
+                        player = Player::new(&network, args.batch_size, false, true, &prev);
+                        game = prev;
+                        println!("undo complete");
+                    } else {
+                        println!("nothing to undo");
+                    }
                 } else {
-                    try_play_move(&mut player, &mut game, input).unwrap_or_else(|err| println!("{err}"));
+                    let prev = game.clone();
+                    match try_play_move(&mut player, &mut game, input) {
+                        Ok(()) => past_game_states.push(prev),
+                        Err(err) => println!("{err}"),
+                    }
                 }
                 break;
             }
