@@ -47,17 +47,22 @@ impl NodeDebugInfo {
             .map(|move_info| move_info.reward * (move_info.visits as f32 / total_visits))
             .sum()
     }
+
+    pub fn maybe_flip(mut self, flip: bool) -> NodeDebugInfo {
+        if flip {
+            self.0.iter_mut().for_each(|move_info| move_info.reward *= -1.);
+        }
+        self
+    }
 }
 
 /// We use the "precision" format parameter to know how many moves to print.
-/// We use the "sign" format parameter to flip the eval (use "{info:-}").
 impl Display for NodeDebugInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.is_empty() {
             return write!(f, "Node has no children");
         }
-        let sign = if f.sign_minus() { -1. } else { 1. };
-        writeln!(f, "evaluation: {:+.4}", sign * self.eval())?;
+        writeln!(f, "evaluation: {:+.4}", self.eval())?;
         writeln!(f, "turn      visited   reward   policy | continuation")?;
         for move_info in self.0.iter().take(f.precision().unwrap_or(usize::MAX)) {
             move_info.fmt(f)?
@@ -84,13 +89,12 @@ impl MoveInfo {
 
 impl Display for MoveInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let sign = if f.sign_minus() { -1. } else { 1. };
         writeln!(
             f,
             "{: <8} {: >8} {: >+8.4} {: >8.4} | {}",
             self.mov.to_string(),
             self.visits,
-            sign * self.reward,
+            self.reward,
             self.policy,
             self.continuation
                 .iter()

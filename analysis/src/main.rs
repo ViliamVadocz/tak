@@ -60,7 +60,10 @@ fn analyze_file<const N: usize, NET: Network<N>>(args: Args) {
         while Instant::now().duration_since(start) < think_time {
             player.rollout(&game);
         }
-        println!("{:.10}", player.debug(5));
+        println!(
+            "{:.10}",
+            player.debug(10).maybe_flip(game.to_move == Color::Black)
+        );
         println!("playing {my_move}");
         player.play_move(my_move, &game, true);
         game.play(my_move).unwrap();
@@ -91,7 +94,10 @@ fn run_example_game<const N: usize, NET: Network<N>>(args: Args) {
             player.rollout(&game);
         }
         let my_move = player.pick_move(true);
-        println!("{:.10}", player.debug(5));
+        println!(
+            "{:.10}",
+            player.debug(10).maybe_flip(game.to_move == Color::Black)
+        );
         player.play_move(my_move, &game, true);
         game.play(my_move).unwrap();
     }
@@ -124,11 +130,10 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
                 if input.chars().all(char::is_whitespace) {
-                    if game.to_move == Color::White {
-                        println!("{:.10}", player.debug(5));
-                    } else {
-                        println!("{:-.10}", player.debug(5));
-                    }
+                    println!(
+                        "{:.10}",
+                        player.debug(10).maybe_flip(game.to_move == Color::Black)
+                    );
                 } else if input.trim() == "finish" {
                     break 'game_loop;
                 } else {
