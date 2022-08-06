@@ -28,7 +28,7 @@ pub async fn seek_loop(
         connect_guest().await
     }?;
 
-    let mut seek_as_white = true;
+    let mut seek_as_white = !args.start_as_black;
     select! {
         _ = ctrl_c() => (),
         _ = async move {

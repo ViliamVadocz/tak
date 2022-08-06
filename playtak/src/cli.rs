@@ -9,6 +9,9 @@ pub struct Args {
     pub username: Option<String>,
     /// PlayTak Password
     pub password: Option<String>,
+    /// Start as black instead of white
+    #[clap(short, long)]
+    pub start_as_black: bool,
     /// Initial time in seconds
     #[clap(short, long, default_value_t = 600)]
     pub initial_time: u64,

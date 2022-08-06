@@ -35,7 +35,7 @@ pub fn run_bot(args: Args, tx: UnboundedSender<Message>, mut rx: UnboundedReceiv
         let mut game_info = None;
 
         let game_result = 'turn_loop: loop {
-            match if ponder_rollouts < PONDER_ROLLOUT_LIMIT {
+            match if ponder_rollouts < PONDER_ROLLOUT_LIMIT && game.ply > 0 {
                 rx.try_recv()
             } else {
                 rx.blocking_recv().ok_or(TryRecvError::Disconnected)
