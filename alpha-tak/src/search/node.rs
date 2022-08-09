@@ -7,7 +7,7 @@ pub struct Node {
     pub result: GameResult,
     pub visits: u32,
     pub virtual_visits: u32,
-    pub children: Vec<(Move, Node)>,
+    pub children: Box<[(Move, Node)]>,
 }
 
 impl Node {

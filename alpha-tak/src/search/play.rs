@@ -33,7 +33,8 @@ impl Node {
             .find(|(_i, (mov, _node))| mov == &my_move)
             .expect("tried to play an invalid move")
             .0;
-        let child = self.children.swap_remove(index).1;
+        let child = self.children.get_mut(index).map(|(_, node)| node).unwrap();
+        let child = std::mem::take(child);
 
         // Drop other children on a separate thread.
         std::thread::spawn(move || drop(self));
