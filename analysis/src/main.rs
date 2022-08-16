@@ -15,7 +15,7 @@ use clap::Parser;
 use cli::Args;
 use mimalloc::MiMalloc;
 use parse::{parse_position, parse_ptn};
-use tak::*;
+use tak::{takparse::Tps, *};
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -125,9 +125,13 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
             tx.send(get_input()).unwrap();
         });
 
+        let start = Instant::now();
+        let mut nodes: u64 = 0;
+
         loop {
             // Do rollouts while we wait for input.
             player.rollout(&game);
+            nodes += args.batch_size as u64;
 
             if let Ok(input) = rx.try_recv() {
                 clear_screen();
@@ -151,6 +155,11 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
                 } else if trim == "tps" {
                     let tps: Tps = game.clone().into();
                     println!("{tps}");
+                } else if trim == "nps" {
+                    let now = Instant::now();
+                    let delta = now.duration_since(start).as_secs_f64();
+                    let nps = nodes as f64 / delta;
+                    println!("{nps:.1} nodes per second")
                 } else {
                     let prev = game.clone();
                     match try_play_move(&mut player, &mut game, input) {
