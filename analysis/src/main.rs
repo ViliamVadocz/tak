@@ -148,6 +148,9 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
                     } else {
                         println!("nothing to undo");
                     }
+                } else if trim == "tps" {
+                    let tps: Tps = game.clone().into();
+                    println!("{tps}");
                 } else {
                     let prev = game.clone();
                     match try_play_move(&mut player, &mut game, input) {
