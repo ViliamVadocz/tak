@@ -23,6 +23,16 @@ static GLOBAL: MiMalloc = MiMalloc;
 mod cli;
 mod parse;
 
+const HELP_MESSAGE: &str = "\
+help    - shows this message
+finish  - ends the game and creates an analysis file
+undo    - return to the previous position (resets nodes and analysis)
+tps     - shows the current board as TPS
+nps     - shows the nodes per second (since last move)
+[empty] - shows the network evaluation
+[move]  - plays the move
+";
+
 fn main() {
     let args = Args::parse();
     if !(args.no_gpu || use_cuda()) {
@@ -141,6 +151,8 @@ fn interactive_analysis<const N: usize, NET: Network<N>>(args: Args) {
                         "{:.10}",
                         player.debug(10).maybe_flip(game.to_move == Color::Black)
                     );
+                } else if trim == "help" {
+                    println!("{HELP_MESSAGE}");
                 } else if trim == "finish" {
                     break 'game_loop;
                 } else if trim == "undo" {
@@ -189,7 +201,7 @@ fn clear_screen() {
 }
 
 fn get_input() -> String {
-    print!("[leave empty for network eval] your move: ");
+    print!(">>> ");
     std::io::stdout().flush().unwrap();
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
