@@ -103,7 +103,7 @@ impl<const N: usize> FromStr for Example<N> {
     type Err = Box<dyn Error>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut iter = s.split(';');
+        let mut iter = s.trim().split(';');
 
         let tps = iter.next().ok_or("missing tps")?.parse::<Tps>()?;
         let mut game: Game<N> = tps.into();
