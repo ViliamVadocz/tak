@@ -9,3 +9,6 @@ target/
 *.txt
 *.py
 *.zip
+*.png
+
+!graph.py
