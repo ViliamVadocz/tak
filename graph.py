@@ -22,19 +22,19 @@ ax = plt.axes()
 ax.set_facecolor(BACKGROUND)
 
 less = evals < 0
-black = less | np.roll(less, -1)
-white = ~less | np.roll(~less, -1)
+black = less | np.roll(less, 1)
+white = ~less | np.roll(~less, 1)
 b_evals = evals.clip(max=0)
 w_evals = evals.clip(min=0)
 
 x = 1 + np.arange(plies) / 2
 
 ax.plot(x, np.zeros(plies), color="gray")
-ax.plot(x, evals, drawstyle="steps", color=EVALUATION)
-ax.fill_between(x, b_evals, step="pre", where=black, color="black")
-ax.fill_between(x, w_evals, step="pre", where=white, color="white")
+ax.plot(x, evals, drawstyle="steps-post", color=EVALUATION)
+ax.fill_between(x, b_evals, step="post", where=black, color="black")
+ax.fill_between(x, w_evals, step="post", where=white, color="white")
 
-ax.set_title("Tale of the Tape")
+ax.set_title("Evaluation Graph")
 ax.set_xlabel("Move Number")
 ax.set_ylabel("Evaluation")
 
