@@ -13,10 +13,10 @@ pub struct Args {
     #[clap(short, long)]
     pub start_as_black: bool,
     /// Initial time in seconds
-    #[clap(short, long, default_value_t = 600)]
+    #[clap(long, default_value_t = 600)]
     pub initial_time: u64,
     /// Increment in seconds
-    #[clap(short, long, default_value_t = 10)]
+    #[clap(long, default_value_t = 10)]
     pub increment: u64,
     /// Time to think per move
     #[clap(short, long, default_value_t = 10)]
