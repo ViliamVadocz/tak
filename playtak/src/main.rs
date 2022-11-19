@@ -33,6 +33,7 @@ const EXAMPLE_DIR: &str = "_examples";
 async fn main() {
     log_to_file("playtak.log", LevelFilter::Debug).unwrap();
     create_dir_all(format!("./{ANALYSIS_DIR}/")).await.unwrap();
+    create_dir_all(format!("./{EXAMPLE_DIR}/")).await.unwrap();
 
     let args = Args::parse();
     if !(args.no_gpu || use_cuda()) {
