@@ -1,12 +1,18 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import re
+import sys
 
 BACKGROUND = "#404040"
 EVALUATION = "#fb8b24"
 WIDTH_PER_PLY = 0.2
 
-with open("analysis.ptn", "r", encoding="utf-8") as file:
+try:
+    file_path = sys.argv[1]
+except IndexError:
+    file_path = "analysis.ptn"
+
+with open(file_path, "r", encoding="utf-8") as file:
     evals = np.array(
         [
             float(match)
