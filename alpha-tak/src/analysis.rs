@@ -120,7 +120,7 @@ impl Display for Analysis {
 
         // Handle starting from black.
         if self.start_ply % 2 != 0 {
-            write!(out, "{}. --", move_num(ply)).unwrap();
+            write!(out, "{}. -- ", move_num(ply)).unwrap();
             // Maybe add black move.
             if let Some(black) = move_iter.next() {
                 out.push_str(&black.to_string());
@@ -138,6 +138,8 @@ impl Display for Analysis {
                     out.push_str(&info.ptn_comment(true));
                 }
             }
+            out.push('\n');
+            ply += 1;
         }
 
         while let Some(white) = move_iter.next() {
@@ -248,5 +250,33 @@ impl ToString for Mark {
             Mark::Brilliancy => "!!",
         }
         .to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Analysis, MoveInfo};
+
+    #[test]
+    fn start_as_black() {
+        let mut analysis = Analysis::new(6, 4, 5);
+        analysis.add_move(
+            "Se4".parse().unwrap(),
+            MoveInfo {
+                mov: "Se4".parse().unwrap(),
+                visits: 0,
+                reward: -1.0,
+                policy: 1.0,
+                continuation: Default::default(),
+            },
+            0.0,
+        );
+        analysis.add_move_without_info("c6".parse().unwrap());
+        analysis.add_move_without_info("e4+".parse().unwrap());
+
+        assert_eq!(
+            analysis.to_string(),
+            "[Size \"6\"]\n[Komi \"2\"]\n3. -- Se4 {r: +1.000, p: 1.0000, v: 0}\n4. c6 e4+\n"
+        )
     }
 }
