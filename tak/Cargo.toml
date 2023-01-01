@@ -1,0 +1,8 @@
+[package]
+name = "tak"
+version = "0.1.0"
+edition = "2021"
+description = "Implementation of the abstract strategy board game Tak"
+
+[dependencies]
+takparse = "0.5.5"
