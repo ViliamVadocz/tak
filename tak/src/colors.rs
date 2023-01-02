@@ -1,8 +1,12 @@
 use takparse::Color;
 
+// Could be replaced by u128 to never have stack size issues
+// 8x8 has 50 pieces so highest stack is 101, which fits in u128
+type BitVec = u64;
+
 #[derive(Clone, Copy, Debug, Hash, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Colors {
-    bits: u64,
+    bits: BitVec,
     len: u8,
 }
 
@@ -30,8 +34,8 @@ impl Colors {
     }
 
     pub fn push(&mut self, color: Color) {
-        assert!(self.len < 64);
-        self.bits = (self.bits << 1) | u64::from(color == Color::White);
+        assert!(u32::from(self.len) < BitVec::BITS);
+        self.bits = (self.bits << 1) | BitVec::from(color == Color::White);
         self.len += 1;
     }
 
@@ -47,7 +51,7 @@ impl Colors {
 
     pub fn take(&mut self, amount: u8) -> Self {
         assert!(amount <= self.len);
-        let mask: u64 = !(!0 << amount);
+        let mask: BitVec = !(!0 << amount);
         let taken = Self {
             bits: self.bits & mask,
             len: amount,
@@ -64,7 +68,7 @@ impl IntoIterator for Colors {
 
     fn into_iter(self) -> Self::IntoIter {
         ColorsIter(Self {
-            bits: self.bits.reverse_bits() >> (u64::BITS - u32::from(self.len)),
+            bits: self.bits.reverse_bits() >> (BitVec::BITS - u32::from(self.len)),
             len: self.len,
         })
     }
@@ -85,7 +89,7 @@ impl Iterator for ColorsIter {
     }
 }
 
-const fn to_color(n: u64) -> Color {
+const fn to_color(n: BitVec) -> Color {
     if n == 0 {
         Color::Black
     } else {
@@ -93,7 +97,7 @@ const fn to_color(n: u64) -> Color {
     }
 }
 
-const fn from_color(color: Color) -> u64 {
+const fn from_color(color: Color) -> BitVec {
     match color {
         Color::White => 1,
         Color::Black => 0,
