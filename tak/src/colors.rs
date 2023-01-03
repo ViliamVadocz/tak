@@ -1,29 +1,31 @@
 use takparse::Color;
 
-// Could be replaced by u128 to never have stack size issues
-// 8x8 has 50 pieces so highest stack is 101, which fits in u128
-type BitVec = u64;
+type BitVec = u128;
 
-#[derive(Clone, Copy, Debug, Hash, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Colors {
     bits: BitVec,
-    len: u8,
+}
+
+impl Default for Colors {
+    fn default() -> Self {
+        Self { bits: 1 }
+    }
 }
 
 impl Colors {
     pub const fn of_one(color: Color) -> Self {
         Self {
-            bits: from_color(color),
-            len: 1,
+            bits: 0b10 + from_color(color),
         }
     }
 
     pub const fn is_empty(&self) -> bool {
-        self.len == 0
+        self.bits == 1
     }
 
-    pub const fn len(&self) -> usize {
-        self.len as usize
+    pub const fn len(&self) -> u32 {
+        BitVec::BITS - (self.bits.leading_zeros() + 1)
     }
 
     pub const fn top(&self) -> Option<Color> {
@@ -34,9 +36,7 @@ impl Colors {
     }
 
     pub fn push(&mut self, color: Color) {
-        assert!(u32::from(self.len) < BitVec::BITS);
         self.bits = (self.bits << 1) | BitVec::from(color == Color::White);
-        self.len += 1;
     }
 
     pub fn pop(&mut self) -> Option<Color> {
@@ -45,20 +45,18 @@ impl Colors {
         }
         let color = to_color(self.bits & 1);
         self.bits >>= 1;
-        self.len -= 1;
         Some(color)
     }
 
-    pub fn take(&mut self, amount: u8) -> Self {
-        assert!(amount <= self.len);
+    pub fn take(&mut self, amount: u32) -> Option<Self> {
+        if amount > self.len() {
+            return None;
+        }
         let mask: BitVec = !(!0 << amount);
-        let taken = Self {
-            bits: self.bits & mask,
-            len: amount,
-        };
+        let bits = (1 << amount) | (self.bits & mask);
+        let taken = Self { bits };
         self.bits >>= amount;
-        self.len -= amount;
-        taken
+        Some(taken)
     }
 }
 
@@ -67,10 +65,9 @@ impl IntoIterator for Colors {
     type Item = Color;
 
     fn into_iter(self) -> Self::IntoIter {
-        ColorsIter(Self {
-            bits: self.bits.reverse_bits() >> (BitVec::BITS - u32::from(self.len)),
-            len: self.len,
-        })
+        let len = self.len();
+        let bits = (1 << len) | (self.bits.reverse_bits() >> (BitVec::BITS - len));
+        ColorsIter(Self { bits })
     }
 }
 
@@ -84,7 +81,7 @@ impl Iterator for ColorsIter {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.0.len as usize;
+        let len = self.0.len() as usize;
         (len, Some(len))
     }
 }
@@ -137,6 +134,7 @@ mod tests {
         colors.push(Color::White);
         colors.push(Color::Black);
 
+        assert_eq!(colors.len(), 5);
         assert_eq!(colors.pop(), Some(Color::Black));
         assert_eq!(colors.pop(), Some(Color::White));
         assert_eq!(colors.pop(), Some(Color::Black));
@@ -154,6 +152,7 @@ mod tests {
         colors.push(Color::White);
         colors.push(Color::Black);
 
+        assert_eq!(colors.len(), 6);
         let v: Vec<_> = colors.into_iter().collect();
         assert_eq!(v, vec![
             Color::White,
@@ -174,7 +173,11 @@ mod tests {
         colors.push(Color::Black);
         colors.push(Color::White);
 
-        let mut a = colors.take(5);
+        assert_eq!(colors.len(), 6);
+        let mut a = colors.take(5).unwrap();
+        assert_eq!(colors.len(), 1);
+        assert_eq!(a.len(), 5);
+
         assert_eq!(a.pop(), Some(Color::White));
         assert_eq!(a.pop(), Some(Color::Black));
         assert_eq!(a.pop(), Some(Color::Black));
