@@ -6,7 +6,7 @@ use crate::{game_result::Reason, Game, GameResult};
 
 const MAX_REVERSIBLE_PLIES: u16 = 50;
 
-impl<const N: usize> Game<N> {
+impl<const N: usize, const HALF_KOMI: i8> Game<N, HALF_KOMI> {
     #[must_use]
     pub fn result(&self) -> GameResult {
         // We check the result after a move, so for the dragon clause
@@ -42,7 +42,7 @@ impl<const N: usize> Game<N> {
             Reason::BoardFill
         };
         let flat_diff = self.board.flat_diff();
-        match flat_diff.cmp(&(self.half_komi / 2)) {
+        match flat_diff.cmp(&(HALF_KOMI / 2)) {
             Ordering::Greater => GameResult::Winner {
                 color: Color::White,
                 reason,
@@ -52,11 +52,15 @@ impl<const N: usize> Game<N> {
                 reason,
             },
             Ordering::Equal => {
-                if self.half_komi % 2 == 0 {
+                if HALF_KOMI % 2 == 0 {
                     GameResult::Draw { reason }
                 } else {
                     GameResult::Winner {
-                        color: Color::Black,
+                        color: if HALF_KOMI > 0 {
+                            Color::Black
+                        } else {
+                            Color::White
+                        },
                         reason,
                     }
                 }
@@ -129,19 +133,25 @@ mod tests {
 
     #[test]
     fn board_fill_komi() {
-        let mut game = Game::<4>::from_ptn_moves(&[
+        let moves = [
             "a1", "a2", "b1", "b2", "c2", "c1", "d1", "d2", "d3", "c3", "b3", "a3", "a4", "b4",
             "c4", "d4",
-        ]);
+        ];
+        let game = Game::<4>::from_ptn_moves(&moves);
         assert_eq!(game.result(), GameResult::Draw {
             reason: Reason::BoardFill
         });
-        game.half_komi = 1;
+        let game = Game::<4, -1>::from_ptn_moves(&moves);
+        assert_eq!(game.result(), GameResult::Winner {
+            color: Color::White,
+            reason: Reason::BoardFill
+        });
+        let game = Game::<4, 1>::from_ptn_moves(&moves);
         assert_eq!(game.result(), GameResult::Winner {
             color: Color::Black,
             reason: Reason::BoardFill,
         });
-        game.half_komi = 2;
+        let game = Game::<4, 2>::from_ptn_moves(&moves);
         assert_eq!(game.result(), GameResult::Winner {
             color: Color::Black,
             reason: Reason::BoardFill

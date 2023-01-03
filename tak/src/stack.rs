@@ -33,7 +33,7 @@ impl Stack {
     }
 
     /// Get the size of the stack.
-    pub const fn size(&self) -> usize {
+    pub const fn size(&self) -> u32 {
         self.colors.len()
     }
 
@@ -72,10 +72,10 @@ impl Stack {
     }
 
     /// Try taking the top `amount` pieces from this tile.
-    pub fn take<const N: usize>(&mut self, amount: usize) -> Result<(Piece, Colors), TakeError> {
+    pub fn take<const N: usize>(&mut self, amount: u32) -> Result<(Piece, Colors), TakeError> {
         if amount == 0 {
             return Err(TakeError::Zero);
-        } else if amount > N {
+        } else if amount as usize > N {
             return Err(TakeError::CarryLimit);
         } else if amount > self.size() {
             return Err(TakeError::StackSize);
@@ -83,6 +83,6 @@ impl Stack {
 
         let piece = self.piece;
         self.piece = Piece::Flat;
-        Ok((piece, self.colors.take(amount as u8)))
+        Ok((piece, self.colors.take(amount).unwrap()))
     }
 }

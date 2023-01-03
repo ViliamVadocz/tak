@@ -5,17 +5,16 @@ use takparse::{Color, Direction, Move, MoveKind, Pattern, Piece, Square};
 use crate::{board::Board, error::PlayError, reserves::Reserves, stack::Stack};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Game<const N: usize> {
+pub struct Game<const N: usize, const HALF_KOMI: i8 = 0> {
     pub(crate) board: Board<N>,
     pub(crate) to_move: Color,
     pub(crate) white_reserves: Reserves<N>,
     pub(crate) black_reserves: Reserves<N>,
-    pub(crate) half_komi: i8,
     pub(crate) ply: u16,
     pub(crate) reversible_plies: u16,
 }
 
-impl<const N: usize> Default for Game<N>
+impl<const N: usize, const HALF_KOMI: i8> Default for Game<N, HALF_KOMI>
 where
     Reserves<N>: Default,
 {
@@ -25,35 +24,21 @@ where
             to_move: Color::White,
             white_reserves: Reserves::default(),
             black_reserves: Reserves::default(),
-            half_komi: i8::default(),
             ply: u16::default(),
             reversible_plies: u16::default(),
         }
     }
 }
 
-impl<const N: usize> Game<N>
-where
-    Reserves<N>: Default,
-{
-    #[must_use]
-    pub fn with_komi(komi: i8) -> Self {
-        Self {
-            half_komi: komi * 2,
-            ..Default::default()
-        }
+impl<const N: usize, const HALF_KOMI: i8> Game<N, HALF_KOMI> {
+    pub const fn board(&self) -> Board<N> {
+        self.board
     }
 
-    #[must_use]
-    pub fn with_half_komi(half_komi: i8) -> Self {
-        Self {
-            half_komi,
-            ..Default::default()
-        }
+    pub const fn to_move(&self) -> Color {
+        self.to_move
     }
-}
 
-impl<const N: usize> Game<N> {
     pub(crate) const fn is_swapped(&self) -> bool {
         self.ply < 2
     }
@@ -145,7 +130,7 @@ impl<const N: usize> Game<N> {
             return Err(PlayError::StackNotOwned);
         }
         let mut amount = pattern.count_pieces();
-        let (piece, colors) = stack.take::<N>(amount as usize)?;
+        let (piece, colors) = stack.take::<N>(amount)?;
         let mut carry = colors.into_iter();
 
         // For each square in the spread, stack dropped pieces.
@@ -293,13 +278,5 @@ mod tests {
             game.play(my_move),
             Err(PlayError::TakeError(TakeError::StackSize))
         );
-    }
-
-    #[test]
-    fn with_komi() {
-        let game = Game::<5>::with_komi(3);
-        assert_eq!(game.half_komi, 6);
-        let game = Game::<6>::with_half_komi(5);
-        assert_eq!(game.half_komi, 5);
     }
 }

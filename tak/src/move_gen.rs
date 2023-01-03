@@ -2,7 +2,7 @@ use takparse::{Direction, Move, MoveKind, Piece, Square};
 
 use crate::{game::Game, reserves::Reserves, stack::Stack, GameResult};
 
-impl<const N: usize> Game<N> {
+impl<const N: usize, const HALF_KOMI: i8> Game<N, HALF_KOMI> {
     /// Populate moves vector with all possible moves for the current position.
     ///
     /// # Panics
@@ -69,7 +69,7 @@ impl<const N: usize> Game<N> {
         let n = N as u8;
 
         let Some(stack) = self.board.get(square) else {return;};
-        let max_carry: u8 = stack.size().min(N) as u8;
+        let max_carry: u8 = stack.size().min(N as u32) as u8;
 
         let mut spreads = Vec::new();
         for pickup in 1..=max_carry {

@@ -2,7 +2,7 @@ use takparse::{Move, ParseMoveError};
 
 use crate::{reserves::Reserves, Game, GameResult, PlayError};
 
-impl<const N: usize> Game<N>
+impl<const N: usize, const HALF_KOMI: i8> Game<N, HALF_KOMI>
 where
     Reserves<N>: Default,
 {

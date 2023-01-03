@@ -76,7 +76,7 @@ impl<const N: usize> Symmetry<N> for Board<N> {
     }
 }
 
-impl<const N: usize> Symmetry<N> for Game<N> {
+impl<const N: usize, const HALF_KOMI: i8> Symmetry<N> for Game<N, HALF_KOMI> {
     fn symmetries(self) -> [Self; 8] {
         let mut games = [self; 8];
         for (i, board) in self.board.symmetries().into_iter().enumerate().skip(1) {
