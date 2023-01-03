@@ -94,6 +94,16 @@ fn zip<const N: usize, A: Copy, B: Copy>(a: [A; N], b: [B; N]) -> [(A, B); N] {
     })
 }
 
+impl<const N: usize> Game<N> {
+    pub fn canonical(self) -> (usize, Self) {
+        self.symmetries()
+            .into_iter()
+            .enumerate()
+            .min_by_key(|(_, game)| *game)
+            .unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{reserves::Reserves, symm::Symmetry, Game, GameResult, PlayError};
