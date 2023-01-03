@@ -51,6 +51,6 @@ mod tests {
             "a1", "e5", "a3", "b1", "c3", "c1", "e3", "d1", "d3", "e1", "b5",
         ])
         .unwrap();
-        assert_eq!(Game::<5>::from_moves(&moves), Err(PlayError::GameOver));
+        assert_eq!(Game::<5, 0>::from_moves(&moves), Err(PlayError::GameOver));
     }
 }

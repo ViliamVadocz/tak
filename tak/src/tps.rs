@@ -4,8 +4,8 @@ use takparse::{Color, ExtendedSquare, Piece, Stack as TpsStack, Tps};
 
 use crate::{reserves::Reserves, Game};
 
-impl<const N: usize> From<Game<N>> for Tps {
-    fn from(game: Game<N>) -> Self {
+impl<const N: usize, const HALF_KOMI: i8> From<Game<N, HALF_KOMI>> for Tps {
+    fn from(game: Game<N, HALF_KOMI>) -> Self {
         let mut board: Vec<_> = game
             .board
             .iter()
@@ -31,7 +31,7 @@ impl<const N: usize> From<Game<N>> for Tps {
     }
 }
 
-impl<const N: usize> From<Tps> for Game<N>
+impl<const N: usize, const HALF_KOMI: i8> From<Tps> for Game<N, HALF_KOMI>
 where
     Reserves<N>: Default,
 {
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn complicated_board() {
-        let game = Game::<6>::from_ptn_moves(&[
+        let game = Game::<6, 0>::from_ptn_moves(&[
             "e1", "f2", "Sb5", "Cd6", "d3", "d4", "Sc1", "c3", "Ca6", "f6", "b1", "Sb4", "b3",
             "b2", "d5", "e1>", "d3>", "b2<", "Se2", "f4", "f2-", "c3-", "e4", "Sa5", "c3", "c5",
             "b5>", "a2-", "Sb5", "e6", "2c5-11", "d6>", "d5<", "b2", "b3-", "b3", "e3+", "e6>",
@@ -119,7 +119,7 @@ mod tests {
     where
         Reserves<N>: Default,
     {
-        let mut game = Game::<N>::default();
+        let mut game = Game::<N, 0>::default();
         let mut moves = Vec::new();
         while game.result() == GameResult::Ongoing {
             moves.clear();
@@ -131,7 +131,7 @@ mod tests {
 
             let tps: Tps = game.into();
             println!("{tps}");
-            let tps_game: Game<N> = tps.into();
+            let tps_game: Game<N, 0> = tps.into();
 
             assert_eq!(game.board, tps_game.board, "board does not equal");
             assert_eq!(game.to_move, tps_game.to_move, "to_move does not equal");

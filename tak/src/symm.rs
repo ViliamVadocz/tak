@@ -96,9 +96,7 @@ fn zip<const N: usize, A: Copy, B: Copy>(a: [A; N], b: [B; N]) -> [(A, B); N] {
     })
 }
 
-impl<const N: usize> Game<N> {
-    pub fn canonical(self) -> (usize, Self) {
-        self.symmetries()
+impl<const N: usize, const HALF_KOMI: i8> Game<N, HALF_KOMI> {
             .into_iter()
             .enumerate()
             .min_by_key(|(_, game)| *game)
@@ -115,7 +113,7 @@ mod tests {
         Reserves<N>: Default,
     {
         let [mut g0, mut g1, mut g2, mut g3, mut g4, mut g5, mut g6, mut g7] =
-            Game::<N>::default().symmetries();
+            Game::<N, 0>::default().symmetries();
         let mut moves = Vec::new();
         while matches!(g0.result(), GameResult::Ongoing) {
             moves.clear();

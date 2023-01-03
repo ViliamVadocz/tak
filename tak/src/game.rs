@@ -5,7 +5,7 @@ use takparse::{Color, Direction, Move, MoveKind, Pattern, Piece, Square};
 use crate::{board::Board, error::PlayError, reserves::Reserves, stack::Stack};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Game<const N: usize, const HALF_KOMI: i8 = 0> {
+pub struct Game<const N: usize, const HALF_KOMI: i8> {
     pub(crate) board: Board<N>,
     pub(crate) to_move: Color,
     pub(crate) white_reserves: Reserves<N>,
@@ -169,28 +169,28 @@ mod tests {
 
     #[test]
     fn square_out_of_bounds() {
-        let mut game = Game::<5>::default();
+        let mut game = Game::<5, 0>::default();
         let my_move = "a8".parse().unwrap();
         assert_eq!(game.play(my_move), Err(PlayError::OutOfBounds));
     }
 
     #[test]
     fn already_occupied() {
-        let mut game = Game::<5>::from_ptn_moves(&["a2"]);
+        let mut game = Game::<5, 0>::from_ptn_moves(&["a2"]);
         let my_move = "a2".parse().unwrap();
         assert_eq!(game.play(my_move), Err(PlayError::AlreadyOccupied));
     }
 
     #[test]
     fn no_capstone() {
-        let mut game = Game::<6>::from_ptn_moves(&["a1", "b1", "Ca2", "b2"]);
+        let mut game = Game::<6, 0>::from_ptn_moves(&["a1", "b1", "Ca2", "b2"]);
         let my_move = "Ca3".parse().unwrap();
         assert_eq!(game.play(my_move), Err(PlayError::NoCapstone));
     }
 
     #[test]
     fn no_stones() {
-        let mut game = Game::<3>::from_ptn_moves(&[
+        let mut game = Game::<3, 0>::from_ptn_moves(&[
             "a1", "b1", "a2", "b2", "a2-", "a2", "b1<", "b1", "3a1>", "a1", "b1<", "c1", "3b1>",
             "b1", "2a1>", "a1", "3b1<", "b1", "c2", "c3",
         ]);
@@ -202,28 +202,28 @@ mod tests {
 
     #[test]
     fn opening_wall() {
-        let mut game = Game::<7>::default();
+        let mut game = Game::<7, 0>::default();
         let my_move = "Sa1".parse().unwrap();
         assert_eq!(game.play(my_move), Err(PlayError::OpeningNonFlat));
     }
 
     #[test]
     fn opening_capstone() {
-        let mut game = Game::<8>::default();
+        let mut game = Game::<8, 0>::default();
         let my_move = "Ca1".parse().unwrap();
         assert_eq!(game.play(my_move), Err(PlayError::OpeningNonFlat));
     }
 
     #[test]
     fn empty_square() {
-        let mut game = Game::<4>::from_ptn_moves(&["a1", "b1", "a2"]);
+        let mut game = Game::<4, 0>::from_ptn_moves(&["a1", "b1", "a2"]);
         let my_move = "b2<".parse().unwrap();
         assert_eq!(game.play(my_move), Err(PlayError::EmptySquare));
     }
 
     #[test]
     fn stack_not_owned() {
-        let mut game = Game::<5>::from_ptn_moves(&[
+        let mut game = Game::<5, 0>::from_ptn_moves(&[
             "a1", "e5", "c3", "b2", "c2", "c1", "d1", "Cd2", "b1", "c1+", "Cc1", "e2", "c1+",
         ]);
         let my_move = "3c2<12".parse().unwrap();
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn spread_out_of_bounds() {
-        let mut game = Game::<5>::from_ptn_moves(&[
+        let mut game = Game::<5, 0>::from_ptn_moves(&[
             "a1", "e5", "c3", "b2", "c2", "c1", "d1", "Cd2", "b1", "c1+", "Cc1", "e2", "c1+", "a2",
         ]);
         let my_move = "3c2-111".parse().unwrap();
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn stack_on_wall() {
-        let mut game = Game::<4>::from_ptn_moves(&["a1", "a2", "Sb1"]);
+        let mut game = Game::<4, 0>::from_ptn_moves(&["a1", "a2", "Sb1"]);
         let my_move = "a1>".parse().unwrap();
         assert_eq!(
             game.play(my_move),
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn stack_on_cap() {
-        let mut game = Game::<7>::from_ptn_moves(&["a1", "a2", "Cb1"]);
+        let mut game = Game::<7, 0>::from_ptn_moves(&["a1", "a2", "Cb1"]);
         let my_move = "a1>".parse().unwrap();
         assert_eq!(
             game.play(my_move),
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn carry_limit() {
         let mut game =
-            Game::<3>::from_ptn_moves(&["a1", "b1", "b1<", "b1", "2a1>", "a1", "3b1<", "b1"]);
+            Game::<3, 0>::from_ptn_moves(&["a1", "b1", "b1<", "b1", "2a1>", "a1", "3b1<", "b1"]);
         let my_move = "4a1>".parse().unwrap();
         assert_eq!(
             game.play(my_move),
@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn take_more_than_stack() {
-        let mut game = Game::<3>::from_ptn_moves(&["a1", "b1", "b1<", "b1"]);
+        let mut game = Game::<3, 0>::from_ptn_moves(&["a1", "b1", "b1<", "b1"]);
         let my_move = "3a1>".parse().unwrap();
         assert_eq!(
             game.play(my_move),
