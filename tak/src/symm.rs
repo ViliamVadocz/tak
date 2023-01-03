@@ -56,16 +56,18 @@ impl<const N: usize> Symmetry<N> for Move {
 
 impl<const N: usize> Symmetry<N> for Board<N> {
     fn symmetries(self) -> [Self; 8] {
-        let n = N as u8;
-        let mut boards = [Self::default(); 8];
-        for x in 0..n {
-            for y in 0..n {
-                let square = Square::new(x, y);
-                for (i, sym) in Symmetry::<N>::symmetries(square).into_iter().enumerate() {
-                    // Unwraps are sound because the square is guaranteed to be on the board.
+        let mut boards = [self; 8];
+        for (x, row) in self.iter().enumerate() {
+            for (y, &stack) in row.enumerate() {
+                let square = Square::new(x as u8, y as u8);
+                for (i, sym) in Symmetry::<N>::symmetries(square)
+                    .into_iter()
+                    .enumerate()
+                    .skip(1)
+                {
+                    // Unwrap is sound because the square is guaranteed to be on the board.
                     unsafe {
-                        *boards[i].get_mut(sym).unwrap_unchecked() =
-                            *self.get(square).unwrap_unchecked();
+                        *boards[i].get_mut(sym).unwrap_unchecked() = stack;
                     }
                 }
             }

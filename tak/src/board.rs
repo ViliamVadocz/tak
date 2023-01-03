@@ -18,16 +18,19 @@ impl<const N: usize> Default for Board<N> {
 }
 
 impl<const N: usize> Board<N> {
+    #[inline]
     pub fn iter(&self) -> impl Iterator<Item = impl Iterator<Item = &Stack>> {
         self.data.iter().map(|row| row.iter())
     }
 
+    #[inline]
     pub fn get(&self, square: Square) -> Option<&Stack> {
         self.data
             .get(square.row() as usize)
             .and_then(|r| r.get(square.column() as usize))
     }
 
+    #[inline]
     pub fn get_mut(&mut self, square: Square) -> Option<&mut Stack> {
         self.data
             .get_mut(square.row() as usize)
