@@ -2,13 +2,16 @@ target/
 
 .vscode/
 
-*.model
+_models/
+_examples/
+_games/
+_playtak_games/
+
+
 *.ptn
-*.data
 *.log
 *.txt
 *.py
-*.zip
 *.png
 
 !graph.py
