@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use alpha_tak::{sys_time, Net5, Net6, Network, Player};
+use alpha_tak::{sys_time, Net6, Network, Player};
 use tak::*;
 use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver, UnboundedSender};
 use tokio_takconnect::data_types::WinReason;

@@ -22,7 +22,12 @@ const KOMI: i32 = 2;
 const HALF_KOMI: i32 = KOMI * 2;
 
 const WHITE_FIRST_MOVE: &str = "a1";
-const OPENING_BOOK: [(&str, &str); 4] = [("a1", "f6"), ("a6", "f1"), ("f1", "a6"), ("f6", "a1")];
+
+#[allow(unused)]
+const OPPOSITE_CORNER: [(&str, &str); 4] = [("a1", "f6"), ("a6", "f1"), ("f1", "a6"), ("f6", "a1")];
+#[allow(unused)]
+const HUG: [(&str, &str); 4] = [("a1", "b1"), ("a6", "a5"), ("f1", "f2"), ("f6", "e6")];
+const OPENING_BOOK: [(&str, &str); 4] = OPPOSITE_CORNER;
 
 const PONDER_ROLLOUT_LIMIT: u64 = 50_000;
 
