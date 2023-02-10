@@ -97,10 +97,16 @@ fn zip<const N: usize, A: Copy, B: Copy>(a: [A; N], b: [B; N]) -> [(A, B); N] {
 }
 
 impl<const N: usize, const HALF_KOMI: i8> Game<N, HALF_KOMI> {
+    pub fn canonical(mut self) -> (usize, Self) {
+        let (i, board) = self
+            .board
+            .symmetries()
             .into_iter()
             .enumerate()
-            .min_by_key(|(_, game)| *game)
-            .unwrap()
+            .min_by_key(|(_, board)| *board)
+            .unwrap();
+        self.board = board;
+        (i, self)
     }
 }
 
