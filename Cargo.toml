@@ -1,2 +1,2 @@
 [workspace]
-members = ["xtask", "tak"]
+members = ["xtask", "tak", "search"]

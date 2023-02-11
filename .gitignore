@@ -1,6 +1,7 @@
 # Rust
 target/
 coverage/
+Cargo.lock
 
 # IDE
 .vscode/

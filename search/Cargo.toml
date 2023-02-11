@@ -1,0 +1,9 @@
+[package]
+name = "search"
+version = "0.1.0"
+edition = "2021"
+description = "Monte-Carlo Graph Search implementation for Tak"
+
+[dependencies]
+tak = { path = "../tak" }
+rustc-hash = "1.1.0"
